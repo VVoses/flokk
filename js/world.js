@@ -1340,9 +1340,11 @@ function shapeField(f) {
   f.w = Math.max(...xs) - f.x;
   f.h = Math.max(...ys) - f.y;
 }
+// pig pens, and plots laid out with their final outline already (f.plot), keep the shape they came with
 function shapeFields() {
-  for (const f of FIELDS) if (f.t !== 'sty') f.poly = null;
-  for (const f of FIELDS) if (f.t !== 'sty') shapeField(f);
+  const own = f => f.t !== 'sty' && !f.plot;
+  for (const f of FIELDS) if (own(f)) f.poly = null;
+  for (const f of FIELDS) if (own(f)) shapeField(f);
 }
 // a pig pen stays a small, fenced, nearly square plot inside its own box, only leaning a little
 function mkPenPoly(f) {
