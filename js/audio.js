@@ -360,10 +360,17 @@ function hopper() {
     s.stop(t0 + 0.04);
   }
 }
-function songbird() {
+/* how much birdsong the season holds: it builds through spring as the migrants arrive and pair up, peaks
+   at the turn of summer and softens as the young fledge; autumn is sparse, and rain quiets everything */
+function birdLife() {
+  const p = GROW.p,
+    b = [0.4 + 0.9 * p, 1.25 - 0.75 * p, 0.5 - 0.15 * p, 1][SEASON];
+  return b * (1 - 0.7 * LIGHT.rain);
+}
+function songbird(v = 1) {
   const t = ac.currentTime + 0.02,
     out = ac.createGain();
-  out.gain.value = rr(0.007, 0.014);
+  out.gain.value = rr(0.007, 0.014) * v;
   const p = panned(out, rr(-1, 1));
   p.connect(master);
   p.connect(verb);
@@ -1222,18 +1229,26 @@ function audioTick(dt) {
       dawn = hr > 3.5 && hr < 9 && nf < 0.8;
     amb.cricketT -= dt;
     if (amb.cricketT <= 0) {
-      if ((SEASON === 1 || SEASON === 2) && Math.random() < 0.35 + 0.65 * nf) cricket();
+      // crickets build through summer and die back with the autumn frosts
+      const ck = SEASON === 1 ? 0.5 + 0.6 * GROW.p : SEASON === 2 ? 1 - 0.75 * GROW.p : 0;
+      if (Math.random() < (0.35 + 0.65 * nf) * ck) cricket();
       amb.cricketT = rr(0.5, 2.2) * (st.settled ? 0.7 : 1);
     }
     amb.hopperT -= dt;
     if (amb.hopperT <= 0) {
-      if ((SEASON === 1 || SEASON === 2) && nf < 0.3) hopper();
+      if ((SEASON === 1 || SEASON === 2) && nf < 0.3 && Math.random() < (SEASON === 1 ? 0.5 + GROW.p : 1.2 - GROW.p))
+        hopper();
       amb.hopperT = rr(5, 13);
     }
     amb.songT -= dt;
     if (amb.songT <= 0) {
-      if (nf < 0.6 && (SEASON < 3 || Math.random() < 0.3)) songbird();
-      amb.songT = (rr(3, 9) / (dawn && SEASON < 2 ? 3 : 1)) * (SEASON === 2 ? 1.8 : 1);
+      const bl = birdLife(),
+        chorus = dawn && SEASON < 2 ? 1 + 2 * Math.min(1, bl) : 1; // the dawn chorus swells with the season
+      if (nf < 0.6 && (SEASON < 3 || Math.random() < 0.3)) {
+        songbird(0.6 + 0.35 * Math.min(1.3, bl));
+        if (chorus > 2.4 && Math.random() < 0.4) songbird(0.45);
+      }
+      amb.songT = rr(3, 9) / Math.max(0.2, SEASON === 3 ? 1 : bl * chorus);
     }
     amb.owlT = (amb.owlT || 8) - dt;
     if (amb.owlT <= 0) {
@@ -1242,7 +1257,8 @@ function audioTick(dt) {
     }
     amb.frogT = (amb.frogT || 5) - dt;
     if (amb.frogT <= 0) {
-      if (SEASON === 0 && nf > 0.4 && L && Math.hypot(wdx(L.x, LAKE.x), L.y - LAKE.y) < LAKE.r + 700) frog();
+      if (SEASON === 0 && GROW.p > 0.2 && nf > 0.4 && L && Math.hypot(wdx(L.x, LAKE.x), L.y - LAKE.y) < LAKE.r + 700)
+        frog();
       amb.frogT = rr(1.5, 5);
     }
     const calm = !hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover');
@@ -1250,7 +1266,8 @@ function audioTick(dt) {
     amb.seaT = (amb.seaT || rr(8, 16)) - dt;
     if (amb.seaT <= 0) {
       amb.seaT = rr(10, 26);
-      if (SEASON === 0 && nf < 0.4 && calm && Math.random() < 0.55) cuckoo();
+      if (SEASON === 0 && GROW.p > 0.3 && nf < 0.4 && calm && Math.random() < 0.55)
+        cuckoo(); // not back until May
       else if (SEASON === 2 && nf < 0.5 && Math.random() < 0.45) skein();
       else if (SEASON === 3) {
         if (nf < 0.5 && Math.random() < 0.6) titCall();
@@ -1305,11 +1322,15 @@ function audioTick(dt) {
   // day, which was a steady chunk of what made the mix read as one flat hiss instead of layers
   amb.wg.gain.setTargetAtTime(0.007 + 0.008 * ww + (0.024 + 0.011 * ww) * g + (speed / 250) * 0.009, now, 1.2);
   amb.wf.frequency.setTargetAtTime(220 + 520 * g, now, 1.8);
-  amb.wg2.gain.setTargetAtTime((g > 0.7 ? 0.004 : 0.0008) * (1 + 1.6 * ww), now, 1.5);
+  // winter nights get a thin, cold whistle through the bare trees
+  amb.wg2.gain.setTargetAtTime((g > 0.7 ? 0.004 : 0.0008) * (1 + 1.6 * ww) * (1 + 1.4 * ww * LIGHT.night), now, 1.5);
   amb.wf2.frequency.setTargetAtTime(700 + 700 * g, now, 2);
   // this is a bare highpass hiss (no band to give it shape), so it's the layer most likely to read
   // as "static" on its own - trimmed back to a hint of rustle rather than a competing noise bed
-  amb.wg3.gain.setTargetAtTime((0.0013 + 0.004 * g) * (1 + 0.9 * au) * (1 - 0.7 * ww), now, 1);
+  // leaf rustle needs leaves: little in early spring, growing as the trees leaf out, thinning as they drop
+  const leafy =
+    SEASON === 0 ? 0.4 + 0.6 * smooth(0.25, 0.7, GROW.p) : SEASON === 2 ? 1 - 0.5 * smooth(0.6, 1, GROW.p) : 1;
+  amb.wg3.gain.setTargetAtTime((0.0013 + 0.004 * g) * (1 + 0.9 * au) * (1 - 0.7 * ww) * leafy, now, 1);
   let wd = 1e9;
   if (L) {
     for (const [c, rf] of [

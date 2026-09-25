@@ -379,6 +379,7 @@ function applySeason(s, smooth) {
       }
     }
   }
+  growSeason();
   spawnAnimals();
   if (smooth) {
     for (const a of ANIMALS) a.fade = 0;

@@ -42,6 +42,13 @@ window.dev = {
     TRANS.prevG = null;
     TRANS.prevSPR = null;
   },
+  // pin how far through the season the land is (0..1) for gradual-change screenshots; no argument unpins
+  grow(p) {
+    DEV.growP = p;
+    GROW.mKey = '';
+    GROW.mT = 0;
+    growTick(0);
+  },
   hour(h) {
     const day = Math.floor(CAL.t / DAY_LEN);
     CAL.t = day * DAY_LEN + (((h - START_HOUR + 24) % 24) / 24) * DAY_LEN;
