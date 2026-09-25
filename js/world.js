@@ -649,7 +649,6 @@ function genLayout() {
       if (fieldOK(f)) {
         f.t = types[(R() * types.length) | 0];
         f.dir = R() < 0.5 ? 0 : 1;
-        f.poly = mkFieldPoly(f);
         FIELDS.push(f);
         n++;
         return;
@@ -706,7 +705,7 @@ function genLayout() {
       if (!styOK(r, fm)) continue;
       r.t = 'sty';
       r.dir = 0;
-      r.poly = mkFieldPoly(r);
+      r.poly = mkPenPoly(r);
       FIELDS.push(r);
       // the shelter sits at whichever edge of the pen faces back toward the yard
       const tx = vert ? (x < Y.x ? 1 : -1) : 0,
@@ -776,7 +775,6 @@ function genLayout() {
     if (fieldOK(f)) {
       f.t = types[(R() * types.length) | 0];
       f.dir = R() < 0.5 ? 0 : 1;
-      f.poly = mkFieldPoly(f);
       FIELDS.push(f);
     }
   }
@@ -790,7 +788,6 @@ function genLayout() {
     if (!fieldOK(f)) continue;
     if (FIELDS.some(o => x < o.x + o.w + 80 && x + f.w > o.x - 80 && y < o.y + o.h + 80 && y + f.h > o.y - 80))
       continue;
-    f.poly = mkFieldPoly(f);
     FIELDS.push(f);
     const cb = {
       cx: x + f.w + 60,
@@ -889,6 +886,7 @@ function genLayout() {
       break;
     }
   }
+  shapeFields();
   LAND_NAME = landName();
 }
 function genWorld(seed) {
@@ -932,35 +930,53 @@ function genWorld(seed) {
       if (type === 'decid') r *= 1.1;
       addTree(x, y, type, r);
     }
+  // hedgerows along open field edges; where a field meets forest, a ragged tree line closes up to it
   for (const f of FIELDS) {
     if (f.t === 'sty') continue; // too small a plot for full-size hedge trees - it'd swallow the pen whole
     const P = f.poly,
-      cc = polyCentroid(P),
-      E = P.map((p, i) => {
-        const q = P[(i + 1) % P.length],
-          mx = (p[0] + q[0]) / 2,
-          my = (p[1] + q[1]) / 2;
-        let nx = q[1] - p[1],
-          ny = -(q[0] - p[0]);
-        const l = Math.hypot(nx, ny) || 1;
-        nx /= l;
-        ny /= l;
-        if (nx * (mx - cc[0]) + ny * (my - cc[1]) < 0) {
-          nx = -nx;
-          ny = -ny;
+      n = P.length;
+    let area = 0;
+    for (let i = 0; i < n; i++) {
+      const p = P[i],
+        q = P[(i + 1) % n];
+      area += p[0] * q[1] - q[0] * p[1];
+    }
+    const sg = area > 0 ? 1 : -1;
+    let acc = rnd(0, 30);
+    for (let i = 0; i < n; i++) {
+      const [x0, y0] = P[i],
+        [x1, y1] = P[(i + 1) % n],
+        L = Math.hypot(x1 - x0, y1 - y0) || 1,
+        nx = ((y1 - y0) / L) * sg,
+        ny = (-(x1 - x0) / L) * sg,
+        forest = f.edge && f.edge[i] === 2;
+      for (; acc < L; acc += forest ? rnd(20, 34) : rnd(40, 70)) {
+        const t = acc / L,
+          ex = lerp(x0, x1, t),
+          ey = lerp(y0, y1, t);
+        if (forest) {
+          // front rank right on the edge, a looser rank behind it, spruce among the birches
+          for (const [pr, d0, d1] of [
+            [0.9, 2, 20],
+            [0.55, 26, 56]
+          ]) {
+            if (R() > pr) continue;
+            const r = rnd(16, 27),
+              d = r * 0.55 + rnd(d0, d1),
+              u = R(),
+              x = ex + nx * d + rnd(-8, 8),
+              y = ey + ny * d + rnd(-8, 8);
+            if (!blocked(x, y, r)) addTree(wrapX(x), y, u < 0.4 ? 'spruce' : u < 0.75 ? 'birch' : 'decid', r);
+          }
+        } else if (R() < 0.5) {
+          const r = rnd(15, 23),
+            d = r + rnd(4, 12),
+            x = ex + nx * d,
+            y = ey + ny * d;
+          if (!blocked(x, y, r)) addTree(x, y, R() < 0.6 ? 'birch' : 'decid', r);
         }
-        return [p[0], p[1], q[0], q[1], nx, ny];
-      });
-    for (const [x0, y0, x1, y1, nx, ny] of E) {
-      const L = Math.hypot(x1 - x0, y1 - y0);
-      for (let s = 20; s < L; s += rnd(40, 70)) {
-        if (R() < 0.5) continue;
-        const t = s / L,
-          r = rnd(15, 23);
-        const x = lerp(x0, x1, t) + nx * (r + rnd(4, 12)),
-          y = lerp(y0, y1, t) + ny * (r + rnd(4, 12));
-        if (!blocked(x, y, r)) addTree(x, y, R() < 0.6 ? 'birch' : 'decid', r);
       }
+      acc -= L;
     }
   }
   for (const [c, rf, st2] of [
@@ -1162,19 +1178,174 @@ function wireUp(poles) {
   LINES.push(poles);
 }
 
-/* ---------- field outlines: irregular, hedged plots that lean with the land instead of perfect
-   rectangles. Corners and edges bend using the same kind of low-frequency, smoothly-varying terrain
-   noise that drives the hillshading (pfbm at a wavelength close to a field's own size), so a plot's
-   boundary reads as loosely following the swells and dips of the ground it sits on rather than being
-   jittered independently of the landscape - nearby points drift together instead of each wobbling on
-   its own. Still clamped to the field's own (already collision-checked) bounding box throughout, so
-   this can never push a boundary into a neighbor, a road, water or a building. */
+/* ---------- field outlines ----------
+   Plots are planned as rectangles (cheap to keep apart from each other, the road, water and yards), then
+   shaped once the whole land is known, the way real farmland is: cleared right up to whatever it meets.
+   Each outline starts as a rounded box, and every point on it moves along its normal:
+   - with a slow warp of the land that all fields share, so neighbours lean together and the strip
+     between two plots stays a strip instead of pinching shut;
+   - out to a narrow verge where it faces the road or the railway, so the edge traces their curves;
+   - out to the trees where it faces forest, with a ragged margin (genWorld then plants the tree line);
+   and never onto anything it must not cover: water, road, rail, lanes, yards, buildings, other plots.
+   f.edge marks each outline point 0 open land, 1 road or rail, 2 forest. */
+const VERGE = 36, // road or rail centre line to the field edge
+  FREACH = 240; // how far an edge may reach out beyond its planned box
 function fieldLean(x, y, ox, oy) {
   // two octaves: a broad drift (which way the whole plot leans) plus a finer ripple so a long edge
   // undulates instead of staying a single straight lean end to end - smooth, roughly [-0.5, 0.5]
   return pfbm(x, y, 190, ox, oy) * 0.72 + pfbm(x, y, 70, ox + 41, oy + 19) * 0.28 - 0.5;
 }
-function mkFieldPoly(f) {
+// may field f cover the point (x,y)?
+function fieldFree(f, x, y) {
+  if (x < 30 || x > W - 30 || y < NORTH - 60 || y > H - 400) return false;
+  if (inWater(x, y, 26) || roadDist(x, y) < VERGE || railDist(x, y) < VERGE) return false;
+  for (const Y of YARDS) if (inRect(x, y, Y, 22)) return false;
+  if (inBuild(x, y, 18)) return false;
+  for (const P of LANES) if (polyDist(x, y, P) < 20) return false;
+  for (const o of FIELDS) if (o !== f && (o.poly ? inField(o, x, y, 14) : inRect(x, y, o, 4))) return false;
+  return true;
+}
+// a rounded box, sampled about every `step` units clockwise (on screen), with outward normals
+function roundBox(f, rc, step) {
+  const out = [],
+    { x, y, w, h } = f,
+    arc = (cx, cy, a0) => {
+      const n = Math.max(2, Math.round((rc * Math.PI) / 2 / step));
+      for (let k = 0; k < n; k++) {
+        const a = a0 + ((k / n) * Math.PI) / 2,
+          nx = Math.cos(a),
+          ny = Math.sin(a);
+        out.push({ x: cx + nx * rc, y: cy + ny * rc, nx, ny, c: 1 });
+      }
+    },
+    line = (x0, y0, x1, y1, nx, ny) => {
+      const L = Math.hypot(x1 - x0, y1 - y0),
+        n = Math.max(1, Math.round(L / step));
+      for (let k = 0; k < n; k++) out.push({ x: lerp(x0, x1, k / n), y: lerp(y0, y1, k / n), nx, ny, c: 0 });
+    };
+  line(x + rc, y, x + w - rc, y, 0, -1);
+  arc(x + w - rc, y + rc, -Math.PI / 2);
+  line(x + w, y + rc, x + w, y + h - rc, 1, 0);
+  arc(x + w - rc, y + h - rc, 0);
+  line(x + w - rc, y + h, x + rc, y + h, 0, 1);
+  arc(x + rc, y + h - rc, Math.PI / 2);
+  line(x, y + h - rc, x, y + rc, -1, 0);
+  arc(x + rc, y + rc, Math.PI);
+  return out;
+}
+function segsCross(a, b, c, d) {
+  const o = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+}
+function polySimple(P) {
+  const n = P.length;
+  for (let i = 0; i < n; i++)
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue;
+      if (segsCross(P[i], P[(i + 1) % n], P[j], P[(j + 1) % n])) return false;
+    }
+  return true;
+}
+function shapeField(f) {
+  const m = Math.min(f.w, f.h),
+    rc = m * (0.07 + 0.16 * pfbm(f.x, f.y, 300, 5, 9)),
+    B = roundBox(f, rc, 26),
+    N = B.length,
+    A = Math.min(75, m * 0.18),
+    room = new Float32Array(N),
+    tgt = new Float32Array(N),
+    land = new Float32Array(N),
+    edge = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    const b = B[i],
+      at = t => [b.x + b.nx * t, b.y + b.ny * t],
+      free = t => fieldFree(f, ...at(t));
+    // how far out this point may go: coarse steps, then halve down onto the obstacle
+    let t = 0;
+    if (!free(0)) t = -1;
+    else {
+      while (t < FREACH && free(t + 10)) t += 10;
+      if (t < FREACH) for (let d = 5; d >= 1.25; d /= 2) if (free(t + d)) t += d;
+    }
+    room[i] = t;
+    // the shared warp of the land (a slow 2D drift, so facing edges of two plots move together) and a ripple
+    const wx = pfbm(b.x, b.y, 420, 17, 53) - 0.5,
+      wy = pfbm(b.x, b.y, 420, 61, 29) - 0.5,
+      lo = (wx * b.nx + wy * b.ny) * 3.5 * A + (pfbm(b.x, b.y, 110, 7, 91) - 0.5) * m * 0.16;
+    let o = lo;
+    // forest within reach: clear right up to it
+    let tf = -1;
+    for (let s = 0; s <= Math.min(t, 200); s += 12)
+      if (forestness(...at(s)) > 0.56) {
+        tf = s;
+        break;
+      }
+    if (tf >= 0) {
+      edge[i] = 2;
+      o = tf - 8;
+    } else if (t >= 0 && t < (b.c ? 60 : 150)) {
+      // the road or railway: close in to a narrow verge, letting go gradually as it bends away
+      // (a corner only reaches for one it nearly touches, or it grows a spike along the diagonal)
+      const [sx, sy] = at(t + 3);
+      if (roadDist(sx, sy) < VERGE + 1 || railDist(sx, sy) < VERGE + 1) {
+        const k = b.c ? 1 : clamp((150 - t) / 80, 0, 1);
+        o = lerp(Math.min(lo, t), t - 2, k * k * (3 - 2 * k));
+        if (k > 0.5) edge[i] = 1;
+      }
+    }
+    land[i] = Math.min(lo, t);
+    tgt[i] = o;
+  }
+  // road-facing points with hardly any straight edge among them are a corner catching the road at a
+  // slant: following it would grow a spike
+  for (let i = 0; i < N; i++) {
+    if (edge[i] !== 1 || edge[(i + N - 1) % N] === 1) continue;
+    let k = 0,
+      flat = 0;
+    for (; k < N && edge[(i + k) % N] === 1; k++) flat += 1 - B[(i + k) % N].c;
+    if (flat < 3)
+      for (let j = 0; j < k; j++) {
+        edge[(i + j) % N] = 0;
+        tgt[(i + j) % N] = land[(i + j) % N];
+      }
+  }
+  // smooth along the outline so neighbouring points agree, then roughen the forest edges again
+  let off = tgt;
+  for (let pass = 0; pass < 3; pass++) {
+    const nx = new Float32Array(N);
+    for (let i = 0; i < N; i++) nx[i] = (off[(i + N - 1) % N] + 2 * off[i] + off[(i + 1) % N]) / 4;
+    off = nx;
+  }
+  for (let i = 0; i < N; i++)
+    if (edge[i] === 2)
+      off[i] += (pfbm(B[i].x, B[i].y, 60, 23, 37) - 0.5) * 50 + (pfbm(B[i].x, B[i].y, 23, 3, 71) - 0.5) * 18;
+  // a deeply pulled-in point can fold the outline over itself: ease the pull until it can't
+  for (let inK = 1; ; inK *= 0.5) {
+    const P = B.map((b, i) => {
+      const lo = -(b.c ? rc * 0.85 : m * 0.2) * inK,
+        o = Math.max(lo, Math.min(off[i], room[i]));
+      return [b.x + b.nx * o, b.y + b.ny * o];
+    });
+    if (inK < 0.1 || polySimple(P)) {
+      f.poly = P;
+      break;
+    }
+  }
+  f.edge = edge;
+  // the planned box becomes the outline's bounds (quick rejects, painting and sampling all use it)
+  const xs = f.poly.map(p => p[0]),
+    ys = f.poly.map(p => p[1]);
+  f.x = Math.min(...xs);
+  f.y = Math.min(...ys);
+  f.w = Math.max(...xs) - f.x;
+  f.h = Math.max(...ys) - f.y;
+}
+function shapeFields() {
+  for (const f of FIELDS) if (f.t !== 'sty') f.poly = null;
+  for (const f of FIELDS) if (f.t !== 'sty') shapeField(f);
+}
+// a pig pen stays a small, fenced, nearly square plot inside its own box, only leaning a little
+function mkPenPoly(f) {
   const jx = f.w * 0.26,
     jy = f.h * 0.26;
   const raw = [

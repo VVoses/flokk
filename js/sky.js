@@ -206,17 +206,19 @@ function genBushes() {
   // low cover along field edges, between the hedgerow trees
   for (const f of FIELDS) {
     const P = f.poly;
+    let s = 10; // carried round the outline, so short outline segments get no more bushes than long ones
     for (let i = 0; i < P.length; i++) {
       const p = P[i],
         q = P[(i + 1) % P.length],
         Ld = Math.hypot(q[0] - p[0], q[1] - p[1]);
-      for (let s = 10; s < Ld; s += rnd(30, 55)) {
+      for (; s < Ld; s += rnd(30, 55)) {
         if (R() < 0.55) continue;
         const t = s / Ld,
           x = lerp(p[0], q[0], t) + rnd(-14, 14),
           y = lerp(p[1], q[1], t) + rnd(-14, 14);
         addBush(x, y, rnd(7, 13));
       }
+      s -= Ld;
     }
   }
   // a few by the yard fences, gone quiet and structural in winter
