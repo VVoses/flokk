@@ -1,0 +1,1284 @@
+/* Flokk - world.js
+   World state and procedural generation: lake, road, rail route, farms, fields, trees, perches, poles, seam twins.
+   Plain script sharing one global scope with the other files; load order is set in index.html. */
+'use strict';
+/* ---------- world state (filled by genWorld) ---------- */
+let LAKE,
+  POND,
+  ROAD,
+  LANES,
+  FIELDS,
+  YARD,
+  YARDS = [],
+  FARMS = [],
+  BUILDS,
+  NAUST,
+  JET,
+  BOAT,
+  tg,
+  ZONES,
+  START,
+  LAND_NAME = '',
+  ROADBOX;
+const lakeR = a =>
+  LAKE.r *
+  (1 +
+    LAKE.k[0] * Math.sin(2 * a + LAKE.p[0]) +
+    LAKE.k[1] * Math.sin(3 * a + LAKE.p[1]) +
+    LAKE.k[2] * Math.sin(5 * a + LAKE.p[2]));
+const pondR = a => POND.r * (1 + POND.k[0] * Math.sin(2 * a + POND.p[0]) + POND.k[1] * Math.sin(3 * a + POND.p[1]));
+function inBlob(x, y, c, rf, m) {
+  if (c.x < -1000) return false;
+  const dx = wdx(x, c.x),
+    dy = y - c.y,
+    q = dx * dx + dy * dy;
+  if (q > (c.r * 1.45 + m) ** 2) return false;
+  return Math.sqrt(q) < rf(Math.atan2(dy, dx)) + m;
+}
+const NORTH = 820; // fields, farms, roads and lakes keep south of this, leaving room for the northern forest
+const inWater = (x, y, m = 0) => y > shoreY(x) - m || inBlob(x, y, LAKE, lakeR, m) || inBlob(x, y, POND, pondR, m);
+function roadDist(x, y) {
+  if (y < ROADBOX[0] - 300 || y > ROADBOX[1] + 300) return 1e9;
+  return polyDist(x, y, ROAD);
+}
+function inBuild(x, y, m = 0) {
+  for (const b of BUILDS) {
+    const dx = x - b.cx,
+      dy = y - b.cy,
+      c = Math.cos(-b.ang),
+      s = Math.sin(-b.ang);
+    const lx = dx * c - dy * s,
+      ly = dx * s + dy * c;
+    if (Math.abs(lx) < b.len / 2 + m && Math.abs(ly) < b.dep / 2 + m) return true;
+  }
+  return false;
+}
+/* ---- walking around buildings ----
+   Anything on foot uses groundStep(): it looks a little ahead, and if a building is in the way it turns
+   (keeping to one side until clear) so it walks round the corner instead of across the roof. */
+const NAV_M = 9; // how close to a wall anything walks
+function buildAt(x, y, m = 0) {
+  for (const b of BUILDS) {
+    const dx = x - b.cx,
+      dy = y - b.cy,
+      c = Math.cos(b.ang),
+      s = Math.sin(b.ang);
+    if (Math.abs(dx * c + dy * s) < b.len / 2 + m && Math.abs(-dx * s + dy * c) < b.dep / 2 + m) return b;
+  }
+  return null;
+}
+// the nearest point outside any building footprint grown by m
+function pushOut(x, y, m) {
+  for (let i = 0; i < 3; i++) {
+    const b = buildAt(x, y, m);
+    if (!b) break;
+    const c = Math.cos(b.ang),
+      s = Math.sin(b.ang),
+      dx = x - b.cx,
+      dy = y - b.cy;
+    let lx = dx * c + dy * s,
+      ly = -dx * s + dy * c;
+    if (b.len / 2 + m - Math.abs(lx) < b.dep / 2 + m - Math.abs(ly)) lx = Math.sign(lx || 1) * (b.len / 2 + m + 0.5);
+    else ly = Math.sign(ly || 1) * (b.dep / 2 + m + 0.5);
+    x = b.cx + lx * c - ly * s;
+    y = b.cy + lx * s + ly * c;
+  }
+  return [x, y];
+}
+// one step of s units/second towards direction (dx,dy), steering round buildings
+function groundStep(a, dx, dy, d, s, dt) {
+  let ang = Math.atan2(dy, dx);
+  // no headway for a couple of seconds (wedged between two buildings): go round the other way
+  a.navT = (a.navT || 0) + dt;
+  if (a.navT > 2) {
+    if (a.navD !== undefined && a.navD - d < 6 && a.avoid) {
+      a.avoid = -a.avoid;
+      a.avoidT = 2.5;
+    }
+    a.navT = 0;
+    a.navD = d;
+  }
+  // look no further than the destination, so a doorway right by a wall is still reachable
+  const look = Math.min(d, 20),
+    blocked = t => inBuild(a.x + Math.cos(t) * look, a.y + Math.sin(t) * look, NAV_M - 3);
+  if (blocked(ang)) {
+    const side = a.avoid || (Math.random() < 0.5 ? 1 : -1);
+    let ok = false;
+    for (let k = 1; k <= 7 && !ok; k++)
+      for (const sg of [side, -side]) {
+        const t = ang + sg * k * 0.4;
+        if (!blocked(t)) {
+          ang = t;
+          a.avoid = sg;
+          ok = true;
+          break;
+        }
+      }
+    a.avoidT = 0.8;
+  } else if ((a.avoidT = (a.avoidT || 0) - dt) <= 0) a.avoid = 0;
+  let nx = a.x + Math.cos(ang) * s * dt,
+    ny = a.y + Math.sin(ang) * s * dt;
+  if (inBuild(nx, ny, NAV_M - 4)) [nx, ny] = pushOut(nx, ny, NAV_M - 3);
+  a.vx = Math.cos(ang) * s;
+  a.vy = Math.sin(ang) * s;
+  a.x = nx;
+  a.y = ny;
+  if (Math.abs(a.vx) > 1.5) a.f = a.vx > 0 ? 1 : -1;
+}
+const onFoot = a => (a.z || 0) < 0.3 && a.k !== 'duck';
+function fieldAt(x, y) {
+  for (const f of FIELDS) if (inField(f, x, y)) return f;
+  return null;
+}
+function forestness(x, y) {
+  let f = pfbm(x, y, 620, 11, 7) * 0.75;
+  for (const [zx, zy, zr, b] of ZONES) {
+    const d = Math.hypot(wdx(x, zx), y - zy);
+    if (d < zr) f += b * Math.pow(1 - d / zr, 0.7);
+  }
+  {
+    const nb = clamp(1 - y / 950, 0, 1);
+    f += 0.42 * nb * nb * (3 - 2 * nb);
+  }
+  {
+    const se = H - y;
+    if (se < 450) f += 0.22 * (1 - Math.max(0, se) / 450);
+  }
+  const out = Math.max(-y, y - H);
+  if (out > 0) f += 0.5;
+  return f;
+}
+/* a gentle rolling elevation field, purely for hillshading the ground texture - the land itself
+   stays a flat plane (nothing here moves a tree, a bird or the camera), it just tints the grass
+   a little lighter on slopes that face the sun and a little darker on slopes that face away, so
+   the farmland reads as broad, slow swells instead of a perfectly flat tabletop. Low frequency by
+   design (hills a few hundred units across), and built from pfbm so it wraps at the seam for free. */
+function landHeight(x, y) {
+  return pfbm(x, y, 1300, 210, 55) * 0.7 + pfbm(x, y, 480, 33, 190) * 0.3;
+}
+const HS_D = 9,
+  HS_SL = Math.hypot(SX, SY),
+  HS_LX = -SX / HS_SL,
+  HS_LY = -SY / HS_SL;
+// how much brighter (>0) or darker (<0) a point on the ground should read from its slope alone.
+// landHeight is normalized to roughly [0,1] over spans of hundreds of units, so its raw slope is
+// tiny (a real derivative, not a step-size artifact) - the 1200 just rescales that real-world-tiny
+// slope into a [-1,1] shading strength, tuned so typical ground reads as a gentle swell and only
+// the steepest hillsides push all the way to full light or full shadow.
+function hillshade(x, y) {
+  const e0 = landHeight(x, y),
+    ex = landHeight(x + HS_D, y),
+    ey = landHeight(x, y + HS_D);
+  const sx = (ex - e0) / HS_D,
+    sy = (ey - e0) / HS_D;
+  return clamp((sx * HS_LX + sy * HS_LY) * 1800, -1, 1);
+}
+function landName() {
+  const pre = ['', '', '', '', 'Øvre ', 'Nedre ', 'Store ', 'Vesle ', 'Søndre ', 'Vestre '];
+  const a = [
+    'Mo',
+    'Li',
+    'Haug',
+    'Vik',
+    'Dal',
+    'Ås',
+    'Berg',
+    'Holt',
+    'Myr',
+    'Tjern',
+    'Rud',
+    'Bakk',
+    'Lund',
+    'Eik',
+    'Hegg',
+    'Bjørk',
+    'Grå',
+    'Sol',
+    'Rogn',
+    'Lyng',
+    'Furu',
+    'Stein',
+    'Kvern',
+    'Sel',
+    'Brå',
+    'Ul'
+  ];
+  const b = [
+    'en',
+    'set',
+    'stad',
+    'rud',
+    'land',
+    'heim',
+    'vollen',
+    'tjønna',
+    'li',
+    'haugen',
+    'moen',
+    'åsen',
+    'dalen',
+    'bakken',
+    'vika',
+    'bekken',
+    'sætra'
+  ];
+  return pre[(R() * pre.length) | 0] + a[(R() * a.length) | 0] + b[(R() * b.length) | 0];
+}
+
+/* ---------- perches ---------- */
+const perches = [],
+  PG = new Map(),
+  PC = 160;
+const gkey = (x, y, c) => Math.floor(x / c) + ',' + Math.floor(y / c);
+function addPerch(x, y, h, type, cover, ang = null, key = y) {
+  const p = { x, y, h, type, cover, occ: null, ang, key };
+  perches.push(p);
+  const k = gkey(x, y, PC);
+  let a = PG.get(k);
+  if (!a) PG.set(k, (a = []));
+  a.push(p);
+  return p;
+}
+function perchesNear(x, y, r) {
+  const out = [];
+  const c0 = Math.floor((x - r) / PC),
+    c1 = Math.floor((x + r) / PC),
+    r0 = Math.floor((y - r) / PC),
+    r1 = Math.floor((y + r) / PC);
+  for (let i = c0; i <= c1; i++)
+    for (let j = r0; j <= r1; j++) {
+      const a = PG.get(i + ',' + j);
+      if (!a) continue;
+      for (const p of a) if ((p.x - x) ** 2 + (p.y - y) ** 2 < r * r) out.push(p);
+    }
+  return out;
+}
+
+/* ---------- trees (side-view sprites, anchored at the trunk base) ---------- */
+const SR = 32,
+  SS = 2,
+  SW = Math.ceil(SR * 3),
+  SHT = Math.ceil(SR * 3.4),
+  AX = SW / 2,
+  AY = SHT - 4;
+const TD = { spruce: 3.1, birch: 2.95, decid: 2.75 };
+const CAN = { birch: [1.95, 0.82, 1.0], decid: [1.7, 1.05, 0.95] };
+// a spruce's silhouette by its sprite variant (0..NV-1): some short and fat, some tall and narrow,
+// some full, some sparse - a pure function of vi, shared between the sprite art (sprites.js, which
+// scales the drawing by it) and the canopy height used for perch placement here, so the two stay in
+// sync and a bird never ends up floating above a shorter tree or buried inside a taller one.
+function spruceShape(vi) {
+  return {
+    hMul: 0.8 + (((vi * 37) % 9) / 9) * 0.4,
+    wMul: 0.76 + (((vi * 53) % 11) / 11) * 0.54,
+    tiers: 8 + ((vi * 7) % 5),
+    droopMul: 0.72 + (((vi * 19) % 7) / 7) * 0.64
+  };
+}
+const TREES = [],
+  TG = new Map(),
+  TC = 100;
+function blocked(x, y, r) {
+  if (inWater(x, y, r * 0.6 + 6)) return true;
+  for (const f of FIELDS) if (inField(f, x, y, r * 0.5)) return true;
+  for (const Y of YARDS) if (inRect(x, y, Y, r * 0.4)) return true;
+  if (inBuild(x, y, r * 0.6 + 12)) return true;
+  if (roadDist(x, y) < 52 + r * 0.85) return true;
+  if (railDist(x, y) < 34 + r * 0.85) return true;
+  for (const P of LANES) if (polyDist(x, y, P) < 26 + r * 0.7) return true;
+  if (segDist(x, y, JET.x0, JET.y0, JET.x1, JET.y1) < r + 12) return true;
+  return false;
+}
+function addTree(x, y, type, r) {
+  const k = (r / SR) * 1.45,
+    v = (R() * NV) | 0,
+    hMul = type === 'spruce' ? spruceShape(v).hMul : 1;
+  const t = { x, y, type, r, k, hpx: TD[type] * hMul * SR * k, v, ws: rnd(0.88, 1.12) };
+  TREES.push(t);
+  const kk = gkey(x, y, TC);
+  let a = TG.get(kk);
+  if (!a) TG.set(kk, (a = []));
+  a.push(t);
+  const n = Math.max(3, Math.round(r / 6) + 1);
+  for (let i = 0; i < n; i++) {
+    let dx, hp;
+    if (type === 'spruce') {
+      const f = rnd(0.28, 0.82);
+      dx = rnd(-1, 1) * SR * k * (1 - f) * 0.85;
+      hp = f * t.hpx;
+    } else {
+      const [cy, rx, ry] = CAN[type];
+      const a2 = rnd(0, TAU),
+        d = Math.sqrt(R()) * 0.72;
+      dx = Math.cos(a2) * d * rx * SR * k;
+      hp = (cy + Math.sin(a2) * d * ry) * SR * k;
+    }
+    {
+      const p = addPerch(x + dx, y + 1, hp / HZ, 'tree', true, null, y + 0.5);
+      p.tt = type;
+      p.tree = t;
+    }
+  }
+  const hm = ((type === 'spruce' ? 0.42 * TD.spruce * hMul : CAN[type][0]) * SR * k) / HZ;
+  t.sx = x + hm * SX;
+  t.sy = y + hm * SY;
+}
+function underTree(x, y) {
+  const cx = Math.floor(x / TC),
+    cy = Math.floor(y / TC);
+  for (let i = -1; i <= 1; i++)
+    for (let j = -1; j <= 1; j++) {
+      const a = TG.get(cx + i + ',' + (cy + j));
+      if (!a) continue;
+      for (const t of a) if ((t.x - x) ** 2 + (t.y - y) ** 2 < (t.r * 0.65) ** 2) return true;
+    }
+  return false;
+}
+
+const BALE_H = 0.3,
+  POST_H = 0.34,
+  POLE_H = 2.1,
+  WIRE_H = 2.0,
+  SAG = 0.28;
+const BALES = [],
+  FSEG = [],
+  LINES = [],
+  REEDS = [],
+  SPARK = [];
+
+/* ---------- procedural land ---------- */
+function genLayout() {
+  SHORE = { a: rnd(0, TAU), b: rnd(0, TAU) };
+  // lake
+  LAKE = {
+    x: rnd(1000, W - 1000),
+    y: rnd(1250, H - 980),
+    r: rnd(330, 470),
+    k: [rnd(0.08, 0.2), rnd(0.04, 0.12), rnd(0.02, 0.06)],
+    p: [rnd(0, TAU), rnd(0, TAU), rnd(0, TAU)]
+  };
+  POND = { x: -9999, y: -9999, r: 1, k: [0, 0], p: [0, 0] };
+  // road across the land, bending around the lake
+  for (let tries = 0; tries < 30; tries++) {
+    const xs = periodXs(560, 820, 450),
+      ys = [];
+    let ry = rnd(1050, H - 650);
+    for (let i = 0; i < xs.length; i++) {
+      ry = clamp(ry + rnd(-230, 230), 950, H - 420);
+      ys.push(ry);
+    }
+    const e = ys[0] - ys[ys.length - 1],
+      pts = [];
+    for (let i = 0; i < xs.length - 1; i++) {
+      const x = xs[i];
+      let y = clamp(ys[i] + (e * x) / W, 950, H - 420);
+      const dx = wdx(x, LAKE.x),
+        rad = LAKE.r * 1.4 + 180;
+      if (Math.abs(dx) < rad) {
+        const dy = y - LAKE.y,
+          need = Math.sqrt(rad * rad - dx * dx);
+        if (Math.abs(dy) < need) y = LAKE.y + (dy >= 0 ? 1 : -1) * need;
+      }
+      pts.push([x, clamp(y, 860, H - 300)]);
+    }
+    ROAD = trimX(catmull(extP(pts)), -1700, W + 1700);
+    ROADBOX = [Math.min(...ROAD.map(p => p[1])), Math.max(...ROAD.map(p => p[1]))];
+    if (!ROAD.some(p => inWater(p[0], p[1], 70))) break;
+  }
+  // pond, away from lake and road
+  for (let i = 0; i < 60; i++) {
+    const x = rnd(600, W - 600),
+      y = rnd(NORTH + 100, H - 350);
+    if (Math.hypot(wdx(x, LAKE.x), y - LAKE.y) < LAKE.r * 1.5 + 350) continue;
+    if (roadDist(x, y) < 260 || y + 220 > shoreY(x)) continue;
+    POND = { x, y, r: rnd(80, 130), k: [rnd(0.06, 0.14), rnd(0.03, 0.08)], p: [rnd(0, TAU), rnd(0, TAU)] };
+    break;
+  }
+  genRail();
+  // farmsteads beside the road: a main farm and a second, differently laid-out one further along
+  LANES = [];
+  BUILDS = [];
+  FIELDS = [];
+  YARDS = [];
+  FARMS = [];
+  const pick = a => a[(R() * a.length) | 0];
+  const HOUSE = ['#E6E0D2', '#E6E0D2', '#E9DDB0', '#C9D4D2', '#D8C9A8', '#A8432F', '#8C9A88'],
+    BARN = ['#8E2F24', '#8E2F24', '#8E2F24', '#A0442E', '#E6E0D2', '#B8955A', '#6E7274'];
+  const yardFree = (y2, m) => {
+    for (const o of YARDS)
+      if (y2.x < o.x + o.w + m && y2.x + y2.w > o.x - m && y2.y < o.y + o.h + m && y2.y + y2.h > o.y - m) return false;
+    for (const f of FIELDS)
+      if (y2.x < f.x + f.w + m && y2.x + y2.w > f.x - m && y2.y < f.y + f.h + m && y2.y + y2.h > f.y - m) return false;
+    return true;
+  };
+  const placeFarm = main => {
+    let best = null,
+      bestBad = 1e9;
+    for (let i = 0; i < 1200; i++) {
+      const p = ROAD[(R() * ROAD.length) | 0];
+      if (p[0] < 480 || p[0] > W - 480) continue;
+      if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < 1350)) continue;
+      const small = !main && R() < 0.45,
+        horiz = !main && R() < 0.5,
+        side = R() < 0.5 ? 1 : -1;
+      const a = small ? rnd(280, 330) : rnd(340, 420),
+        b = small ? rnd(420, 500) : rnd(560, 680),
+        w = horiz ? b : a,
+        h = horiz ? a : b;
+      const back = i < 140 ? 110 : rnd(110, 420),
+        cx = p[0] + (i < 300 ? 0 : rnd(-260, 260)),
+        cy = p[1] + side * (h / 2 + back),
+        yard = { x: cx - w / 2, y: cy - h / 2, w, h };
+      if (yard.y < NORTH || yard.y + yard.h > H - 440) continue;
+      // score the spot: water and rail near the yard, a road too far away, or other yards in the way all count against it
+      let bad = yardFree(yard, 200) ? 0 : 400;
+      for (let gx = yard.x - 150; gx <= yard.x + yard.w + 150; gx += 60)
+        for (let gy = yard.y - 150; gy <= yard.y + yard.h + 150; gy += 60) {
+          if (inWater(gx, gy, 0))
+            bad += gx > yard.x && gx < yard.x + yard.w && gy > yard.y && gy < yard.y + yard.h ? 40 : 6;
+        }
+      if (roadDist(cx, cy - side * (h / 2 - 10)) > back + Math.abs(cx - p[0]) + 60) bad += 60;
+      for (let gx = yard.x - 80; gx <= yard.x + yard.w + 80; gx += 60)
+        for (let gy = yard.y - 80; gy <= yard.y + yard.h + 80; gy += 60)
+          if (railDist(gx, gy) < 70)
+            bad +=
+              gx > yard.x - 20 && gx < yard.x + yard.w + 20 && gy > yard.y - 20 && gy < yard.y + yard.h + 20 ? 60 : 8;
+      const fm = { px: p[0], py: p[1], side, cx, cy, yard, small, horiz, main };
+      if (bad === 0) return fm;
+      if (bad < bestBad) {
+        bestBad = bad;
+        best = fm;
+      }
+    }
+    return main ? best : null;
+  };
+  // building plans in yard-relative coordinates (u across, v away from the road; rot=long side runs away from the road)
+  const PLANS = {
+    L: [
+      ['house', -0.26, -0.25, 0],
+      ['barn', 0.23, 0.06, 1],
+      ['shed', -0.27, 0.23, 0],
+      ['shed?', 0.24, 0.4, 0]
+    ],
+    tun: [
+      ['house', 0, -0.3, 0],
+      ['barn', 0, 0.28, 0],
+      ['stabbur', -0.33, 0, 1],
+      ['shed', 0.33, 0.02, 1]
+    ],
+    row: [
+      ['house', -0.22, -0.3, 1],
+      ['barn', 0.2, 0.1, 1],
+      ['stabbur', -0.25, 0.3, 0]
+    ],
+    small: [
+      ['house', -0.18, -0.22, 0],
+      ['sbarn', 0.18, 0.16, 1],
+      ['shed', -0.22, 0.3, 0]
+    ]
+  };
+  const buildFarm = fm => {
+    const { yard, side, horiz } = fm,
+      mx = R() < 0.5 ? 1 : -1,
+      plan = fm.small
+        ? PLANS.small
+        : fm.main
+          ? pick([PLANS.L, PLANS.L, PLANS.tun])
+          : pick([PLANS.tun, PLANS.row, PLANS.L]);
+    const house = pick(HOUSE),
+      barn = pick(BARN),
+      red = barn === '#8E2F24' || barn === '#A0442E';
+    const W0 = horiz ? yard.h : yard.w,
+      H0 = horiz ? yard.w : yard.h; // the plan's own across/away extents
+    for (const [kind, u, v, rot0] of plan) {
+      if (kind === 'shed?' && R() < 0.35) continue;
+      let pu = u * W0 * mx,
+        pv = v * H0 * side,
+        rot = rot0;
+      if (horiz) {
+        const t = pu;
+        pu = pv * side * mx;
+        pv = t * side;
+        rot = 1 - rot;
+      }
+      const cx = fm.cx + pu,
+        cy = fm.cy + pv,
+        ang = (rot ? Math.PI / 2 : 0) + rnd(-0.05, 0.05);
+      const room = (rot ? yard.h : yard.w) * 0.62;
+      let b;
+      if (kind === 'house')
+        b = {
+          len: Math.min(room, rnd(100, 126)),
+          dep: rnd(56, 66),
+          roof: pick(['tile', 'tile', 'slate', 'dark', 'turf']),
+          wall: house,
+          wh: rnd(26, 30),
+          rh: rnd(50, 58),
+          windows: true,
+          chimney: true
+        };
+      else if (kind === 'barn')
+        b = {
+          len: Math.min(room, rnd(165, 210)),
+          dep: rnd(96, 118),
+          roof: pick(['slate', 'slate', 'tile', 'metal']),
+          wall: barn,
+          wh: rnd(34, 40),
+          rh: rnd(68, 80),
+          trim: red,
+          door: true
+        };
+      else if (kind === 'sbarn')
+        b = {
+          len: Math.min(room, rnd(105, 130)),
+          dep: rnd(68, 80),
+          roof: pick(['slate', 'metal', 'tile']),
+          wall: barn,
+          wh: rnd(28, 32),
+          rh: rnd(54, 62),
+          trim: red,
+          door: true
+        };
+      else if (kind === 'stabbur')
+        b = {
+          len: rnd(34, 40),
+          dep: rnd(30, 34),
+          roof: pick(['turf', 'slate']),
+          wall: pick(['#5C3B26', '#7A3A22', '#8E2F24']),
+          wh: rnd(26, 30),
+          rh: rnd(44, 50),
+          trim: true
+        };
+      else
+        b = {
+          len: rnd(44, 64),
+          dep: rnd(36, 42),
+          roof: pick(['turf', 'slate', 'slate', 'metal']),
+          wall: R() < 0.6 ? barn : pick(['#7A3A22', '#5C3B26', '#8E8A80']),
+          wh: rnd(20, 24),
+          rh: rnd(36, 42),
+          trim: red
+        };
+      if (
+        inWater(cx, cy, b.len * 0.5 + 8) ||
+        railDist(cx, cy) < b.len * 0.5 + 26 ||
+        roadDist(cx, cy) < b.len * 0.5 + 24
+      )
+        continue; // never in the lake or on the tracks
+      b.cx = cx;
+      b.cy = cy;
+      b.ang = ang;
+      b.kind = kind;
+      BUILDS.push(b);
+      (fm.builds || (fm.builds = [])).push(b);
+      if (kind === 'house') fm.house = b;
+    }
+    const ey = fm.cy - (side * fm.yard.h) / 2,
+      ex = fm.cx + rnd(-0.2, 0.2) * fm.yard.w;
+    fm.lane = LANES.length;
+    fm.yard.gate = [ex, ey + side * 30];
+    fm.yard.builds = fm.builds || [];
+    LANES.push(
+      catmull([
+        [fm.px, fm.py],
+        [lerp(fm.px, ex, 0.5) + rnd(-20, 20), lerp(fm.py, ey, 0.5)],
+        [ex, ey + side * 30]
+      ])
+    );
+  };
+  const fieldOK = r => {
+    if (r.w < 210 || r.h < 210 || r.y < NORTH) return false;
+    for (const o of YARDS)
+      if (r.x < o.x + o.w + 40 && r.x + r.w > o.x - 40 && r.y < o.y + o.h + 40 && r.y + r.h > o.y - 40) return false;
+    for (const o of FIELDS)
+      if (r.x < o.x + o.w + 6 && r.x + r.w > o.x - 6 && r.y < o.y + o.h + 6 && r.y + r.h > o.y - 6) return false;
+    for (let x = r.x - 20; x <= r.x + r.w + 20; x += 50)
+      for (let y = r.y - 20; y <= r.y + r.h + 20; y += 50) {
+        if (inWater(x, y, 40)) return false;
+        if (roadDist(x, y) < 42 || railDist(x, y) < 48) return false;
+      }
+    return true;
+  };
+  const types = ['stubble', 'stubble', 'stubble', 'plow', 'plow', 'pasture', 'pasture', 'pasture', 'crop'];
+  const fieldsFor = (fm, maxN) => {
+    const sd = fm.side,
+      fx = fm.cx,
+      reach = fm.small ? 700 : 1150,
+      regions = [];
+    const x0 = clamp(fx - reach, 130, W - 130),
+      x1 = clamp(fx + reach, 130, W - 130);
+    if (sd > 0)
+      regions.push({ x: x0, y: fm.py + 70, w: x1 - x0, h: Math.min(fm.small ? 800 : 1300, H - 440 - fm.py - 70) });
+    else {
+      const y0 = Math.max(NORTH, fm.py - (fm.small ? 800 : 1370));
+      regions.push({ x: x0, y: y0, w: x1 - x0, h: fm.py - 70 - y0 });
+    }
+    if (!fm.small && R() < 0.75) {
+      const w = rnd(900, 1500),
+        xa = clamp(fx - w / 2 + rnd(-300, 300), 130, W - 130 - w);
+      if (sd > 0) {
+        const y0 = Math.max(NORTH, fm.py - rnd(600, 900));
+        regions.push({ x: xa, y: y0, w, h: fm.py - 70 - y0 });
+      } else regions.push({ x: xa, y: fm.py + 70, w, h: Math.min(rnd(600, 900), H - 440 - fm.py - 70) });
+    }
+    const leaves = [];
+    const split = (r, d) => {
+      if (r.w < 200 || r.h < 200) return;
+      const big = Math.max(r.w, r.h);
+      if (big > 680 || (d < 2 && R() < 0.55)) {
+        const vert = r.w > r.h,
+          t = rnd(0.35, 0.65),
+          gap = rnd(30, 70);
+        if (vert) {
+          const w1 = r.w * t;
+          split({ x: r.x, y: r.y, w: w1 - gap / 2, h: r.h }, d + 1);
+          split({ x: r.x + w1 + gap / 2, y: r.y, w: r.w - w1 - gap / 2, h: r.h }, d + 1);
+        } else {
+          const h1 = r.h * t;
+          split({ x: r.x, y: r.y, w: r.w, h: h1 - gap / 2 }, d + 1);
+          split({ x: r.x, y: r.y + h1 + gap / 2, w: r.w, h: r.h - h1 - gap / 2 }, d + 1);
+        }
+      } else leaves.push(r);
+    };
+    for (const r of regions) split(r, 0);
+    // a plot cut by the road, the railway or water is split and its usable halves kept
+    let n = 0;
+    const tryLeaf = (lf, d) => {
+      if (n >= maxN || lf.w < 220 || lf.h < 220) return;
+      const f = { x: lf.x + rnd(0, 20), y: lf.y + rnd(0, 20), w: lf.w - rnd(10, 40), h: lf.h - rnd(10, 40) };
+      if (fieldOK(f)) {
+        f.t = types[(R() * types.length) | 0];
+        f.dir = R() < 0.5 ? 0 : 1;
+        f.poly = mkFieldPoly(f);
+        FIELDS.push(f);
+        n++;
+        return;
+      }
+      if (d >= 3) return;
+      const gap = 40;
+      if (lf.w > lf.h) {
+        const w1 = lf.w * rnd(0.4, 0.6);
+        tryLeaf({ x: lf.x, y: lf.y, w: w1 - gap / 2, h: lf.h }, d + 1);
+        tryLeaf({ x: lf.x + w1 + gap / 2, y: lf.y, w: lf.w - w1 - gap / 2, h: lf.h }, d + 1);
+      } else {
+        const h1 = lf.h * rnd(0.4, 0.6);
+        tryLeaf({ x: lf.x, y: lf.y, w: lf.w, h: h1 - gap / 2 }, d + 1);
+        tryLeaf({ x: lf.x, y: lf.y + h1 + gap / 2, w: lf.w, h: lf.h - h1 - gap / 2 }, d + 1);
+      }
+    };
+    for (const lf of leaves) {
+      if (R() < 0.85) tryLeaf(lf, 0);
+      if (n >= maxN) break;
+    }
+  };
+  // a small fenced, muddy pig pen snug against a farmyard, with a low lean-to shelter at its inner edge
+  const styOK = (r, fm) => {
+    if (r.y < NORTH || r.y + r.h > H - 440 || r.x < 60 || r.x + r.w > W - 60) return false;
+    for (const o of YARDS)
+      if (o !== fm.yard && r.x < o.x + o.w + 30 && r.x + r.w > o.x - 30 && r.y < o.y + o.h + 30 && r.y + r.h > o.y - 30)
+        return false;
+    for (const o of FIELDS)
+      if (r.x < o.x + o.w + 20 && r.x + r.w > o.x - 20 && r.y < o.y + o.h + 20 && r.y + r.h > o.y - 20) return false;
+    for (let gx = r.x - 12; gx <= r.x + r.w + 12; gx += 30)
+      for (let gy = r.y - 12; gy <= r.y + r.h + 12; gy += 30) {
+        if (inWater(gx, gy, 20)) return false;
+        if (roadDist(gx, gy) < 40 || railDist(gx, gy) < 45) return false;
+        if (inBuild(gx, gy, 14)) return false;
+      }
+    return true;
+  };
+  const placeSty = fm => {
+    const Y = fm.yard;
+    for (let i = 0; i < 200; i++) {
+      const w = rnd(72, 104),
+        h = rnd(60, 86),
+        vert = R() < 0.5,
+        gap = rnd(16, 34);
+      let x, y;
+      if (vert) {
+        x = R() < 0.5 ? Y.x - gap - w : Y.x + Y.w + gap;
+        y = rnd(Y.y - h * 0.3, Y.y + Y.h - h * 0.7);
+      } else {
+        x = rnd(Y.x - w * 0.3, Y.x + Y.w - w * 0.7);
+        y = R() < 0.5 ? Y.y - gap - h : Y.y + Y.h + gap;
+      }
+      const r = { x, y, w, h };
+      if (!styOK(r, fm)) continue;
+      r.t = 'sty';
+      r.dir = 0;
+      r.poly = mkFieldPoly(r);
+      FIELDS.push(r);
+      // the shelter sits at whichever edge of the pen faces back toward the yard
+      const tx = vert ? (x < Y.x ? 1 : -1) : 0,
+        ty = !vert ? (y < Y.y ? 1 : -1) : 0;
+      const b = {
+        cx: r.x + r.w / 2 + tx * (r.w * 0.5 - 19),
+        cy: r.y + r.h / 2 + ty * (r.h * 0.5 - 16),
+        ang: vert ? Math.PI / 2 : 0,
+        len: rnd(30, 38),
+        dep: rnd(24, 28),
+        roof: pick(['turf', 'turf', 'slate']),
+        wall: pick(['#5C3B26', '#7A3A22', '#6B5A48']),
+        wh: rnd(14, 17),
+        rh: rnd(24, 28),
+        kind: 'sty'
+      };
+      if (
+        !inWater(b.cx, b.cy, b.len * 0.5 + 8) &&
+        roadDist(b.cx, b.cy) > b.len * 0.5 + 24 &&
+        railDist(b.cx, b.cy) > b.len * 0.5 + 26
+      ) {
+        BUILDS.push(b);
+        (fm.builds || (fm.builds = [])).push(b);
+      }
+      fm.sty = r;
+      return;
+    }
+  };
+  let main = placeFarm(true);
+  if (!main) {
+    const p = ROAD.find(q => q[0] > W * 0.4) || ROAD[(ROAD.length / 2) | 0];
+    main = {
+      px: p[0],
+      py: p[1],
+      side: 1,
+      cx: p[0],
+      cy: p[1] + 430,
+      yard: { x: p[0] - 195, y: p[1] + 110, w: 390, h: 640 },
+      main: true
+    };
+  }
+  FARMS.push(main);
+  YARDS.push(main.yard);
+  buildFarm(main);
+  placeSty(main);
+  const second = placeFarm(false);
+  if (second) {
+    FARMS.push(second);
+    YARDS.push(second.yard);
+    buildFarm(second);
+    if (R() < 0.5) placeSty(second);
+  }
+  YARD = main.yard;
+  START = { x: main.px + 160 * (R() < 0.5 ? 1 : -1), y: main.py + main.side * 40 };
+  fieldsFor(main, 11);
+  if (second) fieldsFor(second, second.small ? 5 : 7);
+  // fill out the farmland with a few more plots near either farm
+  for (let i = 0; i < 260 && FIELDS.length < 14; i++) {
+    const fm = FARMS[i % FARMS.length],
+      w = rnd(240, 520),
+      h = rnd(220, 460),
+      x = fm.cx + rnd(-1150, 1150) - w / 2,
+      y = fm.cy + rnd(-950, 950) - h / 2;
+    if (x < 130 || x + w > W - 130 || y + h > H - 440) continue;
+    const f = { x, y, w, h };
+    if (FIELDS.some(o => x < o.x + o.w + 45 && x + w > o.x - 45 && y < o.y + o.h + 45 && y + h > o.y - 45)) continue;
+    if (fieldOK(f)) {
+      f.t = types[(R() * types.length) | 0];
+      f.dir = R() < 0.5 ? 0 : 1;
+      f.poly = mkFieldPoly(f);
+      FIELDS.push(f);
+    }
+  }
+  // a small seter clearing with a turf-roofed cabin somewhere else
+  for (let i = 0; i < 60; i++) {
+    const x = rnd(350, W - 650),
+      y = rnd(NORTH, H - 550);
+    if (FARMS.some(fm => Math.hypot(wdx(x, fm.cx), y - fm.cy) < 1100)) continue;
+    if (Math.hypot(x - LAKE.x, y - LAKE.y) < LAKE.r + 450) continue;
+    const f = { x, y, w: rnd(260, 380), h: rnd(220, 320), t: 'pasture', dir: 0 };
+    if (!fieldOK(f)) continue;
+    if (FIELDS.some(o => x < o.x + o.w + 80 && x + f.w > o.x - 80 && y < o.y + o.h + 80 && y + f.h > o.y - 80))
+      continue;
+    f.poly = mkFieldPoly(f);
+    FIELDS.push(f);
+    const cb = {
+      cx: x + f.w + 60,
+      cy: y + f.h * 0.4,
+      len: rnd(66, 84),
+      dep: rnd(46, 54),
+      ang: rnd(-0.35, 0.35),
+      roof: R() < 0.7 ? 'turf' : 'slate',
+      wall: ['#5C3B26', '#7A3A22', '#6B5A48', '#8E2F24'][(R() * 4) | 0],
+      wh: 20,
+      rh: 40,
+      windows: true
+    };
+    if (!inWater(cb.cx, cb.cy, 70) && roadDist(cb.cx, cb.cy) > 90 && railDist(cb.cx, cb.cy) > 110) BUILDS.push(cb);
+    break;
+  }
+  if (POND.x > 0) {
+    const a = rnd(0, TAU),
+      c = {
+        cx: POND.x + Math.cos(a) * (POND.r + 75),
+        cy: POND.y + Math.sin(a) * (POND.r + 75),
+        len: rnd(58, 72),
+        dep: rnd(42, 50),
+        ang: rnd(-0.4, 0.4),
+        roof: R() < 0.6 ? 'turf' : 'slate',
+        wall: ['#5C3B26', '#7A3A22', '#6B5A48', '#E6E0D2'][(R() * 4) | 0],
+        wh: 20,
+        rh: 38,
+        windows: true
+      };
+    if (
+      roadDist(c.cx, c.cy) > 90 &&
+      railDist(c.cx, c.cy) > 110 &&
+      !YARDS.some(Y => inRect(c.cx, c.cy, Y, 80)) &&
+      !FIELDS.some(f => inRect(c.cx, c.cy, f, 60))
+    )
+      BUILDS.push(c);
+  }
+  // boathouse facing the road, with a jetty and rowboat
+  let best = null,
+    bd = 1e9;
+  for (const p of ROAD) {
+    const d = Math.hypot(p[0] - LAKE.x, p[1] - LAKE.y);
+    if (d < bd) {
+      bd = d;
+      best = p;
+    }
+  }
+  const aN = Math.atan2(best[1] - LAKE.y, best[0] - LAKE.x) + rnd(-0.35, 0.35),
+    nd = [Math.cos(aN), Math.sin(aN)],
+    nr = lakeR(aN);
+  NAUST = {
+    cx: LAKE.x + nd[0] * (nr + 24),
+    cy: LAKE.y + nd[1] * (nr + 24),
+    len: 64,
+    dep: 38,
+    ang: aN,
+    roof: 'slate',
+    wall: '#8E2F24',
+    wh: 16,
+    rh: 36,
+    trim: true
+  };
+  BUILDS.push(NAUST);
+  const npt = [NAUST.cx + nd[0] * 40, NAUST.cy + nd[1] * 40];
+  let rp = best,
+    rd = 1e9;
+  for (const p of ROAD) {
+    const d = Math.hypot(p[0] - npt[0], p[1] - npt[1]);
+    if (d < rd) {
+      rd = d;
+      rp = p;
+    }
+  }
+  if (rd > 60)
+    LANES.push(catmull([[rp[0], rp[1]], [lerp(rp[0], npt[0], 0.5) + rnd(-40, 40), lerp(rp[1], npt[1], 0.5)], npt]));
+  tg = [-nd[1], nd[0]];
+  const shore = [LAKE.x + nd[0] * nr, LAKE.y + nd[1] * nr];
+  const js = R() < 0.5 ? 1 : -1;
+  JET = {
+    x0: shore[0] + tg[0] * 50 * js + nd[0] * 14,
+    y0: shore[1] + tg[1] * 50 * js + nd[1] * 14,
+    x1: shore[0] + tg[0] * 50 * js - nd[0] * 95,
+    y1: shore[1] + tg[1] * 50 * js - nd[1] * 95
+  };
+  BOAT = { x: JET.x1 + tg[0] * 24 * js, y: JET.y1 + tg[1] * 24 * js, ang: aN + rnd(0.1, 0.5) };
+  // forest zones
+  ZONES = [];
+  const nz = rnd(6, 10) | 0;
+  for (let i = 0; i < nz; i++) {
+    for (let t = 0; t < 20; t++) {
+      const x = rnd(0, W),
+        y = rnd(NORTH, H);
+      if (FARMS.some(fm => Math.hypot(wdx(x, fm.cx), y - fm.cy) < 700)) continue;
+      ZONES.push([x, y, rnd(380, 950), rnd(0.22, 0.46)]);
+      break;
+    }
+  }
+  LAND_NAME = landName();
+}
+function genWorld(seed) {
+  SEED = seed >>> 0;
+  R = mulberry32(SEED || 1);
+  NS = Math.imul(SEED ^ 0x9e3779b9, 2654435761) | 0;
+  perches.length = 0;
+  PG.clear();
+  TREES.length = 0;
+  TG.clear();
+  BALES.length = 0;
+  FSEG.length = 0;
+  LINES.length = 0;
+  REEDS.length = 0;
+  SPARK.length = 0;
+  genLayout();
+  // trees: forest by noise and zones, hedgerows along fields, birches on the shores
+  for (let gx = 0; gx < W; gx += 46)
+    for (let gy = -260; gy < H + 320; gy += 46) {
+      const x = wrapX(gx + rnd(-17, 17)),
+        y = gy + rnd(-17, 17);
+      const f = forestness(x, y);
+      // thick spruce right at the northern edge, thinning out gradually over the first kilometre;
+      // the line itself meanders with x (a slow noise offset) so it reads as a tree line, not a wall,
+      // and never quite saturates, so a few gaps and clearings show through even at its densest
+      const edgeY = 60 + 260 * (pfbm(x, 0, 900, 3, 2) - 0.5),
+        nb = clamp(1 - (y + edgeY) / 1050, 0, 1),
+        pn = nb * nb * (0.42 + 0.32 * pfbm(x, y, 150, 3, 3));
+      const p = Math.max(f > 0.56 ? Math.min(1, (f - 0.56) * 7) : 0.02, pn);
+      if (R() > p) continue;
+      let r = rnd(17, 29);
+      if (blocked(x, y, r)) continue;
+      const u = R();
+      // mixed forest even at its thickest - solid spruce reads as a wall of clones, so birch and
+      // deciduous trees keep breaking up the canopy all the way to the northern edge
+      let type;
+      if (nb > 0.55) type = u < 0.55 ? 'spruce' : u < 0.8 ? 'birch' : 'decid';
+      else if (f > 0.72) type = u < 0.5 ? 'spruce' : u < 0.78 ? 'birch' : 'decid';
+      else if (f > 0.56) type = u < 0.3 ? 'spruce' : u < 0.7 ? 'birch' : 'decid';
+      else type = u < 0.55 ? 'birch' : 'decid';
+      if (type === 'decid') r *= 1.1;
+      addTree(x, y, type, r);
+    }
+  for (const f of FIELDS) {
+    if (f.t === 'sty') continue; // too small a plot for full-size hedge trees - it'd swallow the pen whole
+    const P = f.poly,
+      cc = polyCentroid(P),
+      E = P.map((p, i) => {
+        const q = P[(i + 1) % P.length],
+          mx = (p[0] + q[0]) / 2,
+          my = (p[1] + q[1]) / 2;
+        let nx = q[1] - p[1],
+          ny = -(q[0] - p[0]);
+        const l = Math.hypot(nx, ny) || 1;
+        nx /= l;
+        ny /= l;
+        if (nx * (mx - cc[0]) + ny * (my - cc[1]) < 0) {
+          nx = -nx;
+          ny = -ny;
+        }
+        return [p[0], p[1], q[0], q[1], nx, ny];
+      });
+    for (const [x0, y0, x1, y1, nx, ny] of E) {
+      const L = Math.hypot(x1 - x0, y1 - y0);
+      for (let s = 20; s < L; s += rnd(40, 70)) {
+        if (R() < 0.5) continue;
+        const t = s / L,
+          r = rnd(15, 23);
+        const x = lerp(x0, x1, t) + nx * (r + rnd(4, 12)),
+          y = lerp(y0, y1, t) + ny * (r + rnd(4, 12));
+        if (!blocked(x, y, r)) addTree(x, y, R() < 0.6 ? 'birch' : 'decid', r);
+      }
+    }
+  }
+  for (const [c, rf, st2] of [
+    [LAKE, lakeR, 0.055],
+    [POND, pondR, 0.12]
+  ]) {
+    if (c.x < 0) continue;
+    for (let a = 0; a < TAU; a += st2) {
+      if (R() < 0.5) continue;
+      const r = rnd(15, 24),
+        d = rf(a) + r + rnd(14, 75);
+      const x = c.x + Math.cos(a) * d,
+        y = c.y + Math.sin(a) * d;
+      if (!blocked(x, y, r)) addTree(x, y, R() < 0.65 ? 'birch' : 'decid', r);
+    }
+  }
+  // bales on stubble, fences round pastures
+  for (const f of FIELDS) {
+    if (f.t === 'stubble') {
+      const n = Math.round(((f.w * f.h) / 26000) * rnd(0.5, 1.2));
+      const rows = R() < 0.6;
+      for (let i = 0; i < n; i++) {
+        let x, y;
+        if (rows) {
+          const cols = Math.max(2, Math.round(f.w / 85));
+          x = f.x + 40 + ((i % cols) * (f.w - 80)) / Math.max(1, cols - 1) + rnd(-10, 10);
+          y = f.y + 50 + Math.floor(i / cols) * 110 + rnd(-10, 10);
+          if (y > f.y + f.h - 30) continue;
+        } else {
+          x = rnd(f.x + 25, f.x + f.w - 25);
+          y = rnd(f.y + 25, f.y + f.h - 25);
+        }
+        if (inField(f, x, y, -22)) bale(x, y);
+      }
+    }
+    if (f.t === 'pasture' || f.t === 'sty') fenceField(f);
+  }
+  // power line along the road (on the side away from the farm), branch line up the lane
+  wireUp(polesPeriodic(ROAD, 190, 40));
+  for (const fm of FARMS) wireUp(polesAlong(LANES[fm.lane], 120, -18, 40));
+  wireUp(polesPeriodic(RAIL, 150, 17));
+  addPerch(BOAT.x + Math.cos(BOAT.ang) * 8, BOAT.y + Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang);
+  addPerch(BOAT.x - Math.cos(BOAT.ang) * 8, BOAT.y - Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang + Math.PI);
+  for (const b of BUILDS) {
+    const c = Math.cos(b.ang),
+      s = Math.sin(b.ang);
+    for (let lx = -b.len / 2 + 8; lx <= b.len / 2 - 8; lx += 11)
+      addPerch(b.cx + c * lx, b.cy + s * lx, b.rh / HZ, 'roof', false, b.ang, b.cy + 1);
+  }
+  genSky();
+  genBorderBits();
+  buildLights();
+  buildExtras();
+  buildGhosts();
+  applySeason(0);
+}
+/* near the seam, perches and trees get a twin one period over, so birds east of x=W find the trees at x=0.
+   Twins share state with their originals (occupancy reads and writes go through to the original). */
+function buildGhosts() {
+  const M = 720;
+  for (const p of perches.slice()) {
+    const o = p.x < M ? W : p.x > W - M ? -W : 0;
+    if (!o) continue;
+    const gh = Object.create(p);
+    gh.x = p.x + o;
+    Object.defineProperty(gh, 'occ', {
+      get() {
+        return p.occ;
+      },
+      set(v) {
+        p.occ = v;
+      },
+      enumerable: true
+    });
+    gh.orig = p;
+    p.gh = gh;
+    const k = gkey(gh.x, gh.y, PC);
+    let a = PG.get(k);
+    if (!a) PG.set(k, (a = []));
+    a.push(gh);
+  }
+  for (const t of TREES) {
+    const o = t.x < M ? W : t.x > W - M ? -W : 0;
+    if (!o) continue;
+    const gh = Object.create(t);
+    gh.x = t.x + o;
+    gh.orig = t;
+    const k = gkey(gh.x, gh.y, TC);
+    let a = TG.get(k);
+    if (!a) TG.set(k, (a = []));
+    a.push(gh);
+  }
+}
+function bale(x, y) {
+  if (inWater(x, y)) return;
+  const b = { x, y, r: rnd(8.5, 10), g: R() < 0.14 };
+  BALES.push(b);
+  addPerch(x, y, BALE_H, 'bale', false, null, y + 0.5);
+}
+function fenceField(f) {
+  const IP = insetPoly(f.poly, 6);
+  const posts = [];
+  const sides = IP.map((p, i) => {
+    const q = IP[(i + 1) % IP.length];
+    return [p[0], p[1], q[0], q[1]];
+  });
+  for (const [a, b, c, d] of sides) {
+    const L = Math.hypot(c - a, d - b),
+      n = Math.max(1, Math.round(L / 34));
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      posts.push({ x: lerp(a, c, t), y: lerp(b, d, t) });
+    }
+  }
+  for (const p of posts) addPerch(p.x, p.y, POST_H, 'post', false, null, p.y + 0.5);
+  for (let i = 0; i < posts.length; i++) {
+    const p = posts[i],
+      q = posts[(i + 1) % posts.length];
+    FSEG.push({ p, q, k: Math.max(p.y, q.y) });
+  }
+}
+function polesAlong(P, spacing, off, start) {
+  const poles = [];
+  let acc = start;
+  for (let i = 0; i < P.length - 1; i++) {
+    const [ax, ay] = P[i],
+      [bx, by] = P[i + 1];
+    const sl = Math.hypot(bx - ax, by - ay);
+    if (!sl) continue;
+    const nx = (by - ay) / sl,
+      ny = -(bx - ax) / sl;
+    while (acc < sl) {
+      const t = acc / sl;
+      const x = ax + (bx - ax) * t + nx * off,
+        y = ay + (by - ay) * t + ny * off;
+      if (x > -40 && x < W + 40 && !inBuild(x, y, 8)) poles.push({ x, y });
+      acc += spacing;
+    }
+    acc -= sl;
+  }
+  return poles;
+}
+// poles spaced evenly over exactly one period of a repeating line; the last one is a stand-in for the first, one period east
+function polesPeriodic(P, spacing, off) {
+  const S = [0];
+  for (let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  const sAt = x => {
+    for (let i = 1; i < P.length; i++)
+      if (P[i][0] >= x) {
+        const t = (x - P[i - 1][0]) / (P[i][0] - P[i - 1][0] || 1);
+        return lerp(S[i - 1], S[i], t);
+      }
+    return S[S.length - 1];
+  };
+  const at = s => {
+    let i = 1;
+    while (i < S.length - 1 && S[i] < s) i++;
+    const t = (s - S[i - 1]) / (S[i] - S[i - 1] || 1),
+      a = P[i - 1],
+      b = P[i],
+      l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return { x: lerp(a[0], b[0], t) + ((b[1] - a[1]) / l) * off, y: lerp(a[1], b[1], t) - ((b[0] - a[0]) / l) * off };
+  };
+  const s0 = sAt(0),
+    Lp = sAt(W) - s0,
+    n = Math.max(2, Math.round(Lp / spacing)),
+    sp = Lp / n,
+    poles = [];
+  for (let i = 0; i <= n; i++) {
+    const p = at(s0 + sp * (i + 0.5));
+    if (i === n) p.ghost = true;
+    else if (inBuild(p.x, p.y, 8)) continue;
+    poles.push(p);
+  }
+  return poles;
+}
+function wireUp(poles) {
+  if (poles.length < 2) return;
+  for (let i = 0; i < poles.length; i++) {
+    const a = poles[Math.max(0, i - 1)],
+      b = poles[Math.min(poles.length - 1, i + 1)];
+    poles[i].ang = Math.atan2(b.y - a.y, b.x - a.x);
+  }
+  for (const p of poles) if (!p.ghost) addPerch(p.x, p.y, POLE_H + 0.05, 'pole', false, p.ang);
+  for (let i = 0; i < poles.length - 1; i++) {
+    const p = poles[i],
+      q = poles[i + 1];
+    const L = Math.hypot(q.x - p.x, q.y - p.y);
+    const wa = Math.atan2(q.y - p.y, q.x - p.x);
+    for (const w of [-6, 6]) {
+      const ox = Math.cos(wa + Math.PI / 2) * w,
+        oy = Math.sin(wa + Math.PI / 2) * w;
+      for (let s = 14; s < L - 10; s += 13) {
+        const t = s / L;
+        addPerch(lerp(p.x, q.x, t) + ox, lerp(p.y, q.y, t) + oy, WIRE_H - SAG * 4 * t * (1 - t), 'wire', false, wa);
+      }
+    }
+  }
+  LINES.push(poles);
+}
+
+/* ---------- field outlines: irregular, hedged plots that lean with the land instead of perfect
+   rectangles. Corners and edges bend using the same kind of low-frequency, smoothly-varying terrain
+   noise that drives the hillshading (pfbm at a wavelength close to a field's own size), so a plot's
+   boundary reads as loosely following the swells and dips of the ground it sits on rather than being
+   jittered independently of the landscape - nearby points drift together instead of each wobbling on
+   its own. Still clamped to the field's own (already collision-checked) bounding box throughout, so
+   this can never push a boundary into a neighbor, a road, water or a building. */
+function fieldLean(x, y, ox, oy) {
+  // two octaves: a broad drift (which way the whole plot leans) plus a finer ripple so a long edge
+  // undulates instead of staying a single straight lean end to end - smooth, roughly [-0.5, 0.5]
+  return pfbm(x, y, 190, ox, oy) * 0.72 + pfbm(x, y, 70, ox + 41, oy + 19) * 0.28 - 0.5;
+}
+function mkFieldPoly(f) {
+  const jx = f.w * 0.26,
+    jy = f.h * 0.26;
+  const raw = [
+    [f.x, f.y],
+    [f.x + f.w, f.y],
+    [f.x + f.w, f.y + f.h],
+    [f.x, f.y + f.h]
+  ];
+  const c = raw.map(([x, y]) => [
+    clamp(x + fieldLean(x, y, 17, 53) * jx, f.x, f.x + f.w),
+    clamp(y + fieldLean(x, y, 61, 29) * jy, f.y, f.y + f.h)
+  ]);
+  const bulge = Math.min(f.w, f.h) * 0.22;
+  const P = [];
+  for (let i = 0; i < 4; i++) {
+    const a = c[i],
+      b = c[(i + 1) % 4];
+    P.push(a);
+    const edgeLen = Math.hypot(b[0] - a[0], b[1] - a[1]),
+      n = Math.max(2, Math.round(edgeLen / 130)) + (R() < 0.5 ? 1 : 0);
+    for (let k = 1; k <= n; k++) {
+      const t = k / (n + 1) + rnd(-0.05, 0.05),
+        px = lerp(a[0], b[0], t),
+        py = lerp(a[1], b[1], t),
+        dx = b[0] - a[0],
+        dy = b[1] - a[1],
+        l = Math.hypot(dx, dy) || 1,
+        o = fieldLean(px, py, 7, 91) * bulge;
+      P.push([clamp(px + (dy / l) * o, f.x, f.x + f.w), clamp(py - (dx / l) * o, f.y, f.y + f.h)]);
+    }
+  }
+  return P;
+}
+function pip(P, x, y) {
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const xi = P[i][0],
+      yi = P[i][1],
+      xj = P[j][0],
+      yj = P[j][1];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+function edgeDist(P, x, y) {
+  let m = 1e9;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i],
+      b = P[(i + 1) % P.length];
+    const d = segDist(x, y, a[0], a[1], b[0], b[1]);
+    if (d < m) m = d;
+  }
+  return m;
+}
+function inField(f, x, y, m = 0) {
+  if (!f.poly) return inRect(x, y, f, m);
+  if (!inRect(x, y, f, Math.max(0, m) + 1)) return false;
+  const inside = pip(f.poly, x, y);
+  return m >= 0 ? inside || edgeDist(f.poly, x, y) < m : inside && edgeDist(f.poly, x, y) > -m;
+}
+function ptIn(r, m) {
+  if (!r.poly) return [rr(r.x + m, r.x + r.w - m), rr(r.y + m, r.y + r.h - m)];
+  for (let i = 0; i < 30; i++) {
+    const x = rr(r.x, r.x + r.w),
+      y = rr(r.y, r.y + r.h);
+    if (inField(r, x, y, -m)) return [x, y];
+  }
+  const c = polyCentroid(r.poly);
+  return c;
+}
+function polyCentroid(P) {
+  let x = 0,
+    y = 0;
+  for (const p of P) {
+    x += p[0];
+    y += p[1];
+  }
+  return [x / P.length, y / P.length];
+}
+function insetPoly(P, d) {
+  const c = polyCentroid(P);
+  return P.map(([x, y]) => {
+    const dx = c[0] - x,
+      dy = c[1] - y,
+      l = Math.hypot(dx, dy) || 1;
+    return [x + (dx / l) * d, y + (dy / l) * d];
+  });
+}
+function xRange(P, y) {
+  let lo = 1e9,
+    hi = -1e9;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i],
+      b = P[(i + 1) % P.length];
+    if (a[1] > y !== b[1] > y) {
+      const x = a[0] + ((y - a[1]) / (b[1] - a[1])) * (b[0] - a[0]);
+      if (x < lo) lo = x;
+      if (x > hi) hi = x;
+    }
+  }
+  return lo < hi ? [lo, hi] : null;
+}
+function fieldPath(c, f) {
+  c.beginPath();
+  f.poly.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
+  c.closePath();
+}

@@ -1,0 +1,446 @@
+:root {
+  --ink: #f6f3ea;
+  --ink2: rgba(246, 243, 234, 0.62);
+  --line: rgba(246, 243, 234, 0.22);
+  --gold: #f2c94c;
+  --hawk: #e5573f;
+  --leaf: #a9c77a;
+  color-scheme: dark;
+}
+[hidden] {
+  display: none !important;
+}
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: #2f4630;
+}
+body {
+  margin: 0;
+  font-family:
+    'Bricolage Grotesque',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  color: var(--ink);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+}
+.hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px 0;
+  pointer-events: none;
+  text-shadow: 0 1px 12px rgba(10, 16, 12, 0.45);
+  z-index: 2; /* above the overlays, so mute, pause and the year bar stay usable on every screen */
+}
+.hud::before {
+  /* a faint shade behind the corners keeps the HUD readable over snow and bright sky */
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 130px;
+  background:
+    radial-gradient(ellipse 260px 120px at 0 0, rgba(14, 20, 16, 0.26), transparent 70%),
+    radial-gradient(ellipse 320px 110px at 100% 0, rgba(14, 20, 16, 0.24), transparent 70%);
+  z-index: -1;
+  pointer-events: none;
+}
+.tl {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 96px;
+}
+.count {
+  font-weight: 300;
+  font-size: 46px;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  transition:
+    transform 0.18s,
+    color 0.3s;
+}
+.count.pop {
+  transform: scale(1.12);
+  transform-origin: left center;
+}
+.count.safe {
+  color: #cde6b2;
+}
+.count.danger {
+  color: #ffb3a6;
+  animation: pulse 0.6s infinite alternate;
+}
+@keyframes pulse {
+  to {
+    opacity: 0.55;
+  }
+}
+.lines {
+  display: grid;
+  gap: 5px;
+}
+.line {
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(246, 243, 234, 0.18);
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(10, 16, 12, 0.25);
+}
+.line > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ink);
+  transition:
+    width 0.3s,
+    background 0.3s;
+}
+.line.gold > i {
+  background: var(--gold);
+}
+.line.leaf > i {
+  background: var(--leaf);
+  transition: none;
+}
+.tr {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.year {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 120px;
+  position: relative;
+  /* a taller, invisible tap area around the thin bar (triple-tap opens the season picker) */
+  pointer-events: auto;
+  padding: 12px 0;
+  margin: -12px 0;
+}
+.seasonpick {
+  position: absolute;
+  top: 100%;
+  right: -4px;
+  display: flex;
+  gap: 2px;
+  animation: pickIn 0.35s ease;
+}
+.seasonpick[hidden] {
+  display: none;
+}
+.seasonpick button {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink2);
+  background: none;
+  border: 0;
+  padding: 6px 4px;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+.seasonpick button:hover,
+.seasonpick button.on {
+  color: var(--ink);
+}
+.seasonpick button.on {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+@keyframes pickIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.year span {
+  font-size: 13px;
+  width: 14px;
+  text-align: center;
+  color: var(--ink);
+}
+.yearbar {
+  position: relative;
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  height: 2px;
+}
+.yearbar i {
+  display: block;
+  border-radius: 2px;
+  opacity: 0.8;
+}
+.yearbar i:nth-child(1) {
+  background: #a9c77a;
+}
+.yearbar i:nth-child(2) {
+  background: #e7c45a;
+}
+.yearbar i:nth-child(3) {
+  background: #d1813e;
+}
+.yearbar i:nth-child(4) {
+  background: #c9d8e6;
+}
+.yearbar b {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--ink);
+  transform: translateX(-1px);
+  transition: left 0.3s linear;
+}
+.ib {
+  pointer-events: auto;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.8;
+  filter: drop-shadow(0 1px 6px rgba(10, 16, 12, 0.4));
+}
+.ib:hover {
+  opacity: 1;
+}
+.ib svg {
+  width: 17px;
+  height: 17px;
+}
+.ib .i-play,
+.ib.paused .i-pause {
+  display: none;
+}
+.ib.paused .i-play {
+  display: inline;
+}
+.ib:focus-visible,
+.btn:focus-visible,
+.dash:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 3px;
+}
+.dash {
+  position: fixed;
+  left: 20px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: rgba(246, 243, 234, 0.08);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  touch-action: none;
+}
+.banner {
+  position: fixed;
+  left: 50%;
+  top: 22%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+}
+.banner.show {
+  animation: bannerIn 5s ease forwards;
+}
+@keyframes bannerIn {
+  0% {
+    opacity: 0;
+    letter-spacing: 0.2em;
+  }
+  18% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    letter-spacing: 0.42em;
+  }
+}
+.b-season {
+  font-weight: 300;
+  font-size: clamp(28px, 6vw, 46px);
+  letter-spacing: 0.32em;
+  text-transform: lowercase;
+  color: var(--ink);
+  text-shadow: 0 2px 30px rgba(10, 16, 12, 0.55);
+  padding-left: 0.32em;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(
+    ellipse 70% 55% at 50% 50%,
+    rgba(14, 20, 16, 0.4),
+    rgba(14, 20, 16, 0.22) 60%,
+    rgba(14, 20, 16, 0.55)
+  );
+  overflow: auto;
+  text-align: center;
+}
+.card {
+  max-width: 420px;
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  text-shadow: 0 2px 24px rgba(10, 16, 12, 0.5);
+}
+.card h1 {
+  font-weight: 300;
+  font-size: clamp(64px, 16vw, 112px);
+  letter-spacing: -0.05em;
+  line-height: 0.85;
+  margin: 0;
+}
+.card h2 {
+  font-weight: 300;
+  font-size: clamp(30px, 8vw, 44px);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin: 0;
+  text-wrap: balance;
+}
+.sub {
+  font-size: 15px;
+  color: var(--ink2);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+.keys {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--ink2);
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.btn {
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  background: rgba(246, 243, 234, 0.08);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 11px 24px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.btn.main {
+  background: var(--ink);
+  color: #1b231d;
+  border-color: var(--ink);
+}
+.btn:hover {
+  border-color: var(--ink);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+.stats {
+  display: flex;
+  gap: 28px;
+  justify-content: center;
+}
+.stats div {
+  display: grid;
+  gap: 4px;
+}
+.stats b {
+  font-weight: 300;
+  font-size: 36px;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.stats span {
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: rgba(246, 243, 234, 0.74);
+}
+/* paused: the world steps back further, and resuming is a quiet outline rather than a big button */
+#pauseOv {
+  background: rgba(14, 20, 16, 0.5);
+  backdrop-filter: blur(2px) saturate(0.7);
+  -webkit-backdrop-filter: blur(2px) saturate(0.7);
+}
+#pauseOv .btn.main {
+  background: rgba(246, 243, 234, 0.06);
+  color: var(--ink);
+  border-color: rgba(246, 243, 234, 0.7);
+}
+#pauseOv .btn.main:hover {
+  border-color: var(--ink);
+  background: rgba(246, 243, 234, 0.12);
+}
+.fine {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink2);
+  text-transform: lowercase;
+}
+@media (max-width: 560px) {
+  .count {
+    font-size: 38px;
+  }
+  .year {
+    width: 92px;
+  }
+  .hud {
+    padding-inline: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .count.danger {
+    animation: none;
+  }
+  .banner.show {
+    animation-duration: 4s;
+  }
+}

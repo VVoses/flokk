@@ -1,0 +1,15 @@
+{
+  "name": "flokk",
+  "private": true,
+  "description": "Lead a flock of sparrows through a year. Zero runtime dependencies; these are dev tools only.",
+  "scripts": {
+    "lint": "node tools/lint.mjs",
+    "format": "prettier --write \"js/*.js\" \"css/*.css\" index.html",
+    "check": "sh tools/check.sh"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0"
+  }
+}

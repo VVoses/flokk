@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="description" content="Lead a flock of sparrows through a year in a looping Nordic farmland." />
+    <meta name="theme-color" content="#2F4A34" />
+    <title>Flokk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600&display=swap"
+    />
+    <link rel="stylesheet" href="css/flokk.css" />
+  </head>
+  <body>
+    <canvas id="game" aria-label="Flokk"></canvas>
+
+    <div class="hud">
+      <div class="tl">
+        <div class="count" id="count" role="img" aria-label="Birds in the flock">6</div>
+        <div class="lines">
+          <div class="line" title="Energy"><i id="enBar"></i></div>
+          <div class="line gold" title="Next bird"><i id="foodBar"></i></div>
+          <div class="line leaf" title="Dash"><i id="stBar"></i></div>
+        </div>
+      </div>
+      <div class="tr">
+        <div class="year" id="yearEl" aria-hidden="true">
+          <span id="calIcon">☀</span>
+          <div class="yearbar"><i></i><i></i><i></i><i></i><b id="yearMark"></b></div>
+          <div class="seasonpick" id="seasonPick" hidden>
+            <button data-s="0">spring</button><button data-s="1">summer</button><button data-s="2">autumn</button
+            ><button data-s="3">winter</button>
+          </div>
+        </div>
+        <button class="ib" id="muteBtn" aria-label="Mute sound">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M4 9v6h4l5 4V5L8 9H4z" />
+            <path id="waves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+          </svg>
+        </button>
+        <button class="ib" id="pauseBtn" aria-label="Pause">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <g class="i-pause">
+              <rect x="7" y="5" width="3" height="14" rx="1" />
+              <rect x="14" y="5" width="3" height="14" rx="1" />
+            </g>
+            <path class="i-play" d="M8 5.5v13a.8.8 0 0 0 1.2.7l10-6.5a.8.8 0 0 0 0-1.4l-10-6.5A.8.8 0 0 0 8 5.5z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <button class="dash" id="dashBtn" hidden aria-label="Dash">›</button>
+    <div class="banner" id="banner" aria-live="polite"><div class="b-season" id="bSeason">spring</div></div>
+
+    <div class="overlay" id="titleOv">
+      <div class="card">
+        <h1>Flokk</h1>
+        <p class="sub">a year with a flock of sparrows</p>
+        <div class="keys" id="keysTxt">hold the mouse or arrow keys to fly · let go to land · space to dash</div>
+        <div class="actions">
+          <button class="btn main" id="startBtn">Take off</button><button class="btn" id="newLandBtn">New land</button>
+        </div>
+        <div class="fine" id="bestTitle"></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="wonOv" hidden>
+      <div class="card">
+        <h2 id="wonTitle">A year</h2>
+        <div class="stats" id="wonStats"></div>
+        <div class="actions">
+          <button class="btn main" id="keepBtn">Keep flying</button><button class="btn" id="wonNewBtn">New land</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="pauseOv" hidden>
+      <div class="card">
+        <h2>Paused</h2>
+        <div class="stats" id="pauseStats"></div>
+        <div class="actions"><button class="btn main" id="resumeBtn">Resume</button></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="overOv" hidden>
+      <div class="card">
+        <h2 id="overTitle">Taken</h2>
+        <div class="stats" id="overStats"></div>
+        <div class="actions">
+          <button class="btn main" id="againBtn">Fly again</button><button class="btn" id="overNewBtn">New land</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/core.js"></script>
+    <script src="js/world.js"></script>
+    <script src="js/sprites.js"></script>
+    <script src="js/ground.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/sky.js"></script>
+    <script src="js/life.js"></script>
+    <script src="js/interact.js"></script>
+    <script src="js/people.js"></script>
+    <script src="js/rigs.js"></script>
+    <script src="js/light.js"></script>
+    <script src="js/yard.js"></script>
+    <script src="js/rail.js"></script>
+    <script src="js/traffic.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/flight.js"></script>
+    <script src="js/update.js"></script>
+    <script src="js/render.js"></script>
+    <script src="js/main.js"></script>
+    <script>
+      if (/[?&]dev\b/.test(location.search)) document.write('<script src="js/dev.js"><\/script>');
+    </script>
+  </body>
+</html>
