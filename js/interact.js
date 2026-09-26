@@ -37,9 +37,10 @@ function steerA(a, tx, ty, sp, dt) {
   return d;
 }
 // queue a call to be heard (audio.js plays up to a few per tick, quieter with distance)
-function callAt(k, x, y, n) {
+// (who: the animal or flock calling, so it is heard in its own voice)
+function callAt(k, x, y, n, who) {
   const q = LIFE.calls || (LIFE.calls = []);
-  q.push({ k, x, y, n });
+  q.push({ k, x, y, n, who });
   if (q.length > 12) q.shift();
 }
 // another member of the same herd, pasture or deer group
@@ -65,7 +66,7 @@ function shoo(o, fx, fy) {
   [o.tx, o.ty] = best;
   o.st = 'fly';
   o.z = 0.05;
-  callAt(o.k, o.x, o.y, 1);
+  callAt(o.k, o.x, o.y, 1, o);
 }
 // every sparrow resting low near (x,y) bursts up
 function scatterFlock(x, y, r) {
@@ -119,7 +120,7 @@ function interact(dt) {
   for (const a of ANIMALS)
     if (a.answer > 0) {
       a.answer -= dt;
-      if (a.answer <= 0) callAt('sheep', a.x, a.y, 1);
+      if (a.answer <= 0) callAt('sheep', a.x, a.y, 1, a);
     }
   mobHawks(dt);
   feederRaids(dt);
@@ -188,7 +189,7 @@ function magpieRaid(a, dt) {
         }
       }
       flutter(2);
-      callAt('magpie', a.x, a.y, 1);
+      callAt('magpie', a.x, a.y, 1, a);
       a.st = 'hold';
       a.z = 0.05;
       a.t = rr(8, 15);
@@ -202,7 +203,7 @@ function magpieRaid(a, dt) {
     if (a.idle <= 0) {
       a.idle = rr(0.5, 1.2);
       a.hop += dt * 10;
-      if (Math.random() < 0.15) callAt('magpie', a.x, a.y, 0.6);
+      if (Math.random() < 0.15) callAt('magpie', a.x, a.y, 0.6, a);
     }
     if (a.t <= 0) {
       for (const p of FEEDER.perches) p.off = false;
@@ -239,7 +240,7 @@ function foxProwl(dt) {
   fox.busy = true;
   fox.st = 'stalk';
   fox.t = rr(9, 14);
-  callAt('fox', fox.x, fox.y, 1);
+  callAt('fox', fox.x, fox.y, 1, fox);
 }
 function foxLife(a, dt) {
   if (a.st === 'stalk') {
@@ -258,7 +259,7 @@ function foxLife(a, dt) {
         a.t = 0.6;
         a.px = a.x + wdx(L.x, a.x);
         a.py = L.y;
-        callAt('fox', a.x, a.y, 1.3);
+        callAt('fox', a.x, a.y, 1.3, a);
       }
     } else a.vx = a.vy = 0;
     return;
@@ -341,7 +342,7 @@ function mobHawks(dt) {
       a.ma = rr(0, TAU);
       a.z = Math.max(a.z, 0.05);
     }
-    callAt('crow', cand[0].x, cand[0].y, 3);
+    callAt('crow', cand[0].x, cand[0].y, 3, cand[0]);
   }
 }
 function crowMob(a, dt) {
@@ -384,7 +385,7 @@ function crowMob(a, dt) {
   a.cawT = (a.cawT ?? rr(0.4, 1.5)) - dt;
   if (a.cawT <= 0) {
     a.cawT = rr(2.5, 5);
-    callAt('crow', a.x, a.y, 1);
+    callAt('crow', a.x, a.y, 1, a);
   }
   if (near2(a, h) < 70 * 70 && Math.abs(a.z - h.z) < 0.8) {
     // close enough to pester: the hawk jinks, loses patience and cannot line up an attack
@@ -468,7 +469,7 @@ function catLife(a, dt) {
     }
     if (!isBird && near2(a, p) < 85 * 85 && Math.random() < dt * 0.9)
       shoo(p, a.x, a.y); // the magpie spots it first
-    else if (!isBird && Math.random() < dt * 0.25) callAt('magpie', p.x, p.y, 1); // and scolds
+    else if (!isBird && Math.random() < dt * 0.25) callAt('magpie', p.x, p.y, 1, p); // and scolds
     return;
   }
   if (a.st === 'pounce') {
@@ -518,7 +519,7 @@ function dogLife(a, dt) {
   const bark = () => {
     if (a.barkT <= 0) {
       a.barkT = rr(0.8, 1.6);
-      callAt('dog', a.x, a.y, 1);
+      callAt('dog', a.x, a.y, 1, a);
     }
   };
   a.rest = (a.rest || 0) - dt;
@@ -641,7 +642,7 @@ function lambLife(a, dt) {
   a.bleat = (a.bleat ?? rr(4, 12)) - dt;
   if (d > 70 && a.bleat <= 0) {
     a.bleat = rr(9, 18);
-    callAt('lamb', a.x, a.y, 1);
+    callAt('lamb', a.x, a.y, 1, a);
     if (Math.random() < 0.6) a.mom.answer = rr(0.5, 1);
   }
   if (d > 45 && a.st !== 'walk') {
@@ -737,7 +738,7 @@ function duckLife(a, dt) {
       a.foe = rival;
       rival.foe = a;
       a.t = rival.t = rr(1.4, 2.2);
-      callAt('duck', a.x, a.y, 1);
+      callAt('duck', a.x, a.y, 1, a);
     }
   }
 }

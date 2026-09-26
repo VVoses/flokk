@@ -254,7 +254,7 @@ function wildLift(F, alarm) {
     a.vy += rr(-40, 40);
   }
   callAt('whirr', F.x, F.y, 1);
-  callAt(F.sp, F.x, F.y, alarm ? 2 : 1);
+  callAt(F.sp, F.x, F.y, alarm ? 2 : 1, F);
 }
 function wildLeave(F, ax, ay) {
   if (F.st === 'out') return;
@@ -384,7 +384,7 @@ function wildFlock(F, dt) {
   }
   if (F.callT <= 0) {
     F.callT = F.st === 'feed' ? rr(3, 8) : rr(1.5, 4);
-    callAt(F.sp, F.x, F.y, 1);
+    callAt(F.sp, F.x, F.y, 1, F);
   }
   for (const a of F.members) wildBird(a, F, S, dt);
 }
