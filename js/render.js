@@ -577,6 +577,7 @@ function drawSpire(b, P, poly, cols, hl, hd) {
   ctx.fillStyle = '#C9A95A';
   ctx.fillRect(ap[0] - 1, ap[1] - 1.5, 2, 2);
 }
+const rnd2 = (b, h, u) => hash2((h * 13 + b.cy) | 0, (u * 1013) | 0);
 /* building: real walls, gable ends and a pitched roof, projected in 2.5D */
 function drawBuilding(b) {
   // the church draws as its parts (tower, nave, chancel), back to front
@@ -621,7 +622,27 @@ function drawBuilding(b) {
     const Q = (u, v) => P(lerp(x1, x2, u), lerp(y1, y2, u), v);
     poly([Q(0, 0), Q(1, 0), Q(1, wh), Q(0, wh)], col);
     if (gable) poly([Q(0, wh), Q(1, wh), P((x1 + x2) / 2, (y1 + y2) / 2, rh)], col);
-    if (b.wall !== '#E6E0D2') {
+    if (b.stone) {
+      // fieldstone: rough courses of lighter and darker stones in lime mortar
+      const L = Math.hypot(x2 - x1, y2 - y1),
+        top = gable ? rh : wh;
+      for (let hh = 3; hh < top - 2; hh += 5)
+        for (let u = ((hh * 7) % 9) / L; u < 1; u += (rnd2(b, hh, u) * 8) / L + 4 / L) {
+          const cap = gable ? lerp(wh, rh, 1 - Math.abs(u - 0.5) * 2) : wh;
+          if (hh > cap - 2) continue;
+          const k = hash2((u * 997) | 0, (hh * 31 + b.cx) | 0),
+            a = Q(u, hh),
+            w = Math.min(1 - u, (3 + 3 * k) / L),
+            q = Q(u + w, hh + 3);
+          ctx.fillStyle = k < 0.5 ? 'rgba(0,0,0,.1)' : 'rgba(255,250,235,.1)';
+          ctx.fillRect(
+            Math.min(a[0], q[0]),
+            Math.min(a[1], q[1]),
+            Math.abs(q[0] - a[0]) + 0.5,
+            Math.abs(q[1] - a[1]) + 0.5
+          );
+        }
+    } else if (b.wall !== '#E6E0D2') {
       ctx.strokeStyle = 'rgba(0,0,0,.13)';
       ctx.lineWidth = 0.8;
       ctx.beginPath();

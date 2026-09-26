@@ -942,18 +942,29 @@ function genLayout() {
             bad = true;
       if (bad) continue;
       // the church stands with its long axis running away from the road, tower first
-      const ba = ang + (Math.PI / 2) * side + rnd(-0.04, 0.04),
+      // three kinds: most often a white-painted wooden church; sometimes an old grey fieldstone one with
+      // a squat tower and short spire; now and then a small chapel in barn red
+      const kind = pick(['white', 'white', 'white', 'stone', 'stone', 'red']),
+        stone = kind === 'stone',
+        ba = ang + (Math.PI / 2) * side + rnd(-0.04, 0.04),
         c = Math.cos(ba),
         s = Math.sin(ba),
-        tw = 30,
+        tw = stone ? 36 : 30,
         nl = rnd(104, 118),
         cl = 34,
         len = tw + nl + cl - 4,
         off = rnd(8, 20),
         bx = cx + c * off,
         by = cy + s * off,
-        wall = '#F0EDE6', // always painted white
-        roof = pick(['slate', 'slate', 'dark']),
+        wall = kind === 'white' ? '#F0EDE6' : kind === 'red' ? '#8E2F24' : pick(['#9A958A', '#A39C8C', '#8C897F']),
+        roof =
+          kind === 'red'
+            ? pick(['dark', 'slate'])
+            : stone
+              ? pick(['tile', 'slate', 'dark'])
+              : pick(['slate', 'slate', 'dark']),
+        th = stone ? 76 : kind === 'red' ? 56 : 64, // tower walls
+        sp = stone ? 50 : kind === 'red' ? 76 : 94, // and the spire on top
         at = u => [bx + c * u, by + s * u],
         mk = (u, o) => Object.assign({ cx: at(u)[0], cy: at(u)[1], ang: ba, wall, roof }, o);
       const u0 = -len / 2,
@@ -964,15 +975,43 @@ function genLayout() {
           len,
           dep: 54,
           wh: 34,
-          rh: 158,
+          rh: th + sp,
           wall,
           roof,
           windows: true,
           kind: 'church',
+          look: kind,
           parts: [
-            mk(u0 + tw / 2, { len: tw, dep: tw, wh: 64, rh: 158, spire: true, kind: 'tower' }),
-            mk(u0 + tw - 2 + nl / 2, { len: nl, dep: 54, wh: 34, rh: 66, windows: true, tall: true }),
-            mk(u0 + tw + nl - 4 + cl / 2, { len: cl, dep: 38, wh: 30, rh: 54, windows: true, tall: true })
+            mk(u0 + tw / 2, {
+              len: tw,
+              dep: tw,
+              wh: th,
+              rh: th + sp,
+              spire: true,
+              kind: 'tower',
+              stone,
+              trim: kind === 'red'
+            }),
+            mk(u0 + tw - 2 + nl / 2, {
+              len: nl,
+              dep: 54,
+              wh: 34,
+              rh: 66,
+              windows: true,
+              tall: true,
+              stone,
+              trim: kind === 'red'
+            }),
+            mk(u0 + tw + nl - 4 + cl / 2, {
+              len: cl,
+              dep: 38,
+              wh: 30,
+              rh: 54,
+              windows: true,
+              tall: true,
+              stone,
+              trim: kind === 'red'
+            })
           ]
         };
       // the gate in the wall facing the road, and a short gravel lane to it
