@@ -286,7 +286,8 @@ function update(dt) {
   {
     // insects follow the season and the hour; moths gather at the yard lamp at night
     const nightNow = LIGHT.night > 0.5,
-      target = Math.round(40 * [0.6, 1.2, 0.7, 0][SEASON] * (nightNow ? 0.2 : 1)),
+      want = insectTarget(),
+      target = want.swarms,
       cnt = swarms.filter(s => !s.moth).length;
     if (cnt < target && Math.random() < dt * 1.2) spawnSwarm(false);
     if (cnt > target + 3) {
@@ -299,7 +300,7 @@ function update(dt) {
       for (let i = 0; i < 7; i++) m.push(mkMote('moth', rr(8, 22)));
       swarms.push({ x: l.x + rr(-10, 10), y: l.y + rr(-8, 8), vx: 0, vy: 0, z: 2.05, moth: true, m });
     }
-    const dT = nightNow ? 0 : Math.round(9 * [0.4, 1, 0.3, 0][SEASON]);
+    const dT = want.dflies;
     if (dflies.length < dT && Math.random() < dt * 0.3) spawnDfly();
     if (dflies.length > dT && Math.random() < dt) dflies.shift();
   }
