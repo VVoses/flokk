@@ -24,6 +24,8 @@ function update(dt) {
     refreshInsects();
     seasonBanner();
   }
+  growTick(dt);
+  airTick(dt);
   if (playing && CAL.day >= YEAR_DAYS * CAL.year + (st.dayOff || 0) && CAL.hour >= START_HOUR) {
     yearWon();
     return;

@@ -32,7 +32,9 @@ const LEAF = {
   rowanAut: ['#5B4B2A', '#8A562A', '#B36E38', '#CE8C4E'],
   rowanSum: ['#3A5B2D', '#4E7336', '#628A44', '#7AA052']
 };
-function makeSprite(type, vi, season) {
+/* stage (birch and leafy trees only): 'bare' draws the twigs without snow, 'bud' the first small leaves of
+   spring - grow.js blends these under the season's own sprite as the trees leaf out or drop their leaves */
+function makeSprite(type, vi, season, stage) {
   const keepR = R;
   R = mulberry32(9000 + vi * 131 + (type === 'spruce' ? 1 : type === 'birch' ? 2 : 3) * 17);
   const c = mk(SW * SS, SHT * SS),
@@ -41,7 +43,7 @@ function makeSprite(type, vi, season) {
   g.translate(AX, AY);
   const Ht = TD[type] * SR;
   if (type === 'spruce') drawSpruce(g, Ht, season, vi);
-  else drawLeafy(g, type, vi, season);
+  else drawLeafy(g, type, vi, season, stage);
   g.globalCompositeOperation = 'source-atop';
   const gr = g.createLinearGradient(-SR * 1.1, -Ht, SR * 1.1, 0);
   gr.addColorStop(0, 'rgba(255,245,200,.1)');
@@ -139,14 +141,16 @@ function drawSpruce(g, Ht0, season, vi = 0) {
   g.stroke();
 }
 /* birch and leafy trees: a branch skeleton carrying shaded leaf clusters */
-function drawLeafy(g, type, vi, season) {
+function drawLeafy(g, type, vi, season, stage) {
   const birch = type === 'birch',
     [cyu, rxu, ryu] = CAN[type],
     cy = -cyu * SR,
     rx = rxu * SR * 1.05,
     ry = ryu * SR * (type === 'birch' ? 1.12 : 1.02),
     rowan = !birch && vi % 4 === 3,
-    winter = season === 3;
+    winter = season === 3,
+    bare = winter || stage === 'bare',
+    bud = stage === 'bud';
   // trunk
   if (birch) {
     g.fillStyle = '#ECE8DE';
@@ -222,7 +226,7 @@ function drawLeafy(g, type, vi, season) {
       d = Math.hypot(dx, dy);
     return d > 1 ? [(x / d) * 0.98, cy + ((y - cy) / d) * 0.98] : [x, y];
   };
-  const bcol = birch ? (winter ? '#6E5A56' : '#8E8A84') : winter ? '#4E3D30' : '#5A4230';
+  const bcol = birch ? (bare || bud ? '#6E5A56' : '#8E8A84') : bare ? '#4E3D30' : '#5A4230';
   const drawSegs = () => {
     g.strokeStyle = bcol;
     g.lineCap = 'round';
@@ -235,7 +239,7 @@ function drawLeafy(g, type, vi, season) {
       g.stroke();
     }
   };
-  if (winter) {
+  if (bare) {
     drawSegs();
     g.strokeStyle = birch ? 'rgba(120,76,72,.35)' : 'rgba(70,56,44,.3)';
     g.lineWidth = 0.5;
@@ -250,6 +254,7 @@ function drawLeafy(g, type, vi, season) {
       }
     }
     g.stroke();
+    if (!winter) return;
     g.strokeStyle = 'rgba(245,248,252,.9)';
     g.lineWidth = 1.1;
     g.beginPath();
@@ -281,7 +286,7 @@ function drawLeafy(g, type, vi, season) {
     return {
       x: p[0],
       y: p[1],
-      r: SR * rnd(0.17, 0.26) * (birch ? 0.85 : 1) * (season === 0 ? 0.88 : 1),
+      r: SR * rnd(0.17, 0.26) * (birch ? 0.85 : 1) * (season === 0 ? 0.88 : 1) * (bud ? 0.4 : 1),
       back: R() < 0.35
     };
   });
@@ -291,7 +296,7 @@ function drawLeafy(g, type, vi, season) {
     clusters.push({
       x: Math.cos(a) * d * rx,
       y: cy + Math.sin(a) * d * ry * (birch ? 1.08 : 1) + (birch ? ry * 0.12 : 0),
-      r: SR * rnd(0.17, 0.27) * (birch ? 0.85 : 1),
+      r: SR * rnd(0.17, 0.27) * (birch ? 0.85 : 1) * (bud ? 0.4 : 1),
       back: R() < 0.55
     });
   }

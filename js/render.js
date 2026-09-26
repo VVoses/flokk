@@ -432,16 +432,19 @@ function drawTree(t) {
     ctx.drawImage(TRANS.prevSPR[t.type][t.v], x, y, w, h);
     ctx.globalAlpha = e;
   }
-  ctx.drawImage(spr, x, y, w, h);
+  // bare twigs and first leaves under a tree still leafing out, or losing its leaves (grow.js)
+  const la = growUnder(t, x, y, w, h);
+  ctx.globalAlpha *= la;
+  if (la > 0.005) ctx.drawImage(spr, x, y, w, h);
   ctx.globalAlpha = 1;
-  if (LIGHT.rim > 0.04) {
+  if (LIGHT.rim > 0.04 && la > 0.005) {
     const r = RIM[t.type][t.v];
     if (r) {
       const si = LIGHT.rimSide > 0 ? 1 : 0;
-      ctx.globalAlpha = LIGHT.rim * 0.3;
+      ctx.globalAlpha = LIGHT.rim * 0.3 * la;
       ctx.drawImage(r.c[1 - si], x, y, w, h);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28);
+      ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28) * la;
       ctx.drawImage(r.w[si], x, y, w, h);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
@@ -984,7 +987,7 @@ function renderShadows(tx, ty, KS, inK) {
     }
     c.stroke();
     // bales, rocks, animals: capsules stretched along the sun
-    if (SEASON >= 2) for (const b of BALES) if (visG(b.x, b.y, 40)) cap(b.x, b.y, BALE_H, b.r * 2);
+    if (SEASON >= 2) for (const b of BALES) if (baleShown(b) && visG(b.x, b.y, 40)) cap(b.x, b.y, BALE_H, b.r * 2);
     for (const l of LAMPS) if (visG(l.x, l.y, 140)) cap(l.x, l.y, 2.3, 2.6);
     propShadows(c, cap);
     if (FEEDER && SEASON === 3 && visG(FEEDER.x, FEEDER.y, 120)) cap(FEEDER.x, FEEDER.y, 1.6, 3);
@@ -1109,6 +1112,7 @@ function render() {
         blit(TRANS.prevG);
         ctx.globalAlpha = 1;
       }
+      growGround(sx, sy, ex, ey);
     }
     if (winterW() < 0.5) drawReflections(tk, ty, z);
     ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
@@ -1127,6 +1131,12 @@ function render() {
         ctx.lineTo(s.x + s.l / 2, s.y);
         ctx.stroke();
       }
+    {
+      const sc = ctx.strokeStyle;
+      drawDew();
+      ctx.strokeStyle = sc;
+      ctx.lineWidth = 2;
+    }
     for (const s of SEASPARK) {
       if (!visG(s.x, s.y, 10)) continue;
       const a = Math.max(0, Math.sin(T * s.s + s.p));
@@ -1198,6 +1208,7 @@ function render() {
       ctx.drawImage(SHADOW_SPR, c.x - c.s, c.y - c.s, c.s * 2, c.s * 2);
     }
     ctx.globalAlpha = 1;
+    drawMist();
   }
   V = V0;
   if (LIGHT.shadowA > 0.02) {
@@ -1235,7 +1246,7 @@ function render() {
     for (const b of BUILDS) if (visU(b.cx, b.cy, b.len, b.rh + b.len * 0.6)) items.push([b.cy, 1, b, k]);
     for (const line of LINES)
       for (const p of line) if (!p.ghost && visU(p.x, p.y, 14, POLE_H * HZ)) items.push([p.y, 2, p, k]);
-    if (SEASON >= 2) for (const b of BALES) if (visU(b.x, b.y, 14, 16)) items.push([b.y, 3, b, k]);
+    if (SEASON >= 2) for (const b of BALES) if (baleShown(b) && visU(b.x, b.y, 14, 16)) items.push([b.y, 3, b, k]);
     for (const f of FSEG) if (visU(f.p.x, f.p.y, 40, 16)) items.push([f.k, 4, f, k]);
     for (const b of BOULDERS) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 6, b, k]);
     for (const b of BUSHES) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 13, b, k]);
@@ -1486,12 +1497,15 @@ function render() {
   V = V0;
   drawSkyBehind(tx, ty);
   applyGlaze();
+  drawRays();
   drawSnowfall(lastDt);
   drawRain(lastDt);
+  drawFluff(lastDt);
   /* ---- screen space ---- */
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const haze = ctx.createLinearGradient(0, 0, 0, vh * 0.45);
-  haze.addColorStop(0, LIGHT.skyBot + (LIGHT.night > 0.5 ? '18' : '3a'));
+  // a misty morning softens the distance too
+  haze.addColorStop(0, LIGHT.skyBot + (LIGHT.night > 0.5 ? '18' : hex2(0.23 + 0.3 * AIR.mist)));
   haze.addColorStop(1, LIGHT.skyBot + '00');
   ctx.fillStyle = haze;
   ctx.fillRect(0, 0, vw, vh * 0.45);
