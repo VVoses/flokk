@@ -58,7 +58,7 @@ def shot(pg, keep):
 
 fails = []
 with sync_playwright() as p:
-    b = p.chromium.launch(executable_path="/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
+    b = p.chromium.launch()
     pg = b.new_page(viewport={'width': 1280, 'height': 800})
     errs = []
     pg.on('pageerror', lambda e: errs.append(str(e)))
