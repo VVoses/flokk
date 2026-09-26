@@ -501,8 +501,89 @@ function drawReflections(tk, ty, z) {
   }
   ctx.globalAlpha = 1;
 }
+// a round-headed opening on a wall: Q(u, h) is the wall point; u0..u1 wide, from h0 up to the crown at h1
+function arch(Q, u0, u1, h0, h1, fill, stroke, rise = 3.5) {
+  const m = (u0 + u1) / 2,
+    hw = (u1 - u0) / 2,
+    pts = [Q(u0, h0), Q(u1, h0)];
+  for (let i = 0; i <= 8; i++) {
+    const t = (i / 8) * Math.PI;
+    pts.push(Q(m + hw * Math.cos(t), h1 - rise + rise * Math.sin(t)));
+  }
+  ctx.beginPath();
+  pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+// the church spire: a tall four-sided pyramid on the tower, shingled, with an iron cross at the tip
+function drawSpire(b, P, poly, cols, hl, hd) {
+  const o = 3,
+    c = Math.cos(b.ang),
+    s = Math.sin(b.ang),
+    ap = P(0, 0, b.rh),
+    base = b.wh - 2,
+    faces = [
+      [-hl - o, -hd - o, hl + o, -hd - o, 0, -1],
+      [hl + o, -hd - o, hl + o, hd + o, 1, 0],
+      [hl + o, hd + o, -hl - o, hd + o, 0, 1],
+      [-hl - o, hd + o, -hl - o, -hd - o, -1, 0]
+    ].map(([x1, y1, x2, y2, nx, ny]) => ({ x1, y1, x2, y2, wnx: nx * c - ny * s, wny: nx * s + ny * c }));
+  faces.sort((a, q) => a.wny - q.wny);
+  const ww = winterW();
+  for (const f of faces) {
+    let col = shade(cols, clamp(1 - 0.3 * f.wnx + 0.1 * f.wny, 0.6, 1.15));
+    if (LIGHT.rim > 0.05 && f.wnx * LIGHT.rimSide > 0) col = mixRgb(col, rimCol(), LIGHT.rim * 0.4 * Math.abs(f.wnx));
+    const e0 = P(f.x1, f.y1, base),
+      e1 = P(f.x2, f.y2, base);
+    poly([e0, e1, ap], col, 'rgba(20,15,10,.35)');
+    if (f.wny <= 0) continue;
+    // shingle courses across the face, closer together towards the tip
+    ctx.strokeStyle = 'rgba(0,0,0,.16)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    for (let i = 1; i < 12; i++) {
+      const t = 1 - (1 - i / 12) ** 1.4;
+      ctx.moveTo(lerp(e0[0], ap[0], t), lerp(e0[1], ap[1], t));
+      ctx.lineTo(lerp(e1[0], ap[0], t), lerp(e1[1], ap[1], t));
+    }
+    ctx.stroke();
+    if (ww > 0.5) {
+      // snow only holds in a lip along the flared foot of a spire this steep
+      ctx.strokeStyle = '#F7F9FB';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(e0[0], e0[1]);
+      ctx.lineTo(e1[0], e1[1]);
+      ctx.stroke();
+    }
+  }
+  // iron cross
+  ctx.strokeStyle = '#2E2B28';
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(ap[0], ap[1] + 1);
+  ctx.lineTo(ap[0], ap[1] - 13);
+  ctx.moveTo(ap[0] - 4, ap[1] - 8.5);
+  ctx.lineTo(ap[0] + 4, ap[1] - 8.5);
+  ctx.stroke();
+  ctx.fillStyle = '#C9A95A';
+  ctx.fillRect(ap[0] - 1, ap[1] - 1.5, 2, 2);
+}
 /* building: real walls, gable ends and a pitched roof, projected in 2.5D */
 function drawBuilding(b) {
+  // the church draws as its parts (tower, nave, chancel), back to front
+  if (b.parts) {
+    for (const p of b.parts.slice().sort((a, q) => a.cy - q.cy)) drawBuilding(p);
+    return;
+  }
   const c = Math.cos(b.ang),
     s = Math.sin(b.ang),
     hl = b.len / 2,
@@ -529,8 +610,9 @@ function drawBuilding(b) {
   ];
   const wh = b.wh,
     rh = b.rh;
-  for (const [x1, y1, x2, y2, nx, ny, gable] of sides) {
-    const wnx = nx * c - ny * s,
+  for (const [x1, y1, x2, y2, nx, ny, g0] of sides) {
+    const gable = g0 && !b.spire,
+      wnx = nx * c - ny * s,
       wny = nx * s + ny * c;
     if (wny <= 0.02) continue;
     const lit = clamp(1 - 0.28 * wnx - 0.08, 0.62, 1.12);
@@ -579,7 +661,26 @@ function drawBuilding(b) {
       ctx.fillStyle = '#D9C27A';
       ctx.fillRect(k[0] - 0.7, k[1] - 0.7, 1.4, 1.4);
     }
-    if (b.windows) {
+    if (b.spire) {
+      // the tower: a door facing the road, and louvred openings for the bells up top
+      const L = Math.hypot(x2 - x1, y2 - y1);
+      if (nx === -1) {
+        const w = 6 / L;
+        arch(Q, 0.5 - w, 0.5 + w, 0, wh * 0.3, shade('#4A3226', lit), '#F1ECE2');
+      }
+      for (const u of [0.32, 0.68]) arch(Q, u - 3.2 / L, u + 3.2 / L, wh * 0.76, wh * 0.9, 'rgba(30,26,22,.85)');
+    } else if (b.tall) {
+      // the church's tall, round-headed windows, none in the gable ends
+      if (!gable) {
+        const L = Math.hypot(x2 - x1, y2 - y1),
+          n = Math.max(1, Math.round(L / 30));
+        for (let i = 0; i < n; i++) {
+          const u = (i + 0.5) / n,
+            w = 4.5 / L;
+          arch(Q, u - w, u + w, wh * 0.22, wh * 0.82, winCol(), '#F4F0E6');
+        }
+      }
+    } else if (b.windows) {
       const L = Math.hypot(x2 - x1, y2 - y1);
       const n = gable ? 1 : Math.max(front ? 2 : 1, Math.floor(L / 34));
       for (let i = 0; i < n; i++) {
@@ -611,8 +712,12 @@ function drawBuilding(b) {
     cols = mixHex(
       { tile: '#8A3A2C', slate: '#55575A', turf: '#6F8A48', metal: '#6A7880', dark: '#3A3836' }[b.roof],
       '#E4EAF0',
-      ww
+      b.spire ? ww * 0.45 : ww
     );
+  if (b.spire) {
+    drawSpire(b, P, poly, cols, hl, hd);
+    return;
+  }
   const o = 5;
   const planes = [-1, 1].map(sg => {
     const eave = [P(-hl - o, sg * (hd + o), wh - 3), P(hl + o, sg * (hd + o), wh - 3)];
@@ -908,37 +1013,41 @@ function renderShadows(tx, ty, KS, inK) {
     // buildings: the projected volume (footprint, eaves and ridge)
     trainShadowHulls(c);
     vehicleShadows(c);
-    for (const b of BUILDS) {
-      if (!visG(b.cx, b.cy, b.len + 180)) continue;
-      const cs = Math.cos(b.ang),
-        sn = Math.sin(b.ang),
-        hl = b.len / 2 + 4,
-        hd = b.dep / 2 + 4,
-        pts = [];
-      const P = (lx, ly, h) => {
-        const q = h / HZ;
-        pts.push([b.cx + lx * cs - ly * sn + q * SX, b.cy + lx * sn + ly * cs + q * SY]);
-      };
-      for (const [lx, ly] of [
-        [-hl, -hd],
-        [hl, -hd],
-        [hl, hd],
-        [-hl, hd]
-      ]) {
-        P(lx, ly, 0);
-        P(lx, ly, b.wh);
+    for (const b0 of BUILDS)
+      for (const b of b0.parts || [b0]) {
+        if (!visG(b0.cx, b0.cy, b0.len + (b0.parts ? 480 : 180))) break;
+        const cs = Math.cos(b.ang),
+          sn = Math.sin(b.ang),
+          hl = b.len / 2 + 4,
+          hd = b.dep / 2 + 4,
+          pts = [];
+        const P = (lx, ly, h) => {
+          const q = h / HZ;
+          pts.push([b.cx + lx * cs - ly * sn + q * SX, b.cy + lx * sn + ly * cs + q * SY]);
+        };
+        for (const [lx, ly] of [
+          [-hl, -hd],
+          [hl, -hd],
+          [hl, hd],
+          [-hl, hd]
+        ]) {
+          P(lx, ly, 0);
+          P(lx, ly, b.wh);
+        }
+        if (b.spire) P(0, 0, b.rh);
+        else {
+          P(-hl, 0, b.rh);
+          P(hl, 0, b.rh);
+        }
+        if (b.chimney) {
+          P(hl * 0.45, -hd * 0.35, b.rh + 14);
+        }
+        const H2 = hull(pts);
+        c.beginPath();
+        H2.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
+        c.closePath();
+        c.fill();
       }
-      P(-hl, 0, b.rh);
-      P(hl, 0, b.rh);
-      if (b.chimney) {
-        P(hl * 0.45, -hd * 0.35, b.rh + 14);
-      }
-      const H2 = hull(pts);
-      c.beginPath();
-      H2.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
-      c.closePath();
-      c.fill();
-    }
     // poles, crossarms and sagging wires
     c.lineWidth = 3.5;
     c.beginPath();

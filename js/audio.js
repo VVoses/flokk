@@ -836,6 +836,40 @@ function cuckoo() {
     }
   }
 }
+// the church bell, rung slowly: a heavy bronze strike with the hum a minor third and an octave under the
+// strike note, inharmonic partials above it, and a long ringing tail carried far over the land
+function churchBell(v, pan, n = 9) {
+  const t0 = ac.currentTime + 0.1,
+    out = ac.createGain();
+  out.gain.value = v;
+  const p = panned(out, pan);
+  p.connect(master);
+  p.connect(verb);
+  const f = rr(196, 212);
+  for (let i = 0; i < n; i++) {
+    const t = t0 + i * rr(2.3, 2.6),
+      hit = i === n - 1 ? 0.8 : 1;
+    for (const [r, a, d] of [
+      [0.5, 0.5, 9],
+      [1, 0.8, 7],
+      [1.19, 0.4, 5],
+      [1.5, 0.22, 4],
+      [2, 0.34, 3.5],
+      [2.52, 0.12, 2.2],
+      [3.01, 0.08, 1.6]
+    ]) {
+      const o = ac.createOscillator(),
+        g = ac.createGain();
+      o.frequency.value = f * r * (1 + (Math.random() - 0.5) * 0.002);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(a * hit, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(t + d + 0.05);
+    }
+  }
+}
 function skein() {
   // migrating geese far overhead in autumn
   const t = ac.currentTime + 0.05,
@@ -1265,6 +1299,13 @@ function audioTick(dt) {
       amb.frogT = rr(1.5, 5);
     }
     const calm = !hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover');
+    // the church bell rings once in the middle of each season, a little after nine in the morning
+    if (CHURCH && L && CAL.day % DAYS_PER_SEASON === 1 && hr > 9.2 && hr < 10 && amb.bellDay !== CAL.day) {
+      amb.bellDay = CAL.day;
+      const dx = wdx(CHURCH.b.cx, L.x),
+        d = Math.hypot(dx, CHURCH.b.cy - L.y);
+      churchBell(0.035 * Math.max(0, 1 - d / 4000) + 0.006, clamp(dx / 1200, -0.9, 0.9));
+    }
     musicTick();
     amb.seaT = (amb.seaT || rr(8, 16)) - dt;
     if (amb.seaT <= 0) {
