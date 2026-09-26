@@ -23,7 +23,7 @@ files; function bodies can use anything, since they run after everything has loa
 | file | what lives there |
 |---|---|
 | `core.js` | canvas, projection (`TILT`, `HZ`, `PY`), RNG `R`/`rnd`, periodic noise `pfbm`/`pfbmP`, `wrapX`/`wdx`, `DEV` hook |
-| `world.js` | world state, `genLayout` (lake, road, rail route, farms `FARMS`/`YARDS`, fields, cabins, zones), `genWorld` (trees, hedges, bales, fences, poles), seam twins `buildGhosts`, field polygons |
+| `world.js` | world state, `genLayout` (lake, road, rail route, farms `FARMS`/`YARDS`, fields, cabins, zones), `genWorld` (trees, hedges, bales, fences, poles), seam twins `buildGhosts`, field polygons; farms' plots are cut from one tract per farm (`plotsFor`) with balks, ditches and hedges between them in `DIVIDES` |
 | `sprites.js` | tree sprites per season (`buildSprites`, `NV` variants) |
 | `ground.js` | `paintGround` → wide canvas `GE` → seam-blended `G`; `paintFloor` (forest floor, bogs, rocks, flowers, tracks) |
 | `audio.js` | WebAudio graph, animal voices (`animalCall`, `quack`, `baa`, `moo`, `bark`), ambience, music, `audioTick` |

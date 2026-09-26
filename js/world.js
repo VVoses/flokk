@@ -8,6 +8,7 @@ let LAKE,
   ROAD,
   LANES,
   FIELDS,
+  DIVIDES = [], // the balks, ditches and hedges between neighbouring plots: {t, w, pts}
   YARD,
   YARDS = [],
   FARMS = [],
@@ -399,6 +400,7 @@ function genLayout() {
   LANES = [];
   BUILDS = [];
   FIELDS = [];
+  DIVIDES = [];
   YARDS = [];
   FARMS = [];
   const pick = a => a[(R() * a.length) | 0];
@@ -599,75 +601,178 @@ function genLayout() {
       }
     return true;
   };
-  const types = ['stubble', 'stubble', 'stubble', 'plow', 'plow', 'pasture', 'pasture', 'pasture', 'crop'];
-  const fieldsFor = (fm, maxN) => {
-    const sd = fm.side,
-      fx = fm.cx,
-      reach = fm.small ? 700 : 1150,
-      regions = [];
-    const x0 = clamp(fx - reach, 130, W - 130),
-      x1 = clamp(fx + reach, 130, W - 130);
-    if (sd > 0)
-      regions.push({ x: x0, y: fm.py + 70, w: x1 - x0, h: Math.min(fm.small ? 800 : 1300, H - 440 - fm.py - 70) });
-    else {
-      const y0 = Math.max(NORTH, fm.py - (fm.small ? 800 : 1370));
-      regions.push({ x: x0, y: y0, w: x1 - x0, h: fm.py - 70 - y0 });
+  const types = ['stubble', 'stubble', 'stubble', 'plow', 'plow', 'pasture', 'crop', 'crop'];
+  /* farmland: each farm works one tract laid out square to its stretch of road, cut - the way real farmland
+     is seen from above - into neighbouring plots of different sizes, angles and crops. Every cut runs a
+     little off the tract's grid and carries a grass balk, a ditch or a hedge, which sets how far apart
+     the plots on either side sit; both sides bend with the same noise, so a strip keeps its width. Plots
+     that would land on water, the road, the rail or a yard are cut again or left as meadow. */
+  // the first spot on or in plot P that sits too close to water, road, rail, a yard or another farm's plot
+  const plotBad = (P, own) => {
+    for (const p of P) if (p[1] < NORTH || p[1] > H - 440 || p[0] < 130 || p[0] > W - 130) return p;
+    const bad = (x, y) => {
+      if (inWater(x, y, 40) || roadDist(x, y) < 42 || railDist(x, y) < 48 || inBuild(x, y, 24)) return true;
+      for (const Y of YARDS) if (inRect(x, y, Y, 40)) return true;
+      for (const o of FIELDS) if (!own.has(o) && inField(o, x, y, 24)) return true;
+      return false;
+    };
+    for (let i = 0; i < P.length; i++) {
+      const [ax, ay] = P[i],
+        [bx, by] = P[(i + 1) % P.length],
+        n = Math.ceil(Math.hypot(bx - ax, by - ay) / 25);
+      for (let k = 0; k < n; k++) {
+        const x = lerp(ax, bx, k / n),
+          y = lerp(ay, by, k / n);
+        if (bad(x, y)) return [x, y];
+      }
     }
-    if (!fm.small && R() < 0.75) {
-      const w = rnd(900, 1500),
-        xa = clamp(fx - w / 2 + rnd(-300, 300), 130, W - 130 - w);
-      if (sd > 0) {
-        const y0 = Math.max(NORTH, fm.py - rnd(600, 900));
-        regions.push({ x: xa, y: y0, w, h: fm.py - 70 - y0 });
-      } else regions.push({ x: xa, y: fm.py + 70, w, h: Math.min(rnd(600, 900), H - 440 - fm.py - 70) });
+    const b = polyBox(P);
+    for (let x = b.x + 25; x < b.x + b.w; x += 50)
+      for (let y = b.y + 25; y < b.y + b.h; y += 50) if (pip(P, x, y) && bad(x, y)) return [x, y];
+    return null;
+  };
+  // a plot keeps to sensible shapes: no slivers, no sharp wedges
+  const shapely = Q => Q.length >= 3 && polyArea(Q) / Math.max(1, polyDiam(Q)) >= 95 && minAngle(Q) > 0.95;
+  const plotsFor = (fm, side, maxN, depth, halfW) => {
+    // the road's general heading across the tract, not its local wiggle
+    const near = x => ROAD.reduce((b, q) => (Math.abs(q[0] - x) < Math.abs(b[0] - x) ? q : b));
+    const pa = near(fm.px - halfW * 0.6),
+      pb = near(fm.px + halfW * 0.6),
+      th = clamp(Math.atan2(pb[1] - pa[1], pb[0] - pa[0]), -0.4, 0.4);
+    const ux = Math.cos(th),
+      uy = Math.sin(th),
+      vx = -uy * side,
+      vy = ux * side;
+    const at = (u, v) => [fm.px + ux * u + vx * v, fm.py + uy * u + vy * v];
+    const u0 = -halfW * rnd(0.8, 1.2),
+      u1 = halfW * rnd(0.8, 1.2),
+      v0 = 70,
+      v1 = depth;
+    const edge = (a, b) => mkLine(a[0], a[1], Math.atan2(b[1] - a[1], b[0] - a[0]), 'edge');
+    const C = [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)];
+    let P = C.map((p, i) => [p[0], p[1], edge(p, C[(i + 1) % 4])]);
+    // the far side runs off at its own angle, and a corner or two is taken off the tract
+    {
+      const [fx, fy] = at(rnd(u0, u1), v1 * rnd(0.8, 1));
+      P = clipHalf(P, fx, fy, -vx, -vy, rnd(-0.3, 0.3), 'edge');
     }
-    const leaves = [];
-    const split = (r, d) => {
-      if (r.w < 200 || r.h < 200) return;
-      const big = Math.max(r.w, r.h);
-      if (big > 680 || (d < 2 && R() < 0.55)) {
-        const vert = r.w > r.h,
-          t = rnd(0.35, 0.65),
-          gap = rnd(30, 70);
-        if (vert) {
-          const w1 = r.w * t;
-          split({ x: r.x, y: r.y, w: w1 - gap / 2, h: r.h }, d + 1);
-          split({ x: r.x + w1 + gap / 2, y: r.y, w: r.w - w1 - gap / 2, h: r.h }, d + 1);
-        } else {
-          const h1 = r.h * t;
-          split({ x: r.x, y: r.y, w: r.w, h: h1 - gap / 2 }, d + 1);
-          split({ x: r.x, y: r.y + h1 + gap / 2, w: r.w, h: r.h - h1 - gap / 2 }, d + 1);
+    for (const cu of [u0, u1])
+      if (R() < 0.55) {
+        const [kx, ky] = at(cu * rnd(0.7, 0.9), rnd(v0, v1) * rnd(0.4, 0.8));
+        P = clipHalf(P, kx, ky, -Math.sign(cu) * ux, -Math.sign(cu) * uy, Math.sign(cu) * side * rnd(0.3, 0.6), 'edge');
+      }
+    // keep to the land
+    P = clipHalf(P, 0, NORTH + 10, 0, 1, 0, 'edge');
+    P = clipHalf(P, 0, H - 450, 0, -1, 0, 'edge');
+    P = clipHalf(P, 140, 0, 1, 0, 0, 'edge');
+    P = clipHalf(P, W - 140, 0, -1, 0, 0, 'edge');
+    if (P.length < 3) return;
+    const LINES = [],
+      leaves = [];
+    // cut across whichever way the piece is longer, mostly square to the tract, now and then well off it
+    const cut = (Q, force) => {
+      const A = polyArea(Q),
+        su = Q.map(p => p[0] * ux + p[1] * uy),
+        sv = Q.map(p => p[0] * vx + p[1] * vy),
+        eu = Math.max(...su) - Math.min(...su),
+        ev = Math.max(...sv) - Math.min(...sv);
+      if (!force && A < rnd(70000, 210000) && Math.max(eu, ev) < 720) return [Q];
+      const acrossU = eu * rnd(0.8, 1.25) > ev;
+      for (let tr = 0; tr < 5; tr++) {
+        const t = rnd(0.3, 0.7),
+          cu = Math.min(...su) + eu * (acrossU ? t : 0.5),
+          cv = Math.min(...sv) + ev * (acrossU ? 0.5 : t),
+          cx = cu * ux + cv * vx,
+          cy = cu * uy + cv * vy,
+          ang = Math.atan2(acrossU ? vy : uy, acrossU ? vx : ux) + (R() < 0.2 ? rnd(-0.5, 0.5) : rnd(-0.16, 0.16)),
+          ty = R() < 0.38 ? 'balk' : R() < 0.55 ? 'ditch' : 'hedge',
+          L = mkLine(cx, cy, ang, ty);
+        const a = clipHalf(Q, cx + L.nx * L.w * 0.5, cy + L.ny * L.w * 0.5, L.nx, L.ny, 0, L),
+          b = clipHalf(Q, cx - L.nx * L.w * 0.5, cy - L.ny * L.w * 0.5, -L.nx, -L.ny, 0, L);
+        if (!shapely(a) || !shapely(b)) continue;
+        L.span = lineSpan(Q, L);
+        LINES.push(L);
+        return [a, b];
+      }
+      return [Q];
+    };
+    const grow = (Q, d) => {
+      const S = cut(Q, false);
+      if (S.length === 1 || d > 6) leaves.push([Q, 0]);
+      else for (const s of S) grow(s, d + 1);
+    };
+    grow(P, 0);
+    // work outward from the yard, so the land closest to the farm is the land that's farmed
+    const far = Q => {
+      const c = polyCentroid(Q);
+      return Math.hypot(c[0] - fm.cx, c[1] - fm.cy);
+    };
+    leaves.sort((p, q) => far(p[0]) - far(q[0]));
+    const own = new Set(),
+      mine = [];
+    const tryLeaf = (Q, d) => {
+      // where a plot runs into the road, the water or a yard it is trimmed back along a new edge,
+      // the way a field ends at whatever is in its way; only if that leaves too little is it cut again
+      for (let k = 0; k < 14; k++) {
+        if (mine.length >= maxN || polyArea(Q) < 38000 || !shapely(Q)) return;
+        const poly = bendPoly(Q),
+          bad = plotBad(poly, own);
+        if (!bad) {
+          const b = polyBox(poly),
+            f = { x: b.x, y: b.y, w: b.w, h: b.h, poly, ang: longAng(Q) + (R() < 0.2 ? Math.PI / 2 : 0) };
+          own.add(f);
+          mine.push(f);
+          return;
         }
-      } else leaves.push(r);
-    };
-    for (const r of regions) split(r, 0);
-    // a plot cut by the road, the railway or water is split and its usable halves kept
-    let n = 0;
-    const tryLeaf = (lf, d) => {
-      if (n >= maxN || lf.w < 220 || lf.h < 220) return;
-      const f = { x: lf.x + rnd(0, 20), y: lf.y + rnd(0, 20), w: lf.w - rnd(10, 40), h: lf.h - rnd(10, 40) };
-      if (fieldOK(f)) {
-        f.t = types[(R() * types.length) | 0];
-        f.dir = R() < 0.5 ? 0 : 1;
-        FIELDS.push(f);
-        n++;
-        return;
+        const c = polyCentroid(Q),
+          l = Math.hypot(bad[0] - c[0], bad[1] - c[1]) || 1,
+          dx = (bad[0] - c[0]) / l,
+          dy = (bad[1] - c[1]) / l,
+          T = clipHalf(Q, bad[0] - dx * 50, bad[1] - dy * 50, -dx, -dy, rnd(-0.15, 0.15), 'edge');
+        if (T.length < 3 || polyArea(T) < 38000 || !shapely(T)) {
+          if (d < 3) {
+            const S = cut(Q, true);
+            if (S.length > 1) for (const s of S) tryLeaf(s, d + 1);
+          }
+          return;
+        }
+        Q = T;
       }
-      if (d >= 3) return;
-      const gap = 40;
-      if (lf.w > lf.h) {
-        const w1 = lf.w * rnd(0.4, 0.6);
-        tryLeaf({ x: lf.x, y: lf.y, w: w1 - gap / 2, h: lf.h }, d + 1);
-        tryLeaf({ x: lf.x + w1 + gap / 2, y: lf.y, w: lf.w - w1 - gap / 2, h: lf.h }, d + 1);
-      } else {
-        const h1 = lf.h * rnd(0.4, 0.6);
-        tryLeaf({ x: lf.x, y: lf.y, w: lf.w, h: h1 - gap / 2 }, d + 1);
-        tryLeaf({ x: lf.x, y: lf.y + h1 + gap / 2, w: lf.w, h: lf.h - h1 - gap / 2 }, d + 1);
-      }
+      if (d < 3) for (const s of cut(Q, true)) if (s !== Q) tryLeaf(s, d + 1);
     };
-    for (const lf of leaves) {
-      if (R() < 0.85) tryLeaf(lf, 0);
-      if (n >= maxN) break;
+    for (const [Q] of leaves) if (R() < 0.92) tryLeaf(Q, 0);
+    // grazing handy to the barn, crops further out
+    mine.forEach((f, i) => {
+      f.t = i < 2 && R() < 0.75 ? 'pasture' : types[(R() * types.length) | 0];
+      FIELDS.push(f);
+    });
+    // what runs along each cut is drawn only where a plot is beside it, and never across a road or a yard
+    for (const L of LINES) {
+      if (!L.span) continue;
+      let run = [];
+      const flush = () => {
+        if (run.length > 2) DIVIDES.push({ t: L.t, w: L.w, pts: run });
+        run = [];
+      };
+      for (let s = L.span[0]; s <= L.span[1]; s += 12) {
+        const x0 = L.cx + L.dx * s,
+          y0 = L.cy + L.dy * s,
+          o = lineBend(L, x0, y0),
+          x = x0 + L.nx * o,
+          y = y0 + L.ny * o,
+          k = L.w * 0.5 + 10,
+          by = f => inField(f, x + L.nx * k, y + L.ny * k, 4) || inField(f, x - L.nx * k, y - L.ny * k, 4);
+        const ok =
+          mine.some(by) &&
+          roadDist(x, y) > 40 &&
+          railDist(x, y) > 40 &&
+          !inWater(x, y, 20) &&
+          !YARDS.some(Y => inRect(x, y, Y, 30)) &&
+          !inBuild(x, y, 20);
+        if (ok) run.push([x, y]);
+        else flush();
+      }
+      flush();
     }
   };
   // a small fenced, muddy pig pen snug against a farmyard, with a low lean-to shelter at its inner edge
@@ -760,23 +865,17 @@ function genLayout() {
   }
   YARD = main.yard;
   START = { x: main.px + 160 * (R() < 0.5 ? 1 : -1), y: main.py + main.side * 40 };
-  fieldsFor(main, 11);
-  if (second) fieldsFor(second, second.small ? 5 : 7);
-  // fill out the farmland with a few more plots near either farm
-  for (let i = 0; i < 260 && FIELDS.length < 14; i++) {
-    const fm = FARMS[i % FARMS.length],
-      w = rnd(240, 520),
-      h = rnd(220, 460),
-      x = fm.cx + rnd(-1150, 1150) - w / 2,
-      y = fm.cy + rnd(-950, 950) - h / 2;
-    if (x < 130 || x + w > W - 130 || y + h > H - 440) continue;
-    const f = { x, y, w, h };
-    if (FIELDS.some(o => x < o.x + o.w + 45 && x + w > o.x - 45 && y < o.y + o.h + 45 && y + h > o.y - 45)) continue;
-    if (fieldOK(f)) {
-      f.t = types[(R() * types.length) | 0];
-      f.dir = R() < 0.5 ? 0 : 1;
-      FIELDS.push(f);
-    }
+  // each farm's land runs back from the road behind its yard, and for a bigger farm across the road too
+  for (const fm of FARMS) {
+    const big = !fm.small;
+    plotsFor(
+      fm,
+      fm.side,
+      fm.main ? 13 : big ? 8 : 5,
+      big ? rnd(1100, 1350) : rnd(700, 850),
+      big ? rnd(950, 1150) : 650
+    );
+    if (big && R() < 0.75) plotsFor(fm, -fm.side, fm.main ? 6 : 4, rnd(600, 900), rnd(500, 750));
   }
   // a small seter clearing with a turf-roofed cabin somewhere else
   for (let i = 0; i < 60; i++) {
@@ -979,6 +1078,24 @@ function genWorld(seed) {
       acc -= L;
     }
   }
+  // hedgerows standing on the hedge strips between plots
+  for (const D of DIVIDES) {
+    if (D.t !== 'hedge') continue;
+    let acc = 0;
+    for (let i = 1; i < D.pts.length; i++) {
+      const [ax, ay] = D.pts[i - 1],
+        [bx, by] = D.pts[i];
+      acc += Math.hypot(bx - ax, by - ay);
+      if (acc < rnd(30, 52)) continue;
+      acc = 0;
+      if (R() < 0.22) continue; // a gap in the hedge
+      const r = rnd(14, 21),
+        u = R(),
+        x = bx + rnd(-5, 5),
+        y = by + rnd(-5, 5);
+      if (!blocked(x, y, r)) addTree(x, y, u < 0.45 ? 'birch' : u < 0.9 ? 'decid' : 'spruce', r);
+    }
+  }
   for (const [c, rf, st2] of [
     [LAKE, lakeR, 0.055],
     [POND, pondR, 0.12]
@@ -996,21 +1113,28 @@ function genWorld(seed) {
   // bales on stubble, fences round pastures
   for (const f of FIELDS) {
     if (f.t === 'stubble') {
-      const n = Math.round(((f.w * f.h) / 26000) * rnd(0.5, 1.2));
-      const rows = R() < 0.6;
-      for (let i = 0; i < n; i++) {
-        let x, y;
-        if (rows) {
-          const cols = Math.max(2, Math.round(f.w / 85));
-          x = f.x + 40 + ((i % cols) * (f.w - 80)) / Math.max(1, cols - 1) + rnd(-10, 10);
-          y = f.y + 50 + Math.floor(i / cols) * 110 + rnd(-10, 10);
-          if (y > f.y + f.h - 30) continue;
-        } else {
-          x = rnd(f.x + 25, f.x + f.w - 25);
-          y = rnd(f.y + 25, f.y + f.h - 25);
+      const area = f.poly ? polyArea(f.poly) : f.w * f.h,
+        n = Math.round((area / 26000) * rnd(0.5, 1.2));
+      if (R() < 0.6) {
+        // rows laid along the plot's heading, as the baler dropped them, from one end of the plot on
+        const an = f.ang || 0,
+          r = Math.hypot(f.w, f.h) / 2,
+          ca = Math.cos(an),
+          sa = Math.sin(an),
+          pts = [];
+        for (let v = -r + 40; v < r; v += 110)
+          for (let u = -r + 40; u < r; u += 85) {
+            const x = f.x + f.w / 2 + u * ca - v * sa + rnd(-10, 10),
+              y = f.y + f.h / 2 + u * sa + v * ca + rnd(-10, 10);
+            if (inField(f, x, y, -22)) pts.push([x, y]);
+          }
+        for (const [x, y] of pts.slice(0, n)) bale(x, y);
+      } else
+        for (let i = 0; i < n; i++) {
+          const x = rnd(f.x + 25, f.x + f.w - 25),
+            y = rnd(f.y + 25, f.y + f.h - 25);
+          if (inField(f, x, y, -22)) bale(x, y);
         }
-        if (inField(f, x, y, -22)) bale(x, y);
-      }
     }
     if (f.t === 'pasture' || f.t === 'sty') fenceField(f);
   }
@@ -1454,4 +1578,137 @@ function fieldPath(c, f) {
   c.beginPath();
   f.poly.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
   c.closePath();
+}
+
+/* ---------- plots cut from a farm's tract ----------
+   A plot is built as a convex polygon whose vertices are [x, y, line]: `line` is the straight cut (or
+   tract edge) its next side lies on. bendPoly then lets every side bow with a noise read along its own
+   line, so the two plots either side of a cut bend together and the strip between them keeps its width. */
+const DIV = { balk: [8, 13, 18], ditch: [15, 22, 22], hedge: [44, 58, 24] }; // gap min, max, bend
+function mkLine(cx, cy, ang, t) {
+  const g = DIV[t] || [0, 0, 32],
+    dx = Math.cos(ang),
+    dy = Math.sin(ang);
+  return { cx, cy, dx, dy, nx: -dy, ny: dx, t, w: rnd(g[0], g[1]), amp: g[2] * rnd(0.7, 1.2), o: rnd(0, 97) };
+}
+// keep the part of P on the side n points to (n turned by rot); new sides lie on `tag`, or on a fresh edge line
+function clipHalf(P, px, py, nx, ny, rot, tag) {
+  const c = Math.cos(rot),
+    s = Math.sin(rot),
+    mx = nx * c - ny * s,
+    my = nx * s + ny * c;
+  const L = typeof tag === 'string' ? mkLine(px, py, Math.atan2(my, mx) + Math.PI / 2, tag) : tag,
+    out = [],
+    side = p => (p[0] - px) * mx + (p[1] - py) * my;
+  for (let i = 0; i < P.length; i++) {
+    const p = P[i],
+      q = P[(i + 1) % P.length],
+      sp = side(p),
+      sq = side(q),
+      cross = () => {
+        const t = sp / (sp - sq);
+        return [lerp(p[0], q[0], t), lerp(p[1], q[1], t)];
+      };
+    if (sp >= 0) {
+      out.push(p);
+      if (sq < 0) out.push([...cross(), L]);
+    } else if (sq >= 0) out.push([...cross(), p[2]]);
+  }
+  return out;
+}
+function lineBend(L, x, y) {
+  const s = (x - L.cx) * L.dx + (y - L.cy) * L.dy,
+    qx = L.cx + L.dx * s,
+    qy = L.cy + L.dy * s;
+  return (pfbm(qx, qy, 240, L.o, 31) * 0.8 + pfbm(qx, qy, 95, L.o + 13, 7) * 0.2 - 0.5) * 2 * L.amp;
+}
+// where line L crosses convex polygon Q, as distances along L
+function lineSpan(Q, L) {
+  let lo = 1e9,
+    hi = -1e9;
+  for (let i = 0; i < Q.length; i++) {
+    const a = Q[i],
+      b = Q[(i + 1) % Q.length],
+      sa = (a[0] - L.cx) * L.nx + (a[1] - L.cy) * L.ny,
+      sb = (b[0] - L.cx) * L.nx + (b[1] - L.cy) * L.ny;
+    if (sa > 0 === sb > 0) continue;
+    const t = sa / (sa - sb),
+      d = (lerp(a[0], b[0], t) - L.cx) * L.dx + (lerp(a[1], b[1], t) - L.cy) * L.dy;
+    lo = Math.min(lo, d);
+    hi = Math.max(hi, d);
+  }
+  return lo < hi ? [lo, hi] : null;
+}
+function bendPoly(Q) {
+  const P = [];
+  for (let i = 0; i < Q.length; i++) {
+    const c = Q[i],
+      nxt = Q[(i + 1) % Q.length],
+      L1 = Q[(i + Q.length - 1) % Q.length][2],
+      L2 = c[2];
+    // the corner moves to where the two bent sides meet
+    const d1 = lineBend(L1, c[0], c[1]),
+      d2 = lineBend(L2, c[0], c[1]),
+      det = L1.nx * L2.ny - L1.ny * L2.nx;
+    if (Math.abs(det) > 0.25) P.push([c[0] + (d1 * L2.ny - d2 * L1.ny) / det, c[1] + (L1.nx * d2 - L2.nx * d1) / det]);
+    else P.push([c[0] + (L1.nx * d1 + L2.nx * d2) / 2, c[1] + (L1.ny * d1 + L2.ny * d2) / 2]);
+    const len = Math.hypot(nxt[0] - c[0], nxt[1] - c[1]),
+      n = Math.floor(len / 40);
+    for (let k = 1; k < n; k++) {
+      const x = lerp(c[0], nxt[0], k / n),
+        y = lerp(c[1], nxt[1], k / n),
+        o = lineBend(L2, x, y);
+      P.push([x + L2.nx * o, y + L2.ny * o]);
+    }
+  }
+  return P;
+}
+function polyArea(P) {
+  let a = 0;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) a += P[j][0] * P[i][1] - P[i][0] * P[j][1];
+  return Math.abs(a) / 2;
+}
+function polyDiam(P) {
+  let m = 0;
+  for (const a of P) for (const b of P) m = Math.max(m, Math.hypot(a[0] - b[0], a[1] - b[1]));
+  return m;
+}
+function polyBox(P) {
+  const xs = P.map(p => p[0]),
+    ys = P.map(p => p[1]),
+    x = Math.min(...xs),
+    y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
+// the heading of a plot's longest side: the way its furrows run
+function longAng(Q) {
+  let best = 0,
+    ang = 0;
+  for (let i = 0; i < Q.length; i++) {
+    const a = Q[i],
+      b = Q[(i + 1) % Q.length],
+      l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (l > best) {
+      best = l;
+      ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    }
+  }
+  return ang;
+}
+// the sharpest corner of a polygon, ignoring the near-straight ones a trim can leave
+function minAngle(Q) {
+  let m = Math.PI;
+  for (let i = 0; i < Q.length; i++) {
+    const a = Q[(i + Q.length - 1) % Q.length],
+      b = Q[i],
+      c = Q[(i + 1) % Q.length],
+      t = Math.abs(
+        Math.atan2(
+          (a[0] - b[0]) * (c[1] - b[1]) - (a[1] - b[1]) * (c[0] - b[0]),
+          (a[0] - b[0]) * (c[0] - b[0]) + (a[1] - b[1]) * (c[1] - b[1])
+        )
+      );
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 8 && Math.hypot(c[0] - b[0], c[1] - b[1]) > 8) m = Math.min(m, t);
+  }
+  return m;
 }

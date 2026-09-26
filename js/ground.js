@@ -491,19 +491,19 @@ function paintGround(season) {
       const lines = (step, w, col, off = 0) => {
         g.strokeStyle = col;
         g.lineWidth = w;
+        // rows run along the plot's heading (plots cut from a tract carry `ang`, older ones `dir`)
+        const an = f.ang !== undefined ? f.ang : f.dir ? Math.PI / 2 : 0,
+          r = Math.hypot(f.w, f.h) / 2;
+        g.save();
+        g.translate(f.x + f.w / 2, f.y + f.h / 2);
+        g.rotate(an);
         g.beginPath();
-        if (f.dir) {
-          for (let x = f.x + off; x < f.x + f.w; x += step) {
-            g.moveTo(x, f.y);
-            g.lineTo(x + rnd(-3, 3), f.y + f.h);
-          }
-        } else {
-          for (let y = f.y + off; y < f.y + f.h; y += step) {
-            g.moveTo(f.x, y);
-            g.lineTo(f.x + f.w, y + rnd(-3, 3));
-          }
+        for (let y = -r + off; y < r; y += step) {
+          g.moveTo(-r, y);
+          g.lineTo(r, y + rnd(-3, 3));
         }
         g.stroke();
+        g.restore();
       };
       // soft, feathered patches (hard-edged ones read as camouflage)
       const blotch = (n, a, b2, rmin, rmax) => {
@@ -670,6 +670,30 @@ function paintGround(season) {
     }
   });
   R = R0;
+  // what lies between neighbouring plots: a ditch is a dark wet line in rank grass (a frozen, drifted
+  // groove in winter); a hedge sits on a darker, weedy bank; a balk is just the meadow showing through
+  for (const D of DIVIDES) {
+    const xs = D.pts.map(q => q[0]);
+    for (const ox of edgeOffs(Math.min(...xs), Math.max(...xs))) {
+      g.save();
+      g.translate(ox, 0);
+      g.lineJoin = g.lineCap = 'round';
+      if (D.t === 'ditch') {
+        if (winter) {
+          strokePoly(g, D.pts, 12, 'rgba(176,190,208,.35)');
+          strokePoly(g, D.pts, 4, 'rgba(140,156,178,.5)');
+        } else {
+          const bank = season === 2 ? '120,112,60' : '74,96,46';
+          strokePoly(g, D.pts, D.w + 6, `rgba(${bank},.35)`);
+          strokePoly(g, D.pts, 6, 'rgba(46,52,40,.6)');
+          strokePoly(g, D.pts, 2.5, season === 0 ? 'rgba(96,120,128,.8)' : 'rgba(64,78,72,.7)');
+          strokePoly(g, offsetPoly(D.pts, -1.5), 1, 'rgba(190,210,214,.3)');
+        }
+      } else if (D.t === 'hedge')
+        strokePoly(g, D.pts, D.w * 0.7, winter ? 'rgba(170,180,196,.25)' : 'rgba(70,84,44,.28)');
+      g.restore();
+    }
+  }
   paintRailBed(winter);
   if (winter) {
     strokePoly(g, ROAD, 32, 'rgba(150,160,175,.35)');
