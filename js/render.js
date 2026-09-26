@@ -1350,18 +1350,28 @@ function render() {
       ey = Math.min(H, gy1);
     if (ex > sx && ey > sy) {
       // at the seam, overlap each copy by a few units of its neighbour so antialiased edges never leave a hairline
-      const blit = img => {
+      const blit = (img, sy, ey) => {
         ctx.drawImage(img, sx * S, sy * S, (ex - sx) * S, (ey - sy) * S, sx, sy, ex - sx, ey - sy);
         if (ex >= W) ctx.drawImage(img, 0, sy * S, 4 * S, (ey - sy) * S, W, sy, 4, ey - sy);
         if (sx <= 0) ctx.drawImage(img, (W - 4) * S, sy * S, 4 * S, (ey - sy) * S, -4, sy, 4, ey - sy);
       };
-      blit(G);
-      if (TRANS.prevG) {
-        ctx.globalAlpha = 1 - tEase();
-        blit(TRANS.prevG);
-        ctx.globalAlpha = 1;
+      const paint = (sy, ey) => {
+        blit(G, sy, ey);
+        if (TRANS.prevG) {
+          ctx.globalAlpha = 1 - tEase();
+          blit(TRANS.prevG, sy, ey);
+          ctx.globalAlpha = 1;
+        }
+        growGround(sx, sy, ex, ey);
+      };
+      paint(sy, ey);
+      // north of y=0 the land runs on under the ridges: mirror the top rows up into that strip, so the
+      // forest floor (snow in winter) carries on instead of stopping in a straight line against a flat fill
+      if (gy0 < 0) {
+        ctx.setTransform(dpr * z, 0, 0, -dpr * z * TILT, tk, ty);
+        paint(0, Math.min(H, 150, -gy0));
+        ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
       }
-      growGround(sx, sy, ex, ey);
     }
     if (winterW() < 0.5) drawReflections(tk, ty, z);
     ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
