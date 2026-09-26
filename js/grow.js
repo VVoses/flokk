@@ -109,7 +109,12 @@ function buildCells() {
         k = 2;
         t -= 0.05; // dark soil warms first
       }
-      for (const Y of YARDS) if (inYard(Y, x, y)) t -= 0.25;
+      // the yard is driven and shovelled clear, fading out over a few metres into the untrodden snow round
+      // it rather than stopping at a line along the yard's edge
+      let yd = 0;
+      for (const Y of YARDS)
+        yd = Math.max(yd, [40, 10, -20, -50].filter(m => inYard(Y, x, y, m + (n2 - 0.5) * 40)).length / 4);
+      t -= 0.25 * yd;
       th[o] = clamp(t, -0.1, 0.7);
       gt[o] = Math.min(0.94, th[o] + 0.2 + 0.1 * n2);
       kind[o] = k;

@@ -464,6 +464,41 @@ function updateAnimals(dt) {
       }
       case 'magpie':
       case 'crow': {
+        // at dusk they go up into the nearest tree to roost, out of sight, and come down again after dawn
+        if (a.hide) {
+          if (LIGHT.night > 0.3) break;
+          a.hide = false;
+          [a.tx, a.ty] = inRectPt(a.rect, 10);
+          a.tx = a.x + wdx(a.tx, a.x);
+          a.st = 'fly';
+          a.z = 0.6;
+          break;
+        }
+        if (LIGHT.night > 0.5 && a.st !== 'roost') {
+          let best = null,
+            bd = 700 * 700;
+          for (const t of TREES) {
+            const d = wdx(t.x, a.x) ** 2 + (t.y - a.y) ** 2;
+            if (d < bd) {
+              bd = d;
+              best = t;
+            }
+          }
+          if (best) {
+            a.tx = a.x + wdx(best.x, a.x);
+            a.ty = best.y;
+          } else [a.tx, a.ty] = [a.x, a.y];
+          a.st = 'roost';
+          a.z = 0.05;
+        }
+        if (a.st === 'roost') {
+          a.flap += dt * 14;
+          if (flyTo(a, dt, 120, 1.3)) {
+            a.x = wrapX(a.x);
+            a.hide = true;
+          }
+          break;
+        }
         if (a.st === 'fly') {
           a.flap += dt * 14;
           if (flyTo(a, dt, 120, 1.3)) {

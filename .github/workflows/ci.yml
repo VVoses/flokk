@@ -35,13 +35,11 @@ jobs:
       - name: syntax check + headless smoke
         run: npm run check
 
+      - name: farms meet the road cleanly
+        run: python3 tools/road_check.py
+
       - name: full flow (title, play, pause, game over, full year, resize, night, phone)
         run: python3 tools/flows.py
-        # "game over after last bird" and "year won" have known timing flakiness in
-        # sandboxed/CI environments (see project history) — don't fail the build on
-        # this script alone, but the logs and screenshots (uploaded below) still
-        # surface real regressions for a human to check.
-        continue-on-error: true
 
       - name: upload screenshots
         if: always()

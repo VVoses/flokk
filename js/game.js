@@ -519,11 +519,12 @@ function overHTML(won) {
   return `<div><b>${st.maxFlock}</b><span>largest flock</span></div><div><b>${days}</b><span>days</span></div>`;
 }
 
-// how many midge clouds and dragonflies the season and the hour hold: none in winter, few at night
+// how many midge clouds and dragonflies the season and the hour hold: summer thick with them, none in
+// winter, few at night
 function insectTarget() {
   const night = LIGHT.night > 0.5;
   return {
-    swarms: Math.round(40 * [0.6, 1.2, 0.7, 0][SEASON] * (night ? 0.2 : 1)),
+    swarms: Math.round(40 * [0.6, 1.6, 0.7, 0][SEASON] * (night ? 0.2 : 1)),
     dflies: night ? 0 : Math.round(9 * [0.4, 1, 0.3, 0][SEASON])
   };
 }
