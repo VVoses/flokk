@@ -948,35 +948,123 @@ function drawBuilding(b) {
 }
 function drawPole(p) {
   const base = p.y * TILT,
-    top = PY(p.y, POLE_H);
-  ctx.strokeStyle = '#4E3D2B';
-  ctx.lineWidth = 3.4;
+    top = PY(p.y, POLE_H),
+    snow = winterW();
+  // the trunk itself: a tapered wood post (wider at the foot), a weathered highlight down one edge,
+  // and a few short grain flecks so it doesn't read as a flat stick
+  const bw = 2.1,
+    tw = 1.1;
+  ctx.fillStyle = '#4E3D2B';
   ctx.beginPath();
-  ctx.moveTo(p.x, base);
-  ctx.lineTo(p.x, top);
+  ctx.moveTo(p.x - bw, base);
+  ctx.lineTo(p.x - tw, top);
+  ctx.lineTo(p.x + tw, top);
+  ctx.lineTo(p.x + bw, base);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(122,98,70,.55)';
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(p.x - bw * 0.35, base);
+  ctx.lineTo(p.x - tw * 0.35, top);
   ctx.stroke();
-  ctx.strokeStyle = '#7A6246';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(38,28,16,.35)';
+  ctx.lineWidth = 0.7;
   ctx.beginPath();
-  ctx.moveTo(p.x - 1, base);
-  ctx.lineTo(p.x - 1, top);
+  for (let i = 0; i < 4; i++) {
+    const t = (i + 0.5) / 4,
+      gy = lerp(base, top, t),
+      gw = lerp(bw, tw, t) * 0.7,
+      gx = p.x + (i % 2 ? 1 : -1) * gw * 0.3;
+    ctx.moveTo(gx - gw * 0.3, gy - 2);
+    ctx.lineTo(gx + gw * 0.3, gy + 2);
+  }
   ctx.stroke();
   const ca = p.ang + Math.PI / 2,
     dx = Math.cos(ca) * 9,
     dy = Math.sin(ca) * 9 * TILT;
   const ay = PY(p.y, WIRE_H);
+  // the cross-arm, a faint top highlight, and a diagonal brace truss under one side, the way a real
+  // distribution pole is braced
   ctx.strokeStyle = '#4E3D2B';
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(p.x - dx, ay - dy);
   ctx.lineTo(p.x + dx, ay + dy);
   ctx.stroke();
-  ctx.fillStyle = '#DDE3E6';
+  ctx.strokeStyle = 'rgba(122,98,70,.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(p.x - dx, ay - dy - 1);
+  ctx.lineTo(p.x + dx, ay + dy - 1);
+  ctx.stroke();
+  ctx.strokeStyle = '#3E2F20';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(p.x, ay + 3.5);
+  ctx.lineTo(p.x + dx * 0.7, ay + dy * 0.7 - 1);
+  ctx.stroke();
+  // ceramic insulator caps, not just dots: a small standing shape each with its own glint
   for (const sg of [-1, 1]) {
+    const ix = p.x + sg * dx * 0.67,
+      iy = ay + sg * dy * 0.67;
+    ctx.fillStyle = '#DDE3E6';
     ctx.beginPath();
-    ctx.arc(p.x + sg * dx * 0.67, ay + sg * dy * 0.67 - 1.5, 1.6, 0, TAU);
+    ctx.ellipse(ix, iy - 1.5, 1.5, 2.1, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.beginPath();
+    ctx.arc(ix - 0.5, iy - 2.2, 0.6, 0, TAU);
     ctx.fill();
   }
+  // winter: a cap of settled snow on the post and along the top of the cross-arm
+  if (snow > 0.4) {
+    const sa = (snow - 0.4) / 0.6;
+    ctx.fillStyle = `rgba(236,241,246,${sa * 0.9})`;
+    ctx.beginPath();
+    ctx.ellipse(p.x, top + 0.5, tw * 1.4, 1.7, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(236,241,246,${sa * 0.95})`;
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.moveTo(p.x - dx, ay - dy - 1.6);
+    ctx.lineTo(p.x + dx, ay + dy - 1.6);
+    ctx.stroke();
+  }
+}
+function drawXSign(s) {
+  const b = s.y * TILT,
+    top = PY(s.y, 1.55),
+    hw = 8.5,
+    hh = 3;
+  ctx.strokeStyle = '#8A8478';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(s.x, b);
+  ctx.lineTo(s.x, top);
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(s.x, top - 1);
+  ctx.fillStyle = '#F4F1E6';
+  ctx.strokeStyle = '#B3302A';
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(-hw, 0);
+  ctx.lineTo(0, -hh);
+  ctx.lineTo(hw, 0);
+  ctx.lineTo(0, hh);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = '#B3302A';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-hw * 0.68, -hh * 0.55);
+  ctx.lineTo(hw * 0.68, hh * 0.55);
+  ctx.moveTo(-hw * 0.68, hh * 0.55);
+  ctx.lineTo(hw * 0.68, -hh * 0.55);
+  ctx.stroke();
+  ctx.restore();
 }
 function drawBale(b) {
   const X = b.x,
@@ -1019,9 +1107,11 @@ function drawFence(sg) {
   ctx.stroke();
 }
 function drawWires() {
-  // wires stay light: they are everywhere, and should read as lines in the air, not ink
-  ctx.strokeStyle = 'rgba(40,36,30,.5)';
-  ctx.lineWidth = 0.9;
+  // wires stay light: they are everywhere, and should read as lines in the air, not ink. In deep winter
+  // they whiten with rime and sag a touch further, as if carrying a little snow load
+  const snow = winterW();
+  ctx.strokeStyle = snow > 0.5 ? `rgba(206,214,222,${0.55 + snow * 0.2})` : 'rgba(40,36,30,.5)';
+  ctx.lineWidth = 0.9 + snow * 0.3;
   ctx.beginPath();
   for (const line of LINES)
     for (let i = 0; i < line.length - 1; i++) {
@@ -1037,7 +1127,7 @@ function drawWires() {
           bx = q.x + ox,
           by = PY(q.y + oy, WIRE_H);
         ctx.moveTo(ax, ay);
-        ctx.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 + SAG * HZ * 2, bx, by);
+        ctx.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 + SAG * HZ * (2 + snow * 0.7), bx, by);
       }
     }
   ctx.stroke();
@@ -1559,6 +1649,7 @@ function render() {
     }
     for (const l of LAMPS) if (visU(l.x, l.y, 20, 110)) items.push([l.y, 8, l, k]);
     for (const p of PROPS) if (visU(p.x, p.y, 50, 190)) items.push([p.y + 7, 12, p, k]);
+    for (const s of XSIGNS) if (visU(s.x, s.y, 20, 60)) items.push([s.y, 14, s, k]);
     if (FEEDER && SEASON === 3 && visU(FEEDER.x, FEEDER.y, 20, 90)) items.push([FEEDER.y, 9, FEEDER, k]);
     for (const a of ANIMALS) {
       if (isSky(a)) {
@@ -1600,6 +1691,7 @@ function render() {
     else if (kind === 10) drawCar(o);
     else if (kind === 11) drawVehicle(o);
     else if (kind === 12) drawProp(o);
+    else if (kind === 14) drawXSign(o);
     else if (kind === 7) drawAnimal(o);
     else drawPerched(o, o.perch && o.perch.cover ? 0.7 : 1);
   }

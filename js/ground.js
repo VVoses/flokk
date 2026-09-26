@@ -633,6 +633,7 @@ function paintGround(season) {
         g.restore();
       }
   }
+  paintCrossings(winter);
   paintRailSteel();
   function water(c, rf, R0) {
     blobPath(g, c.x, c.y, rf, 20);
@@ -784,6 +785,42 @@ function paintGround(season) {
   paintTracks(season);
   R = keepR;
   G.ver = (G.ver || 0) + 1; // lets the seam strip in render.js know to rebuild
+  // a wooden plank deck wherever the road or a lane crosses the railway, so the crossing reads as a
+  // built thing rather than two textures just overlapping; the rails themselves are repainted on top
+  // right after, so their running surface still shows through the planking
+  function paintCrossings(winter) {
+    for (const c of CROSSINGS) {
+      const relA = c.ang - c.rang,
+        s = Math.max(Math.abs(Math.sin(relA)), 0.28),
+        hl = clamp(26 / s, 26, 70),
+        hw = c.w;
+      for (const ox of edgeOffs(c.x - hl - 20, c.x + hl + 20)) {
+        g.save();
+        g.translate(c.x + ox, c.y);
+        g.rotate(c.ang);
+        g.fillStyle = winter ? 'rgba(213,217,222,.92)' : '#7C6A50';
+        g.fillRect(-hl, -hw, hl * 2, hw * 2);
+        // worn wheel path down the middle where wheels have crossed it season after season
+        g.fillStyle = winter ? 'rgba(180,186,194,.4)' : 'rgba(40,32,20,.18)';
+        g.fillRect(-hl, -hw * 0.32, hl * 2, hw * 0.64);
+        // plank seams, perpendicular to the rails
+        g.strokeStyle = winter ? 'rgba(140,144,150,.5)' : 'rgba(48,38,24,.5)';
+        g.lineWidth = 1.3;
+        g.beginPath();
+        for (let px = -hl + 6; px < hl - 3; px += 9) {
+          g.moveTo(px, -hw + 1);
+          g.lineTo(px, hw - 1);
+        }
+        g.stroke();
+        g.strokeStyle = winter ? 'rgba(150,158,168,.6)' : 'rgba(90,76,54,.6)';
+        g.lineWidth = 1;
+        g.beginPath();
+        g.rect(-hl, -hw, hl * 2, hw * 2);
+        g.stroke();
+        g.restore();
+      }
+    }
+  }
 }
 /* one field painted as a given kind (the kinds a field passes through over the year: snow, plow, sown, grain,
    ripe, stubble, crop, dormant pasture, pasture, sty). Also used by grow.js for the within-season stages. */
