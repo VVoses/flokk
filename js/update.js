@@ -2,6 +2,18 @@
    Per-frame simulation step (update).
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
+// spends a small time budget stepping BG_JOB (the season-change sprite/ground rebuild, light.js) each
+// frame instead of running it to completion in one. 6ms leaves the rest of the frame's own budget free.
+const BG_JOB_MS = 6;
+function runBgJob() {
+  if (!BG_JOB) return;
+  const t0 = performance.now();
+  let r;
+  do {
+    r = BG_JOB.next();
+  } while (!r.done && performance.now() - t0 < BG_JOB_MS);
+  if (r.done) BG_JOB = null;
+}
 function update(dt) {
   T += dt;
   const playing = st.mode === 'play';
@@ -13,8 +25,11 @@ function update(dt) {
   }
   weatherTick(dt);
   calUpdate();
+  runBgJob();
   if (TRANS.t < 1) {
-    TRANS.t = Math.min(1, TRANS.t + dt / 10);
+    // held just short of done while the new season's sprites/ground are still being built (BG_JOB), so
+    // the crossfade never finishes revealing them before they're actually ready
+    TRANS.t = Math.min(BG_JOB ? 0.999 : 1, TRANS.t + dt / 10);
     if (TRANS.t >= 1) {
       TRANS.prevG = null;
       TRANS.prevSPR = null;
