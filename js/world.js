@@ -945,7 +945,7 @@ function genLayout() {
       // a white-painted wooden church with a tall spire; an old grey fieldstone church with a squat tower
       // and a short spire; or a stave church, tarred black, its steep shingled roofs stacked in tiers over
       // a low gallery, dragon heads on the gables and a little turret astride the ridge
-      const kind = pick(['white', 'white', 'stone', 'stave']),
+      const kind = pick(['white', 'stone', 'stave']),
         stone = kind === 'stone',
         ba = ang + (Math.PI / 2) * side + rnd(-0.04, 0.04),
         c = Math.cos(ba),
