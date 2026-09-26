@@ -456,6 +456,21 @@ function dash() {
     st.stamina -= 0.34;
     st.dashT = 0.6;
     flutter(birds.length * 0.6);
+    // dashing while a hawk is bearing down is a real dodge, not just a burst of speed: a hard
+    // sideways jink across its line of attack, the way a sparrow actually ducks a stoop
+    const diver = hawks.find(h => h.state === 'dive' && h.target === L);
+    if (diver) {
+      const dx = L.x - diver.x,
+        dy = L.y - diver.y,
+        d = Math.hypot(dx, dy) || 1;
+      if (d < 180) {
+        const px = -dy / d,
+          py = dx / d,
+          side = L.vx * px + L.vy * py >= 0 ? 1 : -1;
+        L.vx += px * side * 260;
+        L.vy += py * side * 260;
+      }
+    }
   }
 }
 const coarse = matchMedia('(pointer:coarse)').matches;
@@ -724,6 +739,24 @@ function feathers(x, y, z, col) {
 }
 function sparkle(x, y, z, col = '#F4E7A1') {
   parts.push({ k: 's', x, y, z, life: 0.45, max: 0.45, col });
+}
+// a stoop that grazed close but didn't connect: a few feathers brushed loose, not the burst of a catch
+function nearMiss(b) {
+  for (let i = 0; i < 5; i++)
+    parts.push({
+      k: 'f',
+      x: b.x,
+      y: b.y,
+      z: b.z,
+      vx: rr(-100, 100),
+      vy: rr(-100, 100),
+      r: rr(0, TAU),
+      vr: rr(-9, 9),
+      life: rr(0.5, 0.9),
+      max: 0.9,
+      col: b.c2
+    });
+  whooshMiss();
 }
 
 function eat(v, x, y, z) {

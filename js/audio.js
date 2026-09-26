@@ -263,6 +263,25 @@ function hawkCry() {
   o.stop(t + 0.82);
   lfo.stop(t + 0.82);
 }
+// the air cut by a stoop that missed: quick, sharp, and gone - never the same twice
+function whooshMiss() {
+  if (!ac || muted) return;
+  const t = ac.currentTime;
+  const s = ac.createBufferSource();
+  s.buffer = amb.noise;
+  const f = ac.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.setValueAtTime(2200, t);
+  f.frequency.exponentialRampToValueAtTime(500, t + 0.22);
+  f.Q.value = 1.1;
+  const gn = ac.createGain();
+  gn.gain.setValueAtTime(0, t);
+  gn.gain.linearRampToValueAtTime(0.11, t + 0.02);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+  s.connect(f).connect(gn).connect(master);
+  s.start(t, Math.random() * 3);
+  s.stop(t + 0.3);
+}
 function flutter(n) {
   if (!ac || muted) return;
   const t = ac.currentTime;

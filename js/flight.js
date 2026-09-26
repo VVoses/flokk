@@ -265,6 +265,7 @@ function updateHawk(h, dt) {
         } else {
           h.state = 'dive';
           h.t = 0;
+          h.diveMinD = null;
           if (h.kind !== 'owl') hawkCry();
         }
       } else if (d > 950) {
@@ -296,6 +297,7 @@ function updateHawk(h, dt) {
       if (h.t > h.hoverDur) {
         h.state = 'dive';
         h.t = 0;
+        h.diveMinD = null;
         if (h.kind !== 'owl') hawkCry();
       }
       break;
@@ -304,11 +306,15 @@ function updateHawk(h, dt) {
       // the stoop: wings folded, nose down, accelerating
       const t = h.target;
       h.t += dt;
+      if (t) h.diveMinD = Math.min(h.diveMinD ?? 1e9, Math.hypot(t.x - h.x, t.y - h.y));
       if (!hawkTargetOK(t) || h.t > 2.2) {
+        // a stoop that got close but didn't connect is a near miss worth feeling, not just a state change
+        if (t && h.diveMinD != null && h.diveMinD < 55) nearMiss(t);
         h.state = 'climb';
         h.t = 0;
         h.cool = 2.8 / h.bold;
         h.target = null;
+        h.diveMinD = null;
         h.bored += exposed(t || L) ? 0 : 3;
         break;
       }
