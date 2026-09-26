@@ -530,10 +530,13 @@ function animalCall(k, vol, pn) {
   };
   if (k === 'cow') {
     moo(out, t);
-  } else if (k === 'sheep') {
-    baa(out, t);
-  } else if (k === 'lamb') {
-    baa(out, t, true);
+  } else if (k === 'sheep' || k === 'lamb') {
+    // one flock voice at a time: a bleat never lands on top of another, and after an ewe the
+    // flock stays quiet a while. A lamb leaves a short gap so its ewe can still answer it.
+    if (t < (amb.baaT || 0)) return;
+    amb.baaT = t + (k === 'lamb' ? 0.4 : rr(3, 5));
+    out.gain.value = vol * 0.65;
+    baa(out, t, k === 'lamb');
   } else if (k === 'whistle') {
     // two quick notes to call the dog
     for (const [dt, f0, f1] of [
@@ -664,7 +667,7 @@ function baa(out, t, forceLamb) {
   const lamb = forceLamb || Math.random() < 0.3,
     f = lamb ? rr(360, 440) : rr(190, 250),
     d = lamb ? rr(0.45, 0.7) : rr(0.6, 1.05),
-    n = Math.random() < 0.35 ? 2 : 1;
+    n = Math.random() < 0.2 ? 2 : 1;
   for (let k = 0; k < n; k++) {
     const t0 = t + k * (d + rr(0.25, 0.5)),
       ff = f * (k ? rr(0.94, 1.02) : 1);
@@ -1320,16 +1323,20 @@ function audioTick(dt) {
     amb.callT -= dt;
     if (amb.callT <= 0) {
       amb.callT = rr(2.5, 6.5);
-      const cowOk = now > (amb.cowNext || 0);
+      const cowOk = now > (amb.cowNext || 0),
+        sheepOk = now > (amb.sheepNext || 0);
       const near = ANIMALS.filter(
         a =>
           ['cow', 'sheep', 'duck', 'crow', 'magpie', 'moose', 'goose'].includes(a.k) &&
           (a.k !== 'cow' || cowOk) &&
+          (a.k !== 'sheep' || sheepOk) &&
           Math.hypot(wdx(a.x, L.x), a.y - L.y) < 950
       );
       if (near.length) {
         const a = near[(Math.random() * near.length) | 0];
         if (a.k === 'cow') amb.cowNext = now + rr(35, 75);
+        // a flock outnumbers everything else nearby, so without a rest it took most of the calls
+        if (a.k === 'sheep') amb.sheepNext = now + rr(14, 30);
         const d = Math.hypot(wdx(a.x, L.x), a.y - L.y);
         animalCall(a.k, 0.07 * (1 - d / 950) + 0.008, wdx(a.x, L.x) / 700);
       }

@@ -107,7 +107,7 @@ function buildCells() {
         k = 2;
         t -= 0.05; // dark soil warms first
       }
-      for (const Y of YARDS) if (inRect(x, y, Y)) t -= 0.25;
+      for (const Y of YARDS) if (inYard(Y, x, y)) t -= 0.25;
       th[o] = clamp(t, -0.1, 0.7);
       gt[o] = Math.min(0.94, th[o] + 0.2 + 0.1 * n2);
       kind[o] = k;
