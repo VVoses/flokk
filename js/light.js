@@ -244,6 +244,73 @@ function mkCone(col) {
   return c;
 }
 const CONE = { cut: mkCone('0,0,0'), glow: mkCone('255,176,96') };
+// Trees stand between the lamps and the eye. The light overlay is laid over the finished frame, so
+// without this a yard lamp's pool, a window's spill or a car's beams glowed straight through any crown
+// in the way. The crowns near a light are drawn into their own mask, and there the night stays dark:
+// the pool lies on the ground *under* the crown, and a crown lit only from below shows a dark top.
+// A little light is let through at the rim so a tree beside a lamp still reads as standing in its glow.
+const OCC = document.createElement('canvas'),
+  ocx = OCC.getContext('2d'),
+  OCC_K = 0.88;
+// the mask is soft and half-size, so each crown goes in from a small copy of its sprite (made once a season)
+const OCC_SPR = new WeakMap();
+function occSprite(spr) {
+  let m = OCC_SPR.get(spr);
+  if (!m) {
+    m = mk(Math.ceil(spr.width / 3), Math.ceil(spr.height / 3));
+    m.getContext('2d').drawImage(spr, 0, 0, m.width, m.height);
+    OCC_SPR.set(spr, m);
+  }
+  return m;
+}
+// the lit patch of ground round a light, as a box on screen (world x, tilted y)
+function lightBox(l) {
+  const R = l.dir !== undefined ? l.r * 1.4 : l.r;
+  return [l.x - R, l.x + R, (l.y - R) * TILT - l.h * HZ - 12, (l.y + R) * TILT];
+}
+// the trees whose crowns cover some of a visible light's patch (V must be the copy being drawn)
+function treesOver(src, out) {
+  for (const l of src) {
+    if (l.soft || !visU(l.x, l.y, l.r * 1.4, l.h * HZ + l.r)) continue;
+    const [x0, x1, y0, y1] = lightBox(l),
+      i0 = Math.floor((x0 - 80) / TC),
+      i1 = Math.floor((x1 + 80) / TC),
+      j0 = Math.floor(y0 / TILT / TC),
+      j1 = Math.floor((y1 + 180) / TILT / TC);
+    for (let i = i0; i <= i1; i++)
+      for (let j = j0; j <= j1; j++) {
+        const a = TG.get(i + ',' + j);
+        if (!a) continue;
+        for (const t of a) {
+          const hw = SW * t.k * 0.5,
+            b = t.y * TILT;
+          if (t.x + hw > x0 && t.x - hw < x1 && b > y0 && b - t.hpx < y1) out.add(t);
+        }
+      }
+  }
+  return out;
+}
+// does a crown in front of a light hide the lamp itself? A rough outline of the crown in screen space:
+// a cone for a spruce, an ellipse for a leafy tree (bare branches in winter hide nothing). 0 = hidden.
+const sstep = (a, b, v) => {
+  const t = clamp((v - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+function crownCover(t, X, Y) {
+  if (SEASON === 3 && t.type !== 'spruce') return 1;
+  const k = t.k,
+    base = t.y * TILT;
+  if (t.type === 'spruce') {
+    const f = (base - Y) / t.hpx;
+    if (f < 0.12 || f > 1) return 1;
+    const hw = SR * k * (1 - f) * 0.9;
+    return sstep(0.75, 1.05, Math.abs(X - t.x) / hw);
+  }
+  const [cy, rx, ry] = CAN[t.type],
+    dx = (X - t.x) / (rx * SR * k * (t.ws || 1)),
+    dy = (Y - (base - cy * SR * k)) / (ry * SR * k);
+  return sstep(0.7, 1.05, Math.hypot(dx, dy));
+}
 function applyLight(tx, ty, KS, inK) {
   const a = LIGHT.a;
   if (a + LIGHT.a2 < 0.012) return;
@@ -265,6 +332,8 @@ function applyLight(tx, ty, KS, inK) {
   if (nf > 0.02) {
     const src = LIGHTS.concat(trainLights(), trafficLights());
     if (L && birds.includes(L)) src.push({ x: L.x, y: L.y, h: L.z, r: 170, i: 0.32, fl: 0, soft: 1 });
+    const K = l => nf * l.i * (l.fl ? 0.93 + 0.07 * Math.sin(T * 11 + l.x) : 1);
+    // 1. the light on the ground: round pools, and the beams thrown ahead of vehicles
     for (const pass of ['destination-out', 'lighter']) {
       c.globalCompositeOperation = pass;
       for (const kk2 of KS) {
@@ -272,21 +341,11 @@ function applyLight(tx, ty, KS, inK) {
         c.setTransform(dpr * z * SQ, 0, 0, dpr * z * SQ, tk * SQ, ty * SQ);
         for (const l of src) {
           if (!visU(l.x, l.y, l.r * 1.4, l.h * HZ + l.r)) continue;
-          const k = nf * l.i * (l.fl ? 0.93 + 0.07 * Math.sin(T * 11 + l.x) : 1);
-          const X = l.x,
-            Y = PY(l.y, l.h),
-            Yg = l.y * TILT;
+          const k = K(l);
           const col = pass === 'lighter' ? (l.soft ? '150,170,210' : '255,176,96') : '0,0,0';
           const kk = pass === 'lighter' ? k * (l.soft ? 0.05 : 0.2) : k * 0.95;
-          // the glow round the source itself stays small; the pool on the ground carries the light
-          const hr = l.dir !== undefined ? 12 : l.r * 0.55;
-          let gr = c.createRadialGradient(X, Y, 0, X, Y, hr);
-          gr.addColorStop(0, `rgba(${col},${kk})`);
-          gr.addColorStop(1, `rgba(${col},0)`);
-          c.fillStyle = gr;
-          c.fillRect(X - hr, Y - hr, hr * 2, hr * 2);
           c.save();
-          c.translate(X, Yg);
+          c.translate(l.x, l.y * TILT);
           c.scale(1, TILT);
           if (l.dir !== undefined) {
             // a beam: a cone thrown forward along the ground from the lamp, none of it behind
@@ -294,15 +353,101 @@ function applyLight(tx, ty, KS, inK) {
             c.globalAlpha = Math.min(1, kk * (pass === 'lighter' ? 1.7 : 1));
             c.drawImage(pass === 'lighter' ? CONE.glow : CONE.cut, 0, -l.r * 0.34, l.r * 1.4, l.r * 0.68);
             c.globalAlpha = 1;
-            c.restore();
-            continue;
+          } else {
+            const gr = c.createRadialGradient(0, 0, 0, 0, 0, l.r);
+            gr.addColorStop(0, `rgba(${col},${kk * 0.9})`);
+            gr.addColorStop(1, `rgba(${col},0)`);
+            c.fillStyle = gr;
+            c.fillRect(-l.r, -l.r, l.r * 2, l.r * 2);
           }
-          gr = c.createRadialGradient(0, 0, 0, 0, 0, l.r);
-          gr.addColorStop(0, `rgba(${col},${kk * 0.9})`);
+          c.restore();
+        }
+      }
+    }
+    // 2. the crowns near a light keep the night on them. Only the patch of the mask the crowns cover is
+    // touched, so a night with no tree near a lamp costs next to nothing.
+    const near = new Set(),
+      sc = dpr * z * SQ;
+    let bx0 = w,
+      by0 = h,
+      bx1 = 0,
+      by1 = 0;
+    if (OCC.width !== w || OCC.height !== h) {
+      OCC.width = w;
+      OCC.height = h;
+    }
+    const o = ocx;
+    for (const kk2 of KS) {
+      const tk = inK(kk2);
+      for (const t of treesOver(src, new Set())) {
+        if (!visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) continue;
+        near.add(t);
+        const k = t.k,
+          kw = k * (t.ws || 1),
+          X = t.x * sc + tk * SQ,
+          Y = t.y * TILT * sc + ty * SQ,
+          hw = (AX * kw + SHT * k * 0.1) * sc;
+        if (bx0 > bx1) {
+          o.setTransform(1, 0, 0, 1, 0, 0);
+          o.globalCompositeOperation = 'source-over';
+          o.clearRect(0, 0, w, h);
+        }
+        bx0 = Math.min(bx0, X - hw);
+        bx1 = Math.max(bx1, X + hw);
+        by0 = Math.min(by0, Y - AY * k * sc);
+        by1 = Math.max(by1, Y + (SHT - AY) * k * sc);
+        o.setTransform(sc, 0, 0, sc, X, Y);
+        o.transform(1, 0, treeSway(t), 1, 0, 0);
+        o.drawImage(occSprite(SPR[t.type][t.v]), -AX * kw, -AY * k, SW * kw, SHT * k);
+      }
+    }
+    bx0 = Math.max(0, Math.floor(bx0) - 1);
+    by0 = Math.max(0, Math.floor(by0) - 1);
+    bx1 = Math.min(w, Math.ceil(bx1) + 1);
+    by1 = Math.min(h, Math.ceil(by1) + 1);
+    if (bx1 > bx0 && by1 > by0) {
+      const bw = bx1 - bx0,
+        bh = by1 - by0;
+      o.setTransform(1, 0, 0, 1, 0, 0);
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalAlpha = OCC_K;
+      c.globalCompositeOperation = 'destination-out';
+      c.drawImage(OCC, bx0, by0, bw, bh, bx0, by0, bw, bh);
+      o.globalCompositeOperation = 'source-in';
+      o.fillStyle = `rgb(${LIGHT.C[0] | 0},${LIGHT.C[1] | 0},${LIGHT.C[2] | 0})`;
+      o.fillRect(bx0, by0, bw, bh);
+      c.globalAlpha = OCC_K * a;
+      c.globalCompositeOperation = 'source-over';
+      c.drawImage(OCC, bx0, by0, bw, bh, bx0, by0, bw, bh);
+      c.globalAlpha = 1;
+    }
+    // 3. the glow round each lamp itself, kept small, and hidden by a crown standing in front of it
+    for (const pass of ['destination-out', 'lighter']) {
+      c.globalCompositeOperation = pass;
+      for (const kk2 of KS) {
+        const tk = inK(kk2);
+        c.setTransform(dpr * z * SQ, 0, 0, dpr * z * SQ, tk * SQ, ty * SQ);
+        for (const l of src) {
+          if (!visU(l.x, l.y, l.r * 1.4, l.h * HZ + l.r)) continue;
+          const X = l.x,
+            Y = PY(l.y, l.h);
+          let vis = 1;
+          if (!l.soft)
+            for (const t of near) {
+              if (t.y <= l.y || t.y - l.y > 260 || Math.abs(t.x - X) > t.r * 3) continue;
+              vis *= 1 - OCC_K * (1 - crownCover(t, X, Y));
+              if (vis < 0.02) break;
+            }
+          if (vis < 0.02) continue;
+          const k = K(l) * vis;
+          const col = pass === 'lighter' ? (l.soft ? '150,170,210' : '255,176,96') : '0,0,0';
+          const kk = pass === 'lighter' ? k * (l.soft ? 0.05 : 0.2) : k * 0.95;
+          const hr = l.dir !== undefined ? 12 : l.r * 0.55;
+          const gr = c.createRadialGradient(X, Y, 0, X, Y, hr);
+          gr.addColorStop(0, `rgba(${col},${kk})`);
           gr.addColorStop(1, `rgba(${col},0)`);
           c.fillStyle = gr;
-          c.fillRect(-l.r, -l.r, l.r * 2, l.r * 2);
-          c.restore();
+          c.fillRect(X - hr, Y - hr, hr * 2, hr * 2);
         }
       }
     }
