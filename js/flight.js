@@ -273,7 +273,7 @@ function updateHawk(h, dt) {
       dihT = 0.03;
       zT = h.cz - 0.2;
       zRate = 0.3;
-      flapWant = d > 500 ? 8 : 0;
+      flapWant = d > 500 ? 9 : 0;
       if (d < 320) {
         const still = t.state === 'perch' || t.state === 'takeoff' || Math.hypot(t.vx, t.vy) < 70;
         if (still && h.kind !== 'owl') {
@@ -354,7 +354,7 @@ function updateHawk(h, dt) {
       pitchT = -0.5;
       foldT = 0;
       dihT = 0.04;
-      flapWant = 9;
+      flapWant = 10;
       vT = 175;
       accel = 0.9;
       zT = h.cz;
@@ -377,7 +377,7 @@ function updateHawk(h, dt) {
       steerTo(h, dt, h.x + (h.x - L.x), h.y + (h.y - L.y), 1, 1.5);
       if (h.state === 'carry') {
         vT = 165;
-        flapWant = 8;
+        flapWant = 9;
         zT = h.cz;
         zRate = 0.8;
         pitchT = -0.12;
@@ -418,7 +418,7 @@ function updateHawk(h, dt) {
     if (h.fbT <= 0) {
       h.flapOn = !h.flapOn;
       h.fbT = h.flapOn ? rr(0.5, 1) : rr(2.5, 6);
-      h.flapRate = h.kind === 'owl' ? 5 : 7;
+      h.flapRate = h.kind === 'owl' ? 5 : 8;
     }
   }
   if (h.flapOn || Math.abs(Math.sin(h.flap)) > 0.08) h.flap += dt * h.flapRate;

@@ -142,12 +142,17 @@ function hawkGeom(h) {
     return [f2 * cy - s1 * sy, f2 * sy + s1 * cy, u2];
   };
   const fold = h.fold,
-    span = 1 - 0.5 * fold,
-    beat = h.flapOn || Math.abs(Math.sin(h.flap)) > 0.08 ? Math.sin(h.flap) * 0.55 : 0;
+    owl = h.kind === 'owl',
+    flapping = h.flapOn || Math.abs(Math.sin(h.flap)) > 0.08,
+    beat = flapping ? Math.sin(h.flap) * (owl ? 0.5 : 0.95) : 0,
+    // a real wingbeat folds in a little on the upstroke and snaps flat on the power downstroke - that
+    // asymmetry, not just a bigger sine, is most of what reads as an actual flap rather than a wobble
+    stroke = flapping && !owl ? Math.max(0, -Math.sin(h.flap)) * 0.2 : 0,
+    span = 1 - 0.5 * fold - 0.15 * stroke;
   const wing = sg =>
-    (h.kind === 'owl' ? OWING : HWING).map(([f, s2]) => {
-      const ff = f - fold * 0.55 * s2,
-        u = h.dih * s2 + beat * Math.pow(s2, 1.25) * (1 - fold);
+    (owl ? OWING : HWING).map(([f, s2]) => {
+      const ff = f - (fold + stroke) * 0.55 * s2,
+        u = h.dih * s2 + beat * Math.pow(s2, 1.25) * (1 - fold - stroke * 0.5);
       return T3(ff, sg * s2 * span, u);
     });
   const fan = 0.2 + 0.3 * h.fan,
