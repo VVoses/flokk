@@ -315,42 +315,46 @@ function thud() {
     cg = ac.createGain(),
     cf = ac.createBiquadFilter();
   co.type = 'sine';
-  co.frequency.setValueAtTime(2000, t);
-  co.frequency.exponentialRampToValueAtTime(1150, t + 0.38);
+  co.frequency.setValueAtTime(1850, t);
+  co.frequency.exponentialRampToValueAtTime(1100, t + 0.4);
   cf.type = 'bandpass';
-  cf.frequency.value = 1700;
-  cf.Q.value = 1.3;
+  cf.frequency.value = 1400;
+  cf.Q.value = 1;
   cg.gain.setValueAtTime(0, t);
-  cg.gain.linearRampToValueAtTime(0.05, t + 0.025);
-  cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+  cg.gain.linearRampToValueAtTime(0.042, t + 0.045);
+  cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.44);
   co.connect(cf).connect(cg).connect(master);
   co.start(t);
-  co.stop(t + 0.44);
-  // feathers settling, not a strike - a hush rather than a snap
+  co.stop(t + 0.46);
+  // feathers settling, not a strike - a soft hush with the edge filtered off, no percussive bite
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
   const f = ac.createBiquadFilter();
   f.type = 'bandpass';
-  f.frequency.value = 1000;
-  f.Q.value = 0.6;
+  f.frequency.value = 700;
+  f.Q.value = 0.5;
   const g2 = ac.createGain();
-  g2.gain.setValueAtTime(0, t + 0.03);
-  g2.gain.linearRampToValueAtTime(0.04, t + 0.06);
+  g2.gain.setValueAtTime(0, t + 0.04);
+  g2.gain.linearRampToValueAtTime(0.026, t + 0.11);
   g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
   s.connect(f).connect(g2).connect(master);
   s.start(t, Math.random() * 3);
   s.stop(t + 0.36);
-  // a low, muffled body underneath - weight without hardness, like a tolling struck once and damped
+  // a low, muffled body underneath, faded in rather than struck - weight without a transient
   const o = ac.createOscillator(),
-    gn = ac.createGain();
+    gn = ac.createGain(),
+    lp = ac.createBiquadFilter();
   o.type = 'sine';
-  o.frequency.setValueAtTime(130, t + 0.02);
-  o.frequency.exponentialRampToValueAtTime(48, t + 0.32);
-  gn.gain.setValueAtTime(0.09, t + 0.02);
-  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
-  o.connect(gn).connect(master);
+  o.frequency.setValueAtTime(115, t + 0.02);
+  o.frequency.exponentialRampToValueAtTime(42, t + 0.36);
+  lp.type = 'lowpass';
+  lp.frequency.value = 200;
+  gn.gain.setValueAtTime(0, t + 0.02);
+  gn.gain.linearRampToValueAtTime(0.065, t + 0.08);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  o.connect(lp).connect(gn).connect(master);
   o.start(t + 0.02);
-  o.stop(t + 0.38);
+  o.stop(t + 0.42);
 }
 function joinSnd() {
   if (!ac || muted) return;
