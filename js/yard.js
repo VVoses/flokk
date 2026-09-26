@@ -11,8 +11,7 @@ function yardSpot(Y, taken, m, pref) {
   let best = null,
     bs = 1e9;
   for (let i = 0; i < 80; i++) {
-    const x = rnd(Y.x + 34, Y.x + Y.w - 34),
-      y = rnd(Y.y + 34, Y.y + Y.h - 34);
+    const [x, y] = yardAt(Y, rnd(34, Y.lw - 34) / Y.lw, rnd(34, Y.lh - 34) / Y.lh);
     if (buildAt(x, y, m)) continue;
     if (taken.some(t => Math.hypot(t[0] - x, t[1] - y) < (t[2] || 0) + m + 18)) continue;
     if (Y.gate && Math.hypot(Y.gate[0] - x, Y.gate[1] - y) < 60) continue;
