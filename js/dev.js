@@ -58,6 +58,12 @@ window.dev = {
   find(k) {
     return ANIMALS.find(a => a.k === k && !a.dying);
   },
+  // a small wild flock (starling, linnet, fieldfare, bunting) flying in to a field near the flock now
+  wild(sp = 'starling') {
+    for (const F of WILD.flocks) for (const a of F.members) a.life = 0;
+    WILD.flocks = [];
+    return !!spawnWild(sp);
+  },
   hawk(kind = 'hawk') {
     st.grace = 0;
     spawnHawk(kind);

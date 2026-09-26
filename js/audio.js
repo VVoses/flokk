@@ -493,6 +493,18 @@ function frog() {
     o.stop(t0 + 0.13);
   }
 }
+// ambient calls: how long each kind rests (s) after it has spoken up on its own
+const AMB_REST = {
+  cow: [35, 75],
+  sheep: [14, 30],
+  duck: [14, 28],
+  crow: [14, 30],
+  magpie: [18, 36],
+  goose: [30, 60],
+  moose: [70, 150]
+};
+// reactive calls (alarms, scolding, a skein passing): shortest gap before that kind is heard again
+const CALL_GAP = { crow: 2.5, magpie: 2.5, duck: 3, dog: 0.6 };
 function animalCall(k, vol, pn) {
   if (!ac || muted) return;
   const t = ac.currentTime + 0.02,
@@ -573,6 +585,39 @@ function animalCall(k, vol, pn) {
   } else if (k === 'goose') {
     sw(540, 450, 0.17, t, 3, 1100);
     sw(540, 450, 0.14, t + 0.24, 3, 1100);
+  } else if (k === 'starling') {
+    // a wheezy rising whistle, a rattle of clicks, a falling whistle
+    sw(2700, 3500, 0.16, t, 6, 3100, 'sine');
+    for (let i = 0; i < 4; i++) sw(4300, 3900, 0.025, t + 0.2 + i * 0.05, 4, 4100, 'square');
+    sw(3500, 2300, 0.24, t + 0.46, 5, 2900, 'sine', 32);
+  } else if (k === 'linnet') {
+    // a light, bouncing twitter
+    for (let i = 0; i < 5; i++) {
+      const f = rr(2600, 3400);
+      sw(f, f * 1.15, 0.05, t + i * 0.08 + rr(0, 0.02), 5, 3000, 'triangle');
+    }
+  } else if (k === 'fieldfare') {
+    // the harsh chattering "chack-chack"
+    const n = rr(2, 4) | 0;
+    for (let i = 0; i < n; i++) sw(1950, 1500, 0.07, t + i * 0.12, 2, 2400);
+  } else if (k === 'bunting') {
+    // a soft rippling trill
+    for (let i = 0; i < 8; i++) sw(2500 + (i % 2) * 450, 2700 + (i % 2) * 300, 0.04, t + i * 0.05, 5, 2900, 'sine');
+  } else if (k === 'whirr') {
+    // many small wings taking off at once
+    const s = ac.createBufferSource();
+    s.buffer = amb.noise;
+    const f = ac.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 900;
+    f.Q.value = 0.7;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(1.2, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    s.connect(f).connect(g).connect(out);
+    s.start(t, Math.random() * 3);
+    s.stop(t + 0.72);
   }
 }
 /* ---------- voices: duck and cow ---------- */
@@ -1330,28 +1375,28 @@ function audioTick(dt) {
   if (!muted && L) {
     amb.callT -= dt;
     if (amb.callT <= 0) {
-      amb.callT = rr(2.5, 6.5);
-      const cowOk = now > (amb.cowNext || 0),
-        sheepOk = now > (amb.sheepNext || 0);
+      // the countryside is mostly quiet: an animal speaks up every so often, and each kind then
+      // rests a while, so a lone moose or one busy flock can't take every turn
+      amb.callT = rr(6, 14);
+      const rest = amb.rest || (amb.rest = {});
       const near = ANIMALS.filter(
-        a =>
-          ['cow', 'sheep', 'duck', 'crow', 'magpie', 'moose', 'goose'].includes(a.k) &&
-          (a.k !== 'cow' || cowOk) &&
-          (a.k !== 'sheep' || sheepOk) &&
-          Math.hypot(wdx(a.x, L.x), a.y - L.y) < 950
+        a => a.k in AMB_REST && now > (rest[a.k] || 0) && Math.hypot(wdx(a.x, L.x), a.y - L.y) < 950
       );
       if (near.length) {
         const a = near[(Math.random() * near.length) | 0];
-        if (a.k === 'cow') amb.cowNext = now + rr(35, 75);
-        // a flock outnumbers everything else nearby, so without a rest it took most of the calls
-        if (a.k === 'sheep') amb.sheepNext = now + rr(14, 30);
+        rest[a.k] = now + rr(...AMB_REST[a.k]);
         const d = Math.hypot(wdx(a.x, L.x), a.y - L.y);
-        animalCall(a.k, 0.07 * (1 - d / 950) + 0.008, wdx(a.x, L.x) / 700);
+        animalCall(a.k, 0.06 * (1 - d / 950) + 0.007, wdx(a.x, L.x) / 700);
       }
     }
     if (LIFE.calls && LIFE.calls.length)
       for (const c of LIFE.calls.splice(0, LIFE.calls.length).slice(0, 4)) {
-        const d = Math.hypot(wdx(c.x, L.x), c.y - L.y);
+        const d = Math.hypot(wdx(c.x, L.x), c.y - L.y),
+          heard = amb.heard || (amb.heard = {});
+        // the same kind calling again right away (several crows at a hawk, a scolding magpie)
+        // blurs into a racket, so let each kind be heard at most every so often
+        if (now < (heard[c.k] || 0)) continue;
+        heard[c.k] = now + (CALL_GAP[c.k] || 0);
         if (d < 1600) {
           const v = 0.05 * (1 - d / 1600) + 0.012;
           for (let i = 0; i < (c.n || 1); i++)
