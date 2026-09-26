@@ -459,6 +459,7 @@ function startGame() {
   RAIN.t = 0;
   RAIN.target = 0;
   RAIN.next = rr(20, 45);
+  resetWeather();
   calUpdate();
   if (SEASON !== s0) {
     applySeason(s0);

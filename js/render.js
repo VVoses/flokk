@@ -412,8 +412,10 @@ function treeSway(t) {
   const stiff = t.type === 'spruce' ? 0.55 : t.type === 'birch' ? 1.25 : 0.95;
   const ph = t.x * 0.013 + t.y * 0.021;
   const flutter = Math.sin(T * 1.7 + ph) * 0.65 + Math.sin(T * 0.6 + ph * 1.7) * 0.35;
-  const lean = WIND.x * amb_gust() * 0.5;
-  return (flutter * 0.04 + lean * 0.035) * stiff;
+  // the gust passing over this tree (weather.js), so you can watch a gust come through a stand tree by tree
+  const g = gustAt(t.x, t.y),
+    lean = Math.cos(WEATHER.ang) * WEATHER.s * (0.25 + g);
+  return (flutter * 0.04 * (0.5 + 0.5 * WEATHER.s + 0.8 * g) + lean * 0.03) * stiff;
 }
 function drawTree(t) {
   const spr = SPR[t.type][t.v],
@@ -1507,6 +1509,8 @@ function render() {
     ctx.globalAlpha = 1;
     drawMist(); // the mist banks likewise
     ctx.restore();
+    // gusts, spindrift, rain rings and fallen leaves are in flock coordinates, so they draw once, unclipped, in the k=0 copy
+    if (k === 0) drawWeatherGround();
   }
   V = V0;
   if (LIGHT.shadowA > 0.02) {
@@ -1773,6 +1777,7 @@ function render() {
   }
   V = V0;
   setK(0);
+  drawWeatherAir();
   if (pointer.down && st.mode === 'play') {
     const w = screenToWorld(pointer.x, pointer.y, L.z);
     ctx.strokeStyle = 'rgba(242,201,76,.65)';
@@ -1791,6 +1796,7 @@ function render() {
       setK(k);
       drawSkyAnimal(a);
     }
+  drawFog();
   applyLight(tx, ty, KS, inK);
   V = V0;
   drawSkyBehind(tx, ty);
@@ -1818,7 +1824,8 @@ function render() {
       sy2 = (PY(h.y, h.z) - cam.py) * z + vh / 2;
     if (sx2 > -20 && sx2 < vw + 20 && sy2 > -20 && sy2 < vh + 20) continue;
     const dist = Math.hypot(h.x - L.x, h.y - L.y);
-    if (dist > 1600 || h.state === 'carry' || h.state === 'leave') continue;
+    // in fog or a blizzard you get far less warning
+    if (dist > 1600 * seeK() || h.state === 'carry' || h.state === 'leave') continue;
     const a = Math.atan2(sy2 - vh / 2, sx2 - vw / 2);
     const m = 34;
     const ex2 = clamp(vw / 2 + Math.cos(a) * vw, m, vw - m),
@@ -1826,7 +1833,7 @@ function render() {
     ctx.save();
     ctx.translate(ex2, ey2);
     ctx.rotate(a);
-    ctx.globalAlpha = clamp(1.3 - dist / 1600, 0.3, 1);
+    ctx.globalAlpha = clamp(1.3 - dist / (1600 * seeK()), 0.3, 1);
     ctx.fillStyle = h.state === 'patrol' ? '#E0A33F' : '#E5573F';
     ctx.beginPath();
     ctx.moveTo(12, 0);

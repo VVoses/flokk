@@ -100,6 +100,9 @@ function calUpdate() {
     LIGHT.a = clamp(Math.max(LIGHT.a, k * 0.16), 0, 0.85);
     LIGHT.rim *= 1 - k * 0.85;
   }
+  // a winter gale drives the snow thick and sideways; fog and storms grey the light (weather.js)
+  LIGHT.snow = Math.max(LIGHT.snow, WEATHER.storm * winterW());
+  weatherLight();
 }
 function mixHex(a, b, t) {
   const A = parseInt(a.slice(1), 16),
@@ -592,7 +595,7 @@ function drawSkyBehind(tx, ty) {
 
 /* ---------- winter snowfall ---------- */
 const FLAKES = [];
-for (let i = 0; i < 220; i++)
+for (let i = 0; i < 440; i++)
   FLAKES.push({
     x: Math.random(),
     y: Math.random(),
@@ -604,21 +607,41 @@ function drawSnowfall(dt) {
   const I = LIGHT.snow;
   if (I < 0.02) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const n = Math.floor(FLAKES.length * I);
-  ctx.fillStyle = `rgba(250,252,255,${0.85 - 0.35 * LIGHT.night})`;
+  // in a storm (weather.js) twice the flakes, driven hard along the wind, and the world whited out behind them
+  const sm = WEATHER.storm,
+    n = Math.floor(FLAKES.length * I * (0.5 + 0.5 * sm)),
+    drive = WIND.x * (0.03 + 0.5 * sm * (0.5 + WEATHER.g));
+  if (sm > 0.02) {
+    ctx.fillStyle = `rgba(228,234,240,${sm * (0.3 - 0.16 * LIGHT.night)})`;
+    ctx.fillRect(0, 0, vw, vh);
+  }
+  ctx.fillStyle = ctx.strokeStyle = `rgba(250,252,255,${0.85 - 0.35 * LIGHT.night})`;
+  // flakes go by as streaks once the wind is really driving them
+  const sx = drive * vw * 0.04,
+    sy = 0.18 * (1 + 0.6 * sm) * vh * 0.04;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
   for (let i = 0; i < n; i++) {
     const f = FLAKES[i];
-    f.y += f.v * dt * 0.18;
-    f.x += (Math.sin(T * 0.8 + f.p) * 0.02 + WIND.x * 0.03 * f.v) * dt;
+    f.y += f.v * dt * 0.18 * (1 + 0.6 * sm);
+    f.x += (Math.sin(T * 0.8 + f.p) * 0.02 * (1 - sm) + drive * f.v) * dt;
     if (f.y > 1) f.y -= 1;
     if (f.x > 1) f.x -= 1;
     if (f.x < 0) f.x += 1;
     const X = (f.x * vw - (((cam.x + WX) * cam.z * 0.5 * f.s) % vw) + vw * 2) % vw,
       Y = (f.y * vh - ((cam.py * cam.z * 0.5 * f.s) % vh) + vh * 2) % vh;
-    ctx.beginPath();
-    ctx.arc(X, Y, f.s, 0, TAU);
-    ctx.fill();
+    if (sm > 0.3) {
+      ctx.moveTo(X, Y);
+      ctx.lineTo(X - sx * f.v * f.s * 0.7, Y - sy * f.v - f.s * 2 * Math.sin(f.p + T * 3));
+    } else {
+      ctx.moveTo(X + f.s, Y);
+      ctx.arc(X, Y, f.s, 0, TAU);
+    }
   }
+  if (sm > 0.3) {
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  } else ctx.fill();
 }
 
 /* ---------- rain ---------- */

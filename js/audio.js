@@ -1659,11 +1659,7 @@ function musicTick() {
 function audioTick(dt) {
   if (!ac || !amb) return;
   const now = ac.currentTime;
-  amb.gustT -= dt;
-  if (amb.gustT <= 0) {
-    amb.gust = Math.random() < 0.2 ? rr(0.8, 1) : rr(0.15, 0.6);
-    amb.gustT = rr(2, 6);
-  }
+  amb.gust = WEATHER.g; // the gusts themselves come from weather.js, where the flock is
   if (!muted) {
     const nf = LIGHT.night,
       hr = CAL.hour,

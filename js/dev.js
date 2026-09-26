@@ -77,6 +77,16 @@ window.dev = {
     st.settleCool = 0;
     settle();
   },
+  // pin the weather: dev.weather({ s: 1.5, ang: 0, fog: 0.8 }) (wind strength, where it blows, fog); no argument unpins
+  weather(o) {
+    if (!o) return (WEATHER.pin = null);
+    const p = {};
+    if (o.s !== undefined) p.sT = WEATHER.s = o.s;
+    if (o.ang !== undefined) p.angT = WEATHER.ang = o.ang;
+    if (o.fog !== undefined) p.fogT = WEATHER.fog = o.fog;
+    WEATHER.pin = p;
+    weatherTick(0);
+  },
   stats() {
     return {
       x: L.x | 0,

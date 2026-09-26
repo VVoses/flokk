@@ -765,13 +765,16 @@ function updateAnimals(dt) {
     if (c.x > W) c.x -= W;
     else if (c.x < 0) c.x += W;
     if (c.y > H + 500) c.y = -400;
+    if (c.y < -400) c.y = H + 500;
   }
   for (const c of SKYCLOUDS) {
     c.x += WIND.x * 6 * dt;
     if (c.x > 6000) c.x -= 6000;
+    if (c.x < 0) c.x += 6000;
   }
 }
-const amb_gust = () => (typeof amb === 'object' && amb ? amb.gust : 0.5);
+// the gust where the flock is (weather.js)
+const amb_gust = () => WEATHER.g;
 
 /* animal drawing: side views for anything on the ground, squashed top views for fliers */
 function ell(x, y, rx, ry, col, rot = 0) {
