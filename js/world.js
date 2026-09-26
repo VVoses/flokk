@@ -719,7 +719,7 @@ function genLayout() {
           bad = plotBad(poly, own);
         if (!bad) {
           const b = polyBox(poly),
-            f = { x: b.x, y: b.y, w: b.w, h: b.h, poly, ang: longAng(Q) + (R() < 0.2 ? Math.PI / 2 : 0) };
+            f = { x: b.x, y: b.y, w: b.w, h: b.h, poly, plot: true, ang: longAng(Q) + (R() < 0.2 ? Math.PI / 2 : 0) };
           own.add(f);
           mine.push(f);
           return;
