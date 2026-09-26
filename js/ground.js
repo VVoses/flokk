@@ -629,7 +629,7 @@ function paintGround(season) {
         g.translate(ox, 0);
         strokePoly(g, P, 22, 'rgba(60,62,38,.25)');
         strokePoly(g, P, 18, '#AFA27E');
-        strokePoly(g, P, 6, season === 2 ? '#86A15D' : '#7FA858');
+        strokePoly(g, P, 6, season === 2 ? 'rgba(134,161,93,.55)' : 'rgba(110,150,78,.55)');
         g.restore();
       }
   }
