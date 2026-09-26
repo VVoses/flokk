@@ -56,6 +56,7 @@ const st = {
   eaten: 0,
   lost: 0,
   maxFlock: 0,
+  day0: 0,
   play: 0,
   stamina: 1,
   dashT: 0,
@@ -474,19 +475,36 @@ const screenToWorld = (sx, sy, h = FZ) => ({
 /* ---------- UI ---------- */
 const $ = id => document.getElementById(id);
 const ui = { count: $('count'), foodBar: $('foodBar'), stBar: $('stBar'), enBar: $('enBar') };
-function getBest() {
+/* high scores, kept on this device: the largest flock ever gathered and the most days ever lived
+   through (the flock key predates the days one, so older saves keep their best) */
+const BEST_KEYS = { flock: 'flokk-best', days: 'flokk-best-days' };
+function getBest(k = 'flock') {
   try {
-    return +(localStorage.getItem('flokk-best') || 0);
+    return +(localStorage.getItem(BEST_KEYS[k]) || 0);
   } catch (e) {
     return 0;
   }
 }
-function setBest(v) {
+function setBest(k, v) {
   try {
-    localStorage.setItem('flokk-best', String(v));
+    localStorage.setItem(BEST_KEYS[k], String(v));
   } catch (e) {
     /* storage unavailable: best score just isn't kept */
   }
+}
+// days this flight has lived through: a whole year per year won, else the days since take-off
+function daysFlown(won) {
+  return won ? YEAR_DAYS * CAL.year : CAL.day - st.day0 + 1;
+}
+// store any new best for this run; returns the bests as they stood before it, to compare against
+function recordBest(won) {
+  const run = { flock: st.maxFlock, days: daysFlown(won) },
+    prev = {};
+  for (const k in BEST_KEYS) {
+    prev[k] = getBest(k);
+    if (run[k] > prev[k]) setBest(k, run[k]);
+  }
+  return { run, prev };
 }
 /* ---------- learning by doing: a first-time-only line, taught by the world at the moment
    a mechanic first matters (a hawk's first pass, hunger, the first dark night), never up front
@@ -515,8 +533,12 @@ function statsHTML() {
   return `<div><b>${birds.length}</b><span>birds</span></div><div><b>${CAL.day + 1}</b><span>day</span></div>`;
 }
 function overHTML(won) {
-  const days = won ? YEAR_DAYS * CAL.year : CAL.day + 1;
-  return `<div><b>${st.maxFlock}</b><span>largest flock</span></div><div><b>${days}</b><span>days</span></div>`;
+  const { run, prev } = recordBest(won);
+  const cell = (k, label) => {
+    const note = !prev[k] ? '' : run[k] > prev[k] ? 'new best' : `best ${prev[k]}`;
+    return `<div><b>${run[k]}</b><span>${label}</span>${note ? `<i>${note}</i>` : ''}</div>`;
+  };
+  return cell('flock', 'largest flock') + cell('days', 'days');
 }
 
 // how many midge clouds and dragonflies the season and the hour hold: summer thick with them, none in
@@ -536,7 +558,10 @@ function refreshInsects() {
   for (let i = 0; i < n.dflies; i++) spawnDfly();
 }
 function landLabels() {
-  $('bestTitle').textContent = LAND_NAME + (getBest() ? ` · best ${getBest()}` : '');
+  const flock = getBest('flock'),
+    days = getBest('days');
+  $('bestTitle').textContent =
+    LAND_NAME + (flock ? ` · best flock ${flock}` : '') + (days ? ` · ${days} ${days === 1 ? 'day' : 'days'}` : '');
 }
 function newLand(btn, then) {
   const old = btn.textContent;
@@ -583,6 +608,7 @@ function startGame() {
     eaten: 0,
     lost: 0,
     maxFlock: 6,
+    day0: CAL.day,
     play: 0,
     stamina: 1,
     dashT: 0,
@@ -607,8 +633,6 @@ function startGame() {
 function yearWon() {
   hideBanner();
   st.mode = 'won';
-  const best = getBest();
-  if (st.maxFlock > best) setBest(st.maxFlock);
   $('wonStats').innerHTML = overHTML(true);
   $('wonTitle').textContent = CAL.year > 1 ? `${CAL.year} years` : 'A year';
   $('wonOv').hidden = false;
@@ -651,8 +675,6 @@ function gameOver() {
   hideBanner();
   st.mode = 'over';
   $('overTitle').textContent = st.cause === 'starved' ? 'Starved' : 'Taken';
-  const best = getBest();
-  if (st.maxFlock > best) setBest(st.maxFlock);
   $('overStats').innerHTML = overHTML();
   $('overOv').hidden = false;
   dashBtn.hidden = true;

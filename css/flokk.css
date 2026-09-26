@@ -446,6 +446,14 @@ body {
   text-transform: lowercase;
   color: rgba(246, 243, 234, 0.74);
 }
+/* under a run's number: the best it has to beat, or a quiet note that it just did */
+.stats i {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--ink2);
+}
 /* paused: the world steps back further, and resuming is a quiet outline rather than a big button */
 #pauseOv {
   background: rgba(14, 20, 16, 0.5);
