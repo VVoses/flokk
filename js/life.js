@@ -7,7 +7,11 @@ let ANIMALS = [],
   SMOKE = [],
   RINGS = [];
 const WIND = { x: 1, y: 0.22 };
-const LIFE = { geeseT: 45, crowT: 25, fishT: 6 };
+const LIFE = { geeseT: 45, crowT: 25, fishT: 6, tractorF: null };
+// the field tractor's speeds in px/s: a steady crawl down the rows, and a road gear between fields no
+// quicker than the tractors on the road (traffic.js)
+const TRACTOR_WORK = 20,
+  TRACTOR_ROAD = 34;
 const openLand = (x, y) => y > 60 && !inWater(x, y, 14) && !inBuild(x, y, 16) && !underTree(x, y);
 function mkA(k, x, y, o) {
   return Object.assign(
@@ -124,9 +128,17 @@ function spawnAnimals() {
       if (d.k === 'duck' && d.drake && hens.length)
         d.mate = hens.find(h => h.pool === d.pool && !ANIMALS.some(o => o.mate === h)) || null;
   }
-  const tf = SEASON === 3 ? null : FIELDS.find(f => f.t === 'plow') || FIELDS.find(f => f.t === 'stubble');
-  if (tf) {
-    const tr = mkA('tractor', ...ptIn(tf, 30), { rect: tf, row: 0, dirn: 1, f: 1 });
+  // the tractor comes out on a different field each season, starting at the head of a row, so it is not
+  // always found on the same patch of land
+  let tf = null;
+  if (SEASON < 3) {
+    const work = FIELDS.filter(f => (f.t === 'plow' || f.t === 'stubble') && f !== LIFE.tractorF);
+    tf = work.length ? work[(Math.random() * work.length) | 0] : LIFE.tractorF;
+  }
+  const t0 = tf && rowStart(tf, ...ptIn(tf, 30));
+  if (t0) {
+    LIFE.tractorF = tf;
+    const tr = mkA('tractor', t0.x, t0.y, { rect: tf, row: t0.row, rdir: 1, dirn: t0.dirn, f: t0.dirn });
     ANIMALS.push(tr);
     for (let i = 0; i < (rr(2, 4) | 0); i++)
       ANIMALS.push(
@@ -212,33 +224,41 @@ function flyTo(a, dt, sp, maxZ) {
   a.z = Math.min(maxZ, d / 70, a.z + dt * 1.6);
   return false;
 }
-// a tractor done with its field picks another of its own farm's ploughed, stubble or cropped fields (one of the
-// nearer ones) and heads for the end of that field's first row
+// the first row of field f long enough to work, begun from whichever of its ends is nearer (x, y)
+function rowStart(f, x, y) {
+  for (let row = 0; f.y + 28 + row * 30 <= f.y + f.h - 24; row++) {
+    const ry = f.y + 28 + row * 30,
+      xr = f.poly ? xRange(f.poly, ry) : [f.x, f.x + f.w];
+    if (!xr || xr[1] - xr[0] < 70) continue;
+    const west = Math.abs(wdx(xr[0] + 30, x)) < Math.abs(wdx(xr[1] - 30, x));
+    return { x: west ? xr[0] + 30 : xr[1] - 30, y: ry, row, dirn: west ? 1 : -1 };
+  }
+  return null;
+}
+// a tractor done with its field picks another ploughed, stubble or cropped field - one of the nearer ones
+// of its own farm, or any farm's if its own has none - and drives to the head of that field's first row
 function tractorMove(a) {
-  const near = FIELDS.filter(
-    f => f !== a.rect && f.farm === a.rect.farm && (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop')
-  )
+  const ok = f => f !== a.rect && (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop');
+  let cand = FIELDS.filter(f => ok(f) && f.farm === a.rect.farm);
+  if (!cand.length) cand = FIELDS.filter(ok);
+  const near = cand
     .map(f => [f, Math.hypot(wdx(f.x + f.w / 2, a.x), f.y + f.h / 2 - a.y)])
     .sort((p, q) => p[1] - q[1])
     .slice(0, 3);
-  if (!near.length) {
+  const f = near.length && near[(Math.random() * near.length) | 0][0],
+    s = f && rowStart(f, a.x, a.y);
+  if (!s) {
+    // nowhere else to go: turn round and work this field again, back the way it came
+    a.rdir = -a.rdir;
     a.work = rr(60, 140);
     return;
   }
-  const f = near[(Math.random() * near.length) | 0][0];
-  let y = f.y + 28,
-    xr = f.poly ? xRange(f.poly, y) : [f.x, f.x + f.w];
-  for (let i = 1; (!xr || xr[1] - xr[0] < 70) && y < f.y + f.h - 24; i++) {
-    y = f.y + 28 + i * 30;
-    xr = f.poly ? xRange(f.poly, y) : [f.x, f.x + f.w];
-  }
-  if (!xr) return void (a.work = rr(60, 140));
-  // start from whichever end of the row is nearer, working away from it
-  const west = Math.abs(wdx(xr[0] + 30, a.x)) < Math.abs(wdx(xr[1] - 30, a.x));
+  LIFE.tractorF = f;
   a.next = f;
-  a.go = [west ? xr[0] + 30 : xr[1] - 30, y];
-  a.row = Math.round((y - f.y - 28) / 30);
-  a.dirn = west ? 1 : -1;
+  a.go = [s.x, s.y];
+  a.row = s.row;
+  a.rdir = 1;
+  a.dirn = s.dirn;
 }
 // the tractor's heading (drawTractor) eases round toward where it is driving; a half turn at the end
 // of a row swings through facing down-field, toward the next row, rather than flipping on the spot
@@ -558,9 +578,9 @@ function updateAnimals(dt) {
             a.go = a.next = null;
             a.work = rr(60, 140);
           } else {
-            a.vx = (dx / d) * 55;
+            a.vx = (dx / d) * TRACTOR_ROAD;
             a.x = wrapX(a.x + a.vx * dt);
-            a.y += (dy / d) * 55 * dt;
+            a.y += (dy / d) * TRACTOR_ROAD * dt;
             if (Math.abs(dx) > 2) a.f = a.vx > 0 ? 1 : -1;
             tractorTurn(a, Math.atan2(dy, dx), dt);
           }
@@ -569,27 +589,32 @@ function updateAnimals(dt) {
         }
         const f = a.rect;
         a.ty = f.y + 28 + a.row * 30;
-        if (a.ty > f.y + f.h - 24) {
-          a.row = 0;
-          a.ty = f.y + 28;
-        }
-        const xr = f.poly ? xRange(f.poly, a.ty) : [f.x, f.x + f.w];
+        const xr = a.row >= 0 && a.ty <= f.y + f.h - 24 && (f.poly ? xRange(f.poly, a.ty) : [f.x, f.x + f.w]);
         if (!xr || xr[1] - xr[0] < 70) {
-          a.row++;
-          if (a.row > 40) a.row = 0;
+          // past the last row (or the first, working back): the field is done, so on to the next one
+          if (a.row < 0 || a.ty > f.y + f.h - 24) {
+            a.row -= a.rdir;
+            tractorMove(a);
+          } else a.row += a.rdir;
           break;
         }
         a.tx = a.dirn > 0 ? xr[1] - 30 : xr[0] + 30;
-        a.y += (a.ty - a.y) * Math.min(1, dt * 1.5);
-        const dx = a.tx - a.x;
         a.work = (a.work ?? rr(60, 140)) - dt;
-        if (Math.abs(dx) < 3) {
+        const dx = a.tx - a.x,
+          dy = a.ty - a.y;
+        if (Math.abs(dy) > 1.5) {
+          // swinging round at the headland onto the next row, at a crawl rather than sliding sideways
+          const step = Math.min(Math.abs(dy), TRACTOR_WORK * 0.7 * dt);
+          a.y += Math.sign(dy) * step;
+          if (Math.abs(dx) > 3) a.x += Math.sign(dx) * Math.min(Math.abs(dx), TRACTOR_WORK * 0.4 * dt);
+        } else if (Math.abs(dx) < 3) {
           a.dirn *= -1;
-          a.row++;
+          a.row += a.rdir;
           // enough done here: at the headland, set off for another field
           if (a.work <= 0) tractorMove(a);
         } else {
-          a.vx = Math.sign(dx) * 24;
+          a.y = a.ty;
+          a.vx = Math.sign(dx) * Math.min(TRACTOR_WORK, Math.abs(dx) / dt);
           a.x += a.vx * dt;
           a.f = a.vx > 0 ? 1 : -1;
         }
