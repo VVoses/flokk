@@ -32,14 +32,14 @@ with sync_playwright() as p:
         update(0.1); audioTick(0.1);
         if (++n % 20 === 0) render();
         if (!seen.includes(SEASON)) seen.push(SEASON);
-        if (n % 300 === 0) ps.push([SEASON, +GROW.p.toFixed(2), +AIR.mist.toFixed(2), +AIR.dewK.toFixed(2), +AIR.fluffK.toFixed(2)]);
+        if (n % 300 === 0) ps.push([SEASON, +GROW.p.toFixed(2), +AIR.mist.toFixed(2), +AIR.dewK.toFixed(2)]);
         if (st.mode !== 'play') break;
       }
       return { seen, mode: st.mode, ps };
     })()""")
     print('seasons seen:', seen['seen'], 'mode:', seen['mode'])
     for r in seen['ps']:
-        print('  season %d  p %.2f  mist %.2f  dew %.2f  fluff %.2f' % tuple(r))
+        print('  season %d  p %.2f  mist %.2f  dew %.2f' % tuple(r))
     ok = sorted(seen['seen']) == [0, 1, 2, 3]
     # 2. four points through each season, and dawn
     ims = []
