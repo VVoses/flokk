@@ -497,7 +497,36 @@ const BALES = [],
   FSEG = [],
   LINES = [],
   REEDS = [],
-  SPARK = [];
+  SPARK = [],
+  CROSSINGS = [], // where a road or lane crosses the railway: {x,y,ang (road heading),rang (rail heading),w,signs}
+  XSIGNS = []; // crossbuck signs standing at a road-rail crossing, one each side
+// the point (if any) where segment a-b crosses segment c-d, with each line's own heading
+function segX(a, b, c, d) {
+  const r1x = b[0] - a[0],
+    r1y = b[1] - a[1],
+    r2x = d[0] - c[0],
+    r2y = d[1] - c[1],
+    den = r1x * r2y - r1y * r2x;
+  if (!den) return null;
+  const t = ((c[0] - a[0]) * r2y - (c[1] - a[1]) * r2x) / den,
+    u = ((c[0] - a[0]) * r1y - (c[1] - a[1]) * r1x) / den;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { x: a[0] + r1x * t, y: a[1] + r1y * t, ang: Math.atan2(r1y, r1x), rang: Math.atan2(r2y, r2x) };
+}
+function findCrossings(P, Q) {
+  const out = [];
+  for (let i = 0; i < P.length - 1; i++)
+    for (let j = 0; j < Q.length - 1; j++) {
+      const x = segX(P[i], P[i + 1], Q[j], Q[j + 1]);
+      if (x) out.push(x);
+    }
+  return out;
+}
+// true within r of any road/lane-over-rail crossing: poles, fences and hedgerows all keep clear of one
+function nearCrossing(x, y, r) {
+  for (const c of CROSSINGS) if ((c.x - x) ** 2 + (c.y - y) ** 2 < r * r) return true;
+  return false;
+}
 
 /* ---------- procedural land ---------- */
 function genLayout() {
@@ -1309,6 +1338,8 @@ function genWorld(seed) {
   LINES.length = 0;
   REEDS.length = 0;
   SPARK.length = 0;
+  CROSSINGS.length = 0;
+  XSIGNS.length = 0;
   genLayout();
   // trees: forest by noise and zones, hedgerows along fields, birches on the shores
   for (let gx = 0; gx < W; gx += 46)
@@ -1468,6 +1499,21 @@ function genWorld(seed) {
     }
     if (f.t === 'pasture' || f.t === 'sty') fenceField(f);
   }
+  // level crossings: every place the road or a farm lane crosses the railway, plus a crossbuck sign
+  // standing at the roadside on each approach; poles, wires and fences all keep clear of the gap
+  for (const x of findCrossings(ROAD, RAIL)) CROSSINGS.push(Object.assign(x, { w: 15 }));
+  for (const P of LANES) for (const x of findCrossings(P, RAIL)) CROSSINGS.push(Object.assign(x, { w: 10 }));
+  for (const c of CROSSINGS) {
+    if (c.w < 13) continue; // only the public road gets crossing signs, not a farm track
+    const relA = c.ang - c.rang,
+      s = Math.max(Math.abs(Math.sin(relA)), 0.28),
+      hl = clamp(26 / s, 26, 70),
+      ca = Math.cos(c.ang),
+      sa = Math.sin(c.ang),
+      at = (u, v) => [c.x + u * ca - v * sa, c.y + u * sa + v * ca];
+    XSIGNS.push({ x: at(-(hl + 16), c.w + 10)[0], y: at(-(hl + 16), c.w + 10)[1], ang: c.ang });
+    XSIGNS.push({ x: at(hl + 16, -(c.w + 10))[0], y: at(hl + 16, -(c.w + 10))[1], ang: c.ang + Math.PI });
+  }
   // power line along the road (on the side away from the farm), branch line up the lane
   wireUp(polesPeriodic(ROAD, 190, 40));
   for (const fm of FARMS) wireUp(polesAlong(LANES[fm.lane], 120, -18, 40));
@@ -1575,7 +1621,7 @@ function polesAlong(P, spacing, off, start) {
       const t = acc / sl;
       const x = ax + (bx - ax) * t + nx * off,
         y = ay + (by - ay) * t + ny * off;
-      if (x > -40 && x < W + 40 && !inBuild(x, y, 8)) poles.push({ x, y });
+      if (x > -40 && x < W + 40 && !inBuild(x, y, 8) && !nearCrossing(x, y, 45)) poles.push({ x, y });
       acc += spacing;
     }
     acc -= sl;
@@ -1611,7 +1657,7 @@ function polesPeriodic(P, spacing, off) {
   for (let i = 0; i <= n; i++) {
     const p = at(s0 + sp * (i + 0.5));
     if (i === n) p.ghost = true;
-    else if (inBuild(p.x, p.y, 8)) continue;
+    else if (inBuild(p.x, p.y, 8) || nearCrossing(p.x, p.y, 55)) continue;
     poles.push(p);
   }
   return poles;
