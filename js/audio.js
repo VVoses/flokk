@@ -309,49 +309,48 @@ function flutter(n) {
 }
 function thud() {
   if (!ac || muted) return;
-  const t = ac.currentTime,
-    hit = t + 0.07;
-  // a short startled cry, hard-cut rather than faded - the strike is what stops it, not a decay curve
+  const t = ac.currentTime;
+  // a small, soft cry that gives out rather than being cut off - a whimper, not a shout
   const co = ac.createOscillator(),
     cg = ac.createGain(),
     cf = ac.createBiquadFilter();
-  co.type = 'sawtooth';
-  co.frequency.setValueAtTime(2500, t);
-  co.frequency.exponentialRampToValueAtTime(3300, hit);
+  co.type = 'sine';
+  co.frequency.setValueAtTime(2000, t);
+  co.frequency.exponentialRampToValueAtTime(1150, t + 0.38);
   cf.type = 'bandpass';
-  cf.frequency.value = 3000;
-  cf.Q.value = 3;
+  cf.frequency.value = 1700;
+  cf.Q.value = 1.3;
   cg.gain.setValueAtTime(0, t);
-  cg.gain.linearRampToValueAtTime(0.06, t + 0.012);
-  cg.gain.setValueAtTime(0.055, hit - 0.008);
-  cg.gain.linearRampToValueAtTime(0.0001, hit);
+  cg.gain.linearRampToValueAtTime(0.05, t + 0.025);
+  cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
   co.connect(cf).connect(cg).connect(master);
   co.start(t);
-  co.stop(hit + 0.01);
-  // the strike itself: a tight, percussive hit of talons and feathers, not a soft low sweep
+  co.stop(t + 0.44);
+  // feathers settling, not a strike - a hush rather than a snap
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
   const f = ac.createBiquadFilter();
-  f.type = 'highpass';
-  f.frequency.value = 900;
+  f.type = 'bandpass';
+  f.frequency.value = 1000;
+  f.Q.value = 0.6;
   const g2 = ac.createGain();
-  g2.gain.setValueAtTime(0.001, hit);
-  g2.gain.linearRampToValueAtTime(0.17, hit + 0.006);
-  g2.gain.exponentialRampToValueAtTime(0.0001, hit + 0.15);
+  g2.gain.setValueAtTime(0, t + 0.03);
+  g2.gain.linearRampToValueAtTime(0.04, t + 0.06);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
   s.connect(f).connect(g2).connect(master);
   s.start(t, Math.random() * 3);
-  s.stop(hit + 0.16);
-  // a low, brief body to the impact - weight without the old sound's soft, drawn-out fade
+  s.stop(t + 0.36);
+  // a low, muffled body underneath - weight without hardness, like a tolling struck once and damped
   const o = ac.createOscillator(),
     gn = ac.createGain();
-  o.type = 'triangle';
-  o.frequency.setValueAtTime(210, hit);
-  o.frequency.exponentialRampToValueAtTime(55, hit + 0.16);
-  gn.gain.setValueAtTime(0.15, hit);
-  gn.gain.exponentialRampToValueAtTime(0.0001, hit + 0.19);
+  o.type = 'sine';
+  o.frequency.setValueAtTime(130, t + 0.02);
+  o.frequency.exponentialRampToValueAtTime(48, t + 0.32);
+  gn.gain.setValueAtTime(0.09, t + 0.02);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
   o.connect(gn).connect(master);
-  o.start(hit);
-  o.stop(hit + 0.2);
+  o.start(t + 0.02);
+  o.stop(t + 0.38);
 }
 function joinSnd() {
   if (!ac || muted) return;
