@@ -153,23 +153,103 @@ function inView(x, y, m) {
   const cx = (V.x0 + V.x1) / 2;
   return Math.abs(wdx(x, cx)) < (V.x1 - V.x0) / 2 + m && y * TILT > V.py0 - m && y * TILT < V.py1 + m;
 }
+// every insect is its own little flier: it keeps picking a new point near the swarm's heart and darts
+// for it, so a cloud never holds still. Midges dance up and down in a loose column; the odd hoverfly
+// hangs dead still, then zips somewhere else; moths reel in untidy loops around the lamp.
+function mkMote(kind, r) {
+  return {
+    kind,
+    r,
+    ph: rr(0, TAU),
+    ox: rr(-r, r),
+    oy: rr(-r, r) * 0.7,
+    oh: rr(-12, 12),
+    vx: 0,
+    vy: 0,
+    vh: 0,
+    tx: 0,
+    ty: 0,
+    th: 0,
+    t: 0
+  };
+}
 function spawnSwarm(allowView) {
   for (let k = 0; k < 8; k++) {
     const [x, y] = randomSpot();
     if (!allowView && inView(x, y, 80)) continue;
+    // mostly midges; a few hoverflies about the flowers of spring and summer, and flies in autumn
+    const fly = Math.random() < [0.15, 0.25, 0.3, 0][SEASON];
     const n = rr(5, 11) | 0,
       m = [];
-    for (let i = 0; i < n; i++)
-      m.push({
-        a: rr(0, TAU),
-        rr: rr(4, 22),
-        ph: rr(0, TAU),
-        sp: rr(1.5, 3.5) * (Math.random() < 0.5 ? -1 : 1),
-        hz: rr(-0.35, 0.35)
-      });
+    for (let i = 0; i < n; i++) m.push(mkMote(fly ? 'fly' : 'midge', fly ? rr(10, 26) : rr(4, 18)));
     swarms.push({ x, y, vx: rr(-8, 8), vy: rr(-8, 8), z: rr(1.7, 2.3), m });
     return;
   }
+}
+function stepMote(s, m, dt, lean) {
+  m.t -= dt;
+  let vmax, snap;
+  if (m.kind === 'midge') {
+    // short jinks, mostly up and down: the column breathes as the whole cloud rises and sinks
+    if (m.t <= 0) {
+      m.t = rr(0.12, 0.45);
+      const a = rr(0, TAU),
+        d = m.r * Math.sqrt(Math.random());
+      m.tx = Math.cos(a) * d;
+      m.ty = Math.sin(a) * d * 0.7;
+      m.th = rr(-16, 16) + Math.sin(T * 0.7 + s.z * 9) * 6;
+    }
+    vmax = 55;
+    snap = 9;
+  } else if (m.kind === 'fly') {
+    // a hoverfly: hang still (a tremble), then a sudden dart to somewhere new
+    if (m.t <= 0) {
+      m.dart = Math.random() < 0.55;
+      m.t = m.dart ? rr(0.15, 0.3) : rr(0.5, 1.8);
+      if (m.dart) {
+        const a = rr(0, TAU),
+          d = m.r * rr(0.4, 1);
+        m.tx = Math.cos(a) * d;
+        m.ty = Math.sin(a) * d * 0.7;
+        m.th = rr(-14, 14);
+      } else {
+        m.tx = m.ox;
+        m.ty = m.oy;
+        m.th = m.oh;
+      }
+    }
+    vmax = m.dart ? 190 : 6;
+    snap = m.dart ? 14 : 20;
+  } else {
+    // a moth: wide, clumsy loops round the light, bumping back in whenever it strays
+    if (m.t <= 0) {
+      m.t = rr(0.2, 0.6);
+      const a = Math.atan2(m.oy, m.ox) + rr(0.6, 2.2) * (m.ph > Math.PI ? 1 : -1),
+        d = m.r * rr(0.5, 1.2);
+      m.tx = Math.cos(a) * d;
+      m.ty = Math.sin(a) * d * 0.7;
+      m.th = rr(-18, 22);
+    }
+    vmax = 75;
+    snap = 5;
+  }
+  const dx = m.tx + lean - m.ox,
+    dy = m.ty - m.oy,
+    dh = m.th - m.oh;
+  const d = Math.hypot(dx, dy, dh),
+    sp = Math.min(vmax, d * 6) / Math.max(d, 1e-3),
+    k = Math.min(1, dt * snap);
+  m.vx += (dx * sp - m.vx) * k;
+  m.vy += (dy * sp - m.vy) * k;
+  m.vh += (dh * sp - m.vh) * k;
+  m.ox += m.vx * dt;
+  m.oy += m.vy * dt;
+  m.oh += m.vh * dt;
+}
+function stepSwarm(s, dt) {
+  // the breeze streams a cloud out downwind, the flies high in the column furthest
+  const lean = s.moth ? 0 : windAt(s.x, s.y) * 10 * WIND.x;
+  for (const m of s.m) stepMote(s, m, dt, lean * (1 + m.oh / 30));
 }
 function spawnDfly() {
   const inL = Math.random() < 0.8,
@@ -192,11 +272,7 @@ function spawnDfly() {
     col: Math.random() < 0.5 ? '#3E9BB0' : '#6FA23F'
   });
 }
-const motePos = (s, m) => [
-  s.x + Math.cos(T * m.sp + m.a) * m.rr + Math.sin(T * 2.3 + m.ph) * 3,
-  s.y + Math.sin(T * m.sp * 1.3 + m.ph) * m.rr * 0.8,
-  s.z + m.hz + Math.sin(T * 3 + m.ph) * 0.08
-];
+const motePos = (s, m) => [s.x + m.ox, s.y + m.oy, s.z + m.oh / HZ];
 
 /* ---------- perch assignment ---------- */
 function validGround(x, y) {
