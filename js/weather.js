@@ -602,7 +602,7 @@ function weatherItems(items) {
   for (const p of W2.fall) if (visU(p.x, p.y, 20, p.z * HZ + 20)) band(p.y).fall.push(p);
   for (const f of W2.leaves) if (f.z > 0 && visU(f.x, f.y, 10, f.z * HZ + 10)) band(f.y).leaves.push(f);
   for (const d of W2.dust) if (visU(d.x, d.y, d.r + 10, d.z * HZ + d.r)) band(d.y).dust.push(d);
-  for (const b of bands.values()) items.push([b.y, 14, b, 0]);
+  for (const b of bands.values()) items.push([b.y, 16, b, 0]);
   const k = Math.max(W2.fog, W2.storm * winterW() * 0.7);
   if (k > 0.01)
     for (const b of W2.banks)
@@ -635,8 +635,8 @@ function drawWeatherBand(B) {
         Y = PY(p.y, p.z);
       if (!p.snow) {
         // a streak along the way it is falling: mostly down, slanted by the wind
-        const l = 9 * p.s,
-          w = WEATHER.s * 3.5;
+        const l = 7 * p.s,
+          w = WEATHER.s * 2.5;
         rain.moveTo(X, Y);
         rain.lineTo(X - c * w, Y - l - s * w * 0.4);
         r++;
@@ -658,8 +658,8 @@ function drawWeatherBand(B) {
     }
     ctx.lineCap = 'round';
     if (r) {
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = `rgba(214,224,232,${0.45 + 0.2 * LIGHT.rain})`;
+      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = `rgba(222,232,240,${0.5 + 0.25 * LIGHT.rain})`;
       ctx.stroke(rain);
     }
     const sc = `rgba(250,252,255,${0.9 - 0.3 * nf})`;
