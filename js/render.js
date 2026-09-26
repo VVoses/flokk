@@ -143,11 +143,12 @@ function hawkGeom(h) {
   };
   const fold = h.fold,
     span = 1 - 0.5 * fold,
-    beat = h.flapOn || Math.abs(Math.sin(h.flap)) > 0.08 ? Math.sin(h.flap) * 0.55 : 0;
+    beat = h.flapOn || Math.abs(Math.sin(h.flap)) > 0.08 ? Math.sin(h.flap) * 0.75 : 0,
+    twist = Math.sin(h.flap + 1) * 0.15 * (1 - fold);
   const wing = sg =>
     (h.kind === 'owl' ? OWING : HWING).map(([f, s2]) => {
       const ff = f - fold * 0.55 * s2,
-        u = h.dih * s2 + beat * Math.pow(s2, 1.25) * (1 - fold);
+        u = h.dih * s2 + beat * Math.pow(s2, 1.35) * (1 - fold) + twist * s2 * 0.8;
       return T3(ff, sg * s2 * span, u);
     });
   const fan = 0.2 + 0.3 * h.fan,
