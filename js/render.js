@@ -713,6 +713,7 @@ function drawBuilding(b) {
       const k = Q(0.5 + w * 0.55, wh * 0.4);
       ctx.fillStyle = '#D9C27A';
       ctx.fillRect(k[0] - 0.7, k[1] - 0.7, 1.4, 1.4);
+      if (b.jul && b.jul.out) julWreath(...Q(0.5, wh * 0.56));
     }
     if (b.portal && nx === -1) {
       // the church door, facing the road
@@ -774,6 +775,8 @@ function drawBuilding(b) {
           [Q(u - w * 1.3, wh * 0.35), Q(u + w * 1.3, wh * 0.35), Q(u + w * 1.3, wh * 0.3), Q(u - w * 1.3, wh * 0.3)],
           '#F4F0E6'
         );
+        // on Christmas Eve a star and a candle bridge in the front windows (jul.js)
+        if (front && b.jul && b.jul.out && (i === 0 || i === n - 1)) julWindow(Q, u, w, wh, i, b.jul.on);
       }
     }
     if (b.door && !gable) {
@@ -883,6 +886,7 @@ function drawBuilding(b) {
   for (const pl of planes) {
     const [e0, e1, r0, r1] = pl.pts;
     if (pl.wy > 0) poly([e0, e1, [e1[0], e1[1] + 2.4], [e0[0], e0[1] + 2.4]], board);
+    if (pl.wy > 0 && b.jul && b.jul.out) julEave(b.jul, e0, e1);
     ctx.strokeStyle = board;
     ctx.lineWidth = 1.6;
     ctx.lineCap = 'round';

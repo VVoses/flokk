@@ -1709,6 +1709,13 @@ function audioTick(dt) {
         d = Math.hypot(dx, CHURCH.b.cy - L.y);
       churchBell(0.035 * Math.max(0, 1 - d / 4000) + 0.006, clamp(dx / 1200, -0.9, 0.9));
     }
+    // and on Christmas Eve they ring Christmas in at five in the afternoon, long and slow (jul.js)
+    if (CHURCH && L && julEve() && hr > 17 && hr < 17.6 && amb.julBell !== CAL.day) {
+      amb.julBell = CAL.day;
+      const dx = wdx(CHURCH.b.cx, L.x),
+        d = Math.hypot(dx, CHURCH.b.cy - L.y);
+      churchBell(0.035 * Math.max(0, 1 - d / 4000) + 0.006, clamp(dx / 1200, -0.9, 0.9), 24);
+    }
     musicTick();
     amb.seaT = (amb.seaT || rr(8, 16)) - dt;
     if (amb.seaT <= 0) {

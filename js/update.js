@@ -13,6 +13,7 @@ function update(dt) {
   }
   weatherTick(dt);
   calUpdate();
+  julTick();
   if (TRANS.t < 1) {
     TRANS.t = Math.min(1, TRANS.t + dt / 10);
     if (TRANS.t >= 1) {

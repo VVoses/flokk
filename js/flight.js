@@ -531,17 +531,19 @@ function perchUpdate(b, dt) {
     const rate =
       p.type === 'feeder'
         ? 0.55
-        : rowan
-          ? 0.12
-          : grd
-            ? p.type === 'field'
-              ? [0.05, 0.03, 0.06, 0.006][SEASON]
-              : [0.018, 0.018, 0.018, 0.003][SEASON]
-            : 0;
+        : p.type === 'nek'
+          ? 0.45
+          : rowan
+            ? 0.12
+            : grd
+              ? p.type === 'field'
+                ? [0.05, 0.03, 0.06, 0.006][SEASON]
+                : [0.018, 0.018, 0.018, 0.003][SEASON]
+              : 0;
     if (rate && Math.random() < dt * rate) {
       st.food += 1;
       st.eaten += 1;
-      feed(p.type === 'feeder' ? 0.03 : 0.04);
+      feed(p.type === 'feeder' || p.type === 'nek' ? 0.03 : 0.04);
       sparkle(b.x + b.hx, b.y + b.hy, b.z + 0.1, rowan ? '#E0503A' : '#E7C98A');
       let need = needFor(birds.length);
       while (st.food >= need) {
