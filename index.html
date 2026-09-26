@@ -132,6 +132,7 @@
     <script src="js/main.js"></script>
     <script>
       if (/[?&]dev\b/.test(location.search)) document.write('<script src="js/dev.js"><\/script>');
+      if (/[?&]debug=1\b/.test(location.search)) document.write('<script src="js/admin.js"><\/script>');
     </script>
   </body>
 </html>

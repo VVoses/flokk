@@ -214,8 +214,8 @@ function update(dt) {
         teach(
           kind,
           kind === 'owl'
-            ? 'an owl hunts by ear in the dark — keep still and hidden'
-            : 'a hawk — fly into the trees to hide'
+            ? 'an owl hears you fly and sees you in lamplight or on snow — keep still and hidden'
+            : 'a hawk — land in the trees to hide'
         );
       }
     }
