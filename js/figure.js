@@ -159,6 +159,10 @@ function footAt(p, beta, e) {
   return [-e / 2 + e * t * t * (3 - 2 * t), Math.sin(Math.PI * t)];
 }
 const frac = x => x - Math.floor(x);
+/* running: a bound's stride grows with speed at a steady beat (bigger animals beat slower), instead of
+   the legs spinning faster and faster. Each foot only stays down for as far as a leg can reach, so at
+   speed most of the cycle is spent in the air. */
+const runStride = (S, sp) => Math.max(S.stride * 1.5, sp / (2.6 * Math.sqrt(11 / S.hip)));
 /* per-frame state for a figure (called from animalPost): which way it faces, turned smoothly, and how
    much it is walking (legs settle rather than snap when it stops) */
 function figPost(a, sp, dt) {
@@ -211,24 +215,35 @@ function drawQuad(a) {
   figBegin(a.hd3 ?? (a.f > 0 ? 0 : Math.PI));
   // the gait
   const cyc = (a.gp || 0) / TAU,
-    stride = S.stride * (bound ? 1.5 : 1),
-    beta = bound ? 0.38 : 0.64,
-    e = stride * beta * gw;
-  const bob = bound
-      ? Math.abs(Math.sin(cyc * TAU)) * S.hip * 0.2 * gw
-      : walking
-        ? Math.abs(Math.sin(cyc * TAU * 2)) * 0.4 * gw
-        : Math.sin(T * 1.7 + a.ph) * 0.2,
-    pitch = bound ? Math.sin(cyc * TAU) * 0.12 * gw : 0,
+    stride = bound ? a.strd || S.stride * 1.5 : S.stride,
+    e = (bound ? Math.min(stride * 0.38, S.L * 1.05) : stride * 0.64) * gw,
+    beta = bound ? Math.max(0.12, e / stride) : 0.64;
+  // bounding: fore feet down together, then the hinds; in between, the body sails. It rises and falls
+  // in an arc through each flight, nose up as the hinds push off and down as the fore feet reach to land.
+  let bob = walking ? Math.abs(Math.sin(cyc * TAU * 2)) * 0.4 * gw : Math.sin(T * 1.7 + a.ph) * 0.2;
+  if (bound) {
+    bob = 0;
+    for (const [a0, a1] of [
+      [0.08 + beta, 0.5],
+      [0.58 + beta, 1]
+    ]) {
+      const t = (frac(cyc) - a0) / (a1 - a0);
+      if (t > 0 && t < 1) bob = 4 * t * (1 - t) * S.hip * 0.3 * gw;
+    }
+  }
+  const pitch = bound ? Math.cos(TAU * (cyc - 0.58 - beta)) * 0.13 * gw : 0,
     bodyU = S.hip * crouch + bob,
     hipU = bodyU - S.H * 0.45,
     seg = (S.hip - S.H * 0.45) * 0.53;
   for (const [fr, sd, off] of bound ? GAIT.bound : GAIT.walk) {
-    const [df, lf] = footAt(frac(cyc + off), beta, e),
-      fH = fr > 0 ? S.L * 0.6 : -S.L * 0.62,
+    const p = frac(cyc + off);
+    let [df, lf] = footAt(p, beta, e);
+    // in the air a running leg folds up and back, then reaches forward to land
+    if (bound && p >= beta) df -= Math.sin(TAU * ((p - beta) / (1 - beta))) * S.L * 0.3 * gw;
+    const fH = fr > 0 ? S.L * 0.6 : -S.L * 0.62,
       rH = sd * wd * 0.55,
       uH = hipU + Math.sin(pitch) * fH,
-      lift = lf * S.lift * (bound ? 1.6 : 1) * gw;
+      lift = lf * S.lift * (bound ? 1.4 : 1) * gw;
     // two bones solved in the leg's own plane (forward, down), as in a side view
     const [kn, ft] = ik(fH, -uH, fH + df, -lift, seg, seg, fr > 0 ? 1 : -1);
     part(dep3(fH, rH, 0), () => {
@@ -329,8 +344,10 @@ function drawQuad(a) {
     ease = ht * ht * (3 - 2 * ht),
     bx = S.L * 0.72,
     bu = bodyU + S.H * 0.3 + Math.sin(pitch) * bx,
-    ux = bx + Math.cos(S.neckUp) * S.neckL,
-    uu = bu + Math.sin(S.neckUp) * S.neckL,
+    // running, the neck reaches forward
+    neckUp = S.neckUp * (bound ? 1 - 0.5 * gw : 1),
+    ux = bx + Math.cos(neckUp) * S.neckL,
+    uu = bu + Math.sin(neckUp) * S.neckL,
     gx = S.L * 0.95 + S.hRx * 0.4,
     gu = S.hRy * 0.9 - (ht > 0.9 ? Math.sin(T * 5 + a.ph) * 0.4 : 0),
     nx = lerp(ux, gx, ease),

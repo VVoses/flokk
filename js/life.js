@@ -59,7 +59,7 @@ function spawnAnimals() {
       const x = rr(250, W - 250),
         y = rr(200, H - 400);
       const fo = forestness(x, y);
-      if (fo > 0.4 && fo < 0.58 && openLand(x, y) && roadDist(x, y) > 80) return [x, y];
+      if (fo > 0.4 && fo < 0.58 && openLand(x, y) && roadDist(x, y) > 80 && !inFence(x, y, 60)) return [x, y];
     }
     return null;
   };
@@ -311,7 +311,12 @@ function updateAnimals(dt) {
             nx = a.x + a.fx * sp * dt,
             ny = a.y + a.fy * sp * dt;
           a.hop += dt * (hare ? 11 : 8);
-          if (inWater(nx, ny, 10) || inBuild(nx, ny, 12) || ny < 80) {
+          if (
+            inWater(nx, ny, 10) ||
+            inBuild(nx, ny, 12) ||
+            ny < 80 ||
+            (!hare && !inFence(a.x, a.y) && inFence(nx, ny, 4))
+          ) {
             const t = a.fx;
             a.fx = -a.fy;
             a.fy = t;
@@ -359,7 +364,9 @@ function updateAnimals(dt) {
                   y = a.hy + rr(-a.hr, a.hr) * 0.7;
                 }
               }
-              if (!inWater(x, y, 15) && !inBuild(x, y, 15) && y > 80) {
+              // deer and moose keep out of fenced pastures (and find their way out if they are ever in one)
+              const shut = !hare && (inFence(x, y, 12) || (!inFence(a.x, a.y) && crossesFence(a.x, a.y, x, y)));
+              if (!inWater(x, y, 15) && !inBuild(x, y, 15) && y > 80 && !shut) {
                 a.tx = x;
                 a.ty = y;
                 a.st = 'walk';
