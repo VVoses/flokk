@@ -60,7 +60,7 @@ function pickTarget(h) {
   for (const b of birds) {
     if (!exposed(b)) continue;
     const d = Math.hypot(b.x - h.x, b.y - h.y);
-    if (d > 620) continue;
+    if (d > 620 * hawkSee(h)) continue;
     let nn = 1e9;
     for (const o of birds) {
       if (o === b) continue;
@@ -121,6 +121,8 @@ function steerTo(h, dt, x, y, maxTurn, gain) {
   h.turn += (tr - h.turn) * Math.min(1, dt * 4);
   return Math.hypot(x - h.x, y - h.y);
 }
+// fog and driven snow shorten how far a hawk can see; an owl hunts by ear and hardly minds
+const hawkSee = h => (h.kind === 'owl' ? 1 - 0.25 * (1 - seeK()) : 0.25 + 0.75 * seeK());
 const hawkTargetOK = t => t && birds.indexOf(t) >= 0 && exposed(t);
 function scareAround(h) {
   for (const b of birds) {
@@ -160,7 +162,8 @@ function updateHawk(h, dt) {
   switch (h.state) {
     case 'patrol': {
       /* a hawk only stays interested while it can see prey; hidden flocks bore it */
-      const seen = st.mode === 'play' && birds.some(b => exposed(b) && d2(b, h) < 900 * 900);
+      const sr = 900 * hawkSee(h),
+        seen = st.mode === 'play' && birds.some(b => exposed(b) && d2(b, h) < sr * sr);
       if (seen) {
         h.bored = Math.max(0, h.bored - dt * 2);
         h.tcx += (L.x - h.tcx) * dt * 0.08;
@@ -446,8 +449,9 @@ function flyUpdate(b, dt) {
   const k = b.panic > 0 ? 6 : 3.5;
   b.vx += (dvx - b.vx) * Math.min(1, k * dt);
   b.vy += (dvy - b.vy) * Math.min(1, k * dt);
-  b.x += b.vx * dt;
-  b.y += b.vy * dt;
+  const [wx, wy] = windPush(b);
+  b.x += (b.vx + wx) * dt;
+  b.y += (b.vy + wy) * dt;
   /* altitude layering: birds in the flock spread vertically, and dip when panicking */
   b.fz = FZ + 0.35 * Math.sin(T * 0.8 + b.ph) + (b.or - 0.5) * 0.4 - (b.panic > 0 ? 0.4 : 0);
   b.z += (b.fz - b.z) * Math.min(1, dt * 2.2);

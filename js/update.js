@@ -11,6 +11,7 @@ function update(dt) {
     CAL.t += dt;
     updateWeather(dt);
   }
+  weatherTick(dt);
   calUpdate();
   if (TRANS.t < 1) {
     TRANS.t = Math.min(1, TRANS.t + dt / 10);
@@ -36,6 +37,8 @@ function update(dt) {
       roost = st.settled && L.state === 'perch' && coveredNow(L);
     let drain = 0.0062 * [1, 0.8, 1.1, 1.6][SEASON];
     if (nightNow) drain *= roost ? 0.55 : 1.35;
+    // a winter storm cuts through anything but the thickest cover
+    if (!roost) drain *= 1 + 0.45 * WEATHER.storm;
     st.energy = clamp(st.energy - drain * dt, 0, 1);
     if (st.energy <= 0) {
       st.starveT -= dt;
@@ -119,8 +122,10 @@ function update(dt) {
       L.vx *= f;
       L.vy *= f;
     }
-    L.x += L.vx * dt;
-    L.y += L.vy * dt;
+    // a gale pushes the flock along with it: easy downwind, hard work flying into it
+    const [wx, wy] = windPush(L);
+    L.x += (L.vx + wx) * dt;
+    L.y += (L.vy + wy) * dt;
     {
       const sy = shoreY(L.x) + 30;
       if (L.y > sy) {
