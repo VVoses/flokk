@@ -30,8 +30,9 @@ files; function bodies can use anything, since they run after everything has loa
 | `sky.js` | shoreline `shoreY`, ridges, clouds, boulders |
 | `life.js` | `ANIMALS`, spawning, per-kind behaviour `updateAnimals`, passing flocks, smoke |
 | `interact.js` | animals reacting to each other (mobbing, cat, dog, herds, ducks); `callAt` sound queue |
-| `people.js` | the farmer's routine, the fisher, the occasional walker; `drawHuman` (people live in `ANIMALS` as `k:'human'`) |
-| `rigs.js` | drawing: 3D flier rig (`LOOK`), quadrupeds (`QSPEC`, `drawQuad`), small animals, `animalPost`, `MOVES`/`BOUNDS` |
+| `people.js` | the farmer's routine, the fisher, the occasional walker (people live in `ANIMALS` as `k:'human'`) |
+| `rigs.js` | drawing: 3D flier rig (`LOOK`), quadruped specs (`QSPEC`) and leg IK, the small side-view animals (hare, corvids, duck, heron) on cards turned to their heading, `drawAnimal`, `animalPost`, `MOVES`/`BOUNDS` |
+| `figure.js` | quadrupeds and people as 3D figures: ellipsoids and limbs in the figure's own frame, turned to its heading (`hd3`), projected and sun-lit (`ello`, `ellDraw`, `limb`); planted-foot gait (`footAt`); `drawQuad`, `drawCatSit`, `drawHuman` |
 | `light.js` | calendar `CAL`, sun, light overlay and lamps (`LIGHTS`, beams with `dir`), seasons (`applySeason`, crossfade `TRANS`), sky backdrop, snow, weather (`RAIN`/`updateWeather`, `drawRain`, overcast light grading, thunder flashes — off in winter), time-of-day grading (`KM`/`KE` keys, `applyGlaze`) |
 | `grow.js` | the year moving inside each season: snow melting back in patches (`GROW` mask, south-facing first), straw greening, trees leafing out and dropping leaves (`growUnder`), fields sprouting, ripening and harvested one by one (`fieldStage`, stage kinds painted by `paintField`), first snow settling; `seasonP()` is how far through the season we are |
 | `air.js` | light and air (`AIR`): morning mist over the lake and hollows, dew/frost/snow glints, pollen and seed fluff, light shafts at dawn and dusk; never at night |
@@ -53,7 +54,8 @@ files; function bodies can use anything, since they run after everything has loa
   shifted `V`. Gameplay checks use `inView`, which is seam-aware.
 - Perches and trees near the seam have twins (`p.gh`/`p.orig`) so lookups work across it.
 - New ground-animal states that move must be added to `MOVES` (and `BOUNDS` if they run).
-- Anything on foot moves with `groundStep` (via `walkTo`/`steerA`), which walks round buildings; pick
+- Anything on foot moves with `groundStep` (via `walkTo`/`steerA`), which plans a route round the corners of any
+  building in the way (`navPlan`); pick
   destinations with `inRectPt` or `pushOut` so they are never inside a footprint.
 - An animal with `a.busy` is driven by `interact.js` (or `people.js`) and skipped by `updateAnimals`.
 - Keep the world sparse: at most one road vehicle at a time, one farmer, one fisher, one walker.

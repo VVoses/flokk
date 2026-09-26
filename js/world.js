@@ -43,24 +43,18 @@ function roadDist(x, y) {
   return polyDist(x, y, ROAD);
 }
 function inBuild(x, y, m = 0) {
-  for (const b of BUILDS) {
-    const dx = x - b.cx,
-      dy = y - b.cy,
-      c = Math.cos(-b.ang),
-      s = Math.sin(-b.ang);
-    const lx = dx * c - dy * s,
-      ly = dx * s + dy * c;
-    if (Math.abs(lx) < b.len / 2 + m && Math.abs(ly) < b.dep / 2 + m) return true;
-  }
-  return false;
+  return buildAt(x, y, m) !== null;
 }
 /* ---- walking around buildings ----
-   Anything on foot uses groundStep(): it looks a little ahead, and if a building is in the way it turns
-   (keeping to one side until clear) so it walks round the corner instead of across the roof. */
+   Anything on foot uses groundStep(). While the straight line to where it is going is clear it just
+   walks; when a building is in the way it plans a route round the corners of the buildings (a small
+   visibility graph over each footprint's corners, grown a little) and follows it, cutting straight to
+   the next corner as soon as that is in plain view. Steering by feel alone used to get caught in the
+   middle of a long wall, turning back and forth with the goal straight through it. */
 const NAV_M = 9; // how close to a wall anything walks
 function buildAt(x, y, m = 0) {
   for (const b of BUILDS) {
-    const dx = x - b.cx,
+    const dx = wdx(x, b.cx),
       dy = y - b.cy,
       c = Math.cos(b.ang),
       s = Math.sin(b.ang);
@@ -75,53 +69,158 @@ function pushOut(x, y, m) {
     if (!b) break;
     const c = Math.cos(b.ang),
       s = Math.sin(b.ang),
-      dx = x - b.cx,
+      dx = wdx(x, b.cx),
       dy = y - b.cy;
     let lx = dx * c + dy * s,
       ly = -dx * s + dy * c;
     if (b.len / 2 + m - Math.abs(lx) < b.dep / 2 + m - Math.abs(ly)) lx = Math.sign(lx || 1) * (b.len / 2 + m + 0.5);
     else ly = Math.sign(ly || 1) * (b.dep / 2 + m + 0.5);
-    x = b.cx + lx * c - ly * s;
+    x = x - dx + lx * c - ly * s;
     y = b.cy + lx * s + ly * c;
   }
   return [x, y];
 }
-// one step of s units/second towards direction (dx,dy), steering round buildings
-function groundStep(a, dx, dy, d, s, dt) {
-  let ang = Math.atan2(dy, dx);
-  // no headway for a couple of seconds (wedged between two buildings): go round the other way
-  a.navT = (a.navT || 0) + dt;
-  if (a.navT > 2) {
-    if (a.navD !== undefined && a.navD - d < 6 && a.avoid) {
-      a.avoid = -a.avoid;
-      a.avoidT = 2.5;
+// does the segment (x0,y0)-(x1,y1) pass through building b grown by m? (slab test in the building's frame)
+function segHits(b, x0, y0, x1, y1, m) {
+  const c = Math.cos(b.ang),
+    s = Math.sin(b.ang),
+    ox = wdx(x0, b.cx),
+    oy = y0 - b.cy,
+    ex = x1 - x0,
+    ey = y1 - y0;
+  const p = [ox * c + oy * s, -ox * s + oy * c],
+    d = [ex * c + ey * s, -ex * s + ey * c],
+    h = [b.len / 2 + m, b.dep / 2 + m];
+  let t0 = 0,
+    t1 = 1;
+  for (let k = 0; k < 2; k++) {
+    if (Math.abs(d[k]) < 1e-9) {
+      if (Math.abs(p[k]) >= h[k]) return false;
+      continue;
     }
-    a.navT = 0;
-    a.navD = d;
+    let ta = (-h[k] - p[k]) / d[k],
+      tb = (h[k] - p[k]) / d[k];
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 >= t1) return false;
   }
-  // look no further than the destination, so a doorway right by a wall is still reachable
-  const look = Math.min(d, 20),
-    blocked = t => inBuild(a.x + Math.cos(t) * look, a.y + Math.sin(t) * look, NAV_M - 3);
-  if (blocked(ang)) {
-    const side = a.avoid || (Math.random() < 0.5 ? 1 : -1);
-    let ok = false;
-    for (let k = 1; k <= 7 && !ok; k++)
-      for (const sg of [side, -side]) {
-        const t = ang + sg * k * 0.4;
-        if (!blocked(t)) {
-          ang = t;
-          a.avoid = sg;
-          ok = true;
-          break;
-        }
+  return true;
+}
+const NAV_SEG = NAV_M - 4; // clearance a straight leg needs; corners sit further out, at NAV_M + 3
+function segClear(x0, y0, x1, y1) {
+  const L = Math.hypot(x1 - x0, y1 - y0);
+  for (const b of BUILDS) {
+    // quick reject: the building's bounding circle is nowhere near the segment's
+    const r = Math.hypot(b.len, b.dep) / 2 + NAV_SEG,
+      mx = wdx((x0 + x1) / 2, b.cx),
+      my = (y0 + y1) / 2 - b.cy;
+    if (mx * mx + my * my > (r + L / 2) ** 2) continue;
+    if (segHits(b, x0, y0, x1, y1, NAV_SEG)) return false;
+  }
+  return true;
+}
+// corners of every footprint (grown so a route clears the walls) and which pairs see each other
+let NAVG = null;
+function navGraph() {
+  if (NAVG && NAVG.src === BUILDS && NAVG.n === BUILDS.length) return NAVG;
+  const pts = [];
+  for (const b of BUILDS) {
+    const c = Math.cos(b.ang),
+      s = Math.sin(b.ang),
+      hl = b.len / 2 + NAV_M + 3,
+      hd = b.dep / 2 + NAV_M + 3;
+    for (const [lx, ly] of [
+      [-hl, -hd],
+      [hl, -hd],
+      [hl, hd],
+      [-hl, hd]
+    ]) {
+      const x = b.cx + lx * c - ly * s,
+        y = b.cy + lx * s + ly * c;
+      if (!inBuild(x, y, NAV_M) && !inWater(x, y)) pts.push([x, y]);
+    }
+  }
+  const nb = pts.map(() => []);
+  for (let i = 0; i < pts.length; i++)
+    for (let j = i + 1; j < pts.length; j++) {
+      const [ax, ay] = pts[i],
+        bx = ax + wdx(pts[j][0], ax),
+        by = pts[j][1],
+        d = Math.hypot(bx - ax, by - ay);
+      if (d < 700 && segClear(ax, ay, bx, by)) {
+        nb[i].push([j, d]);
+        nb[j].push([i, d]);
       }
-    a.avoidT = 0.8;
-  } else if ((a.avoidT = (a.avoidT || 0) - dt) <= 0) a.avoid = 0;
-  let nx = a.x + Math.cos(ang) * s * dt,
-    ny = a.y + Math.sin(ang) * s * dt;
+    }
+  NAVG = { src: BUILDS, n: BUILDS.length, pts, nb };
+  return NAVG;
+}
+// shortest route from (x0,y0) to (x1,y1) through footprint corners; waypoints in the walker's own
+// x-frame (so a route across the seam just continues past it). null if there is none.
+function navPlan(x0, y0, x1, y1) {
+  const G = navGraph(),
+    n = G.pts.length,
+    P = G.pts.map(([x, y]) => [x0 + wdx(x, x0), y]);
+  const dist = new Float64Array(n + 1).fill(Infinity),
+    prev = new Int32Array(n + 1).fill(-1),
+    done = new Uint8Array(n + 1),
+    reach = [];
+  for (let i = 0; i < n; i++) {
+    const [px, py] = P[i];
+    if (Math.hypot(px - x0, py - y0) < 700 && segClear(x0, y0, px, py)) dist[i] = Math.hypot(px - x0, py - y0);
+    reach.push(Math.hypot(px - x1, py - y1) < 700 && segClear(px, py, x1, y1));
+  }
+  // node n is the goal
+  for (;;) {
+    let u = -1;
+    for (let i = 0; i <= n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    if (u < 0) return null;
+    if (u === n) break;
+    done[u] = 1;
+    if (reach[u]) {
+      const d = dist[u] + Math.hypot(P[u][0] - x1, P[u][1] - y1);
+      if (d < dist[n]) ((dist[n] = d), (prev[n] = u));
+    }
+    for (const [v, w] of G.nb[u])
+      if (!done[v] && dist[u] + w < dist[v]) {
+        dist[v] = dist[u] + w;
+        prev[v] = u;
+      }
+  }
+  const route = [[x1, y1]];
+  for (let u = prev[n]; u >= 0; u = prev[u]) route.unshift(P[u]);
+  return route;
+}
+// one step of s units/second towards (a.x+dx, a.y+dy), going round any building in the way
+function groundStep(a, dx, dy, d, s, dt) {
+  const gx = a.x + dx,
+    gy = a.y + dy;
+  let ux = dx,
+    uy = dy;
+  if (!segClear(a.x, a.y, gx, gy)) {
+    let n = a.nav;
+    n = a.nav =
+      n && Math.hypot(wdx(n.gx, gx), n.gy - gy) < 12 && (n.age += dt) < 3
+        ? n
+        : { gx, gy, age: 0, i: 0, pts: navPlan(...pushOut(a.x, a.y, NAV_SEG + 1), gx, gy) };
+    if (n.pts) {
+      // re-anchor to this frame's x (the walker may have been shifted across the seam)
+      const at = i => [a.x + wdx(n.pts[i][0], a.x), n.pts[i][1]];
+      let w = at(n.i);
+      while (n.i < n.pts.length - 1 && (Math.hypot(w[0] - a.x, w[1] - a.y) < 5 || segClear(a.x, a.y, ...at(n.i + 1))))
+        w = at(++n.i);
+      ux = w[0] - a.x;
+      uy = w[1] - a.y;
+    }
+  } else a.nav = null;
+  const ul = Math.hypot(ux, uy) || 1;
+  let nx = a.x + (ux / ul) * s * dt,
+    ny = a.y + (uy / ul) * s * dt;
+  // never onto a roof: slide along the wall instead (also the fallback when no route exists)
   if (inBuild(nx, ny, NAV_M - 4)) [nx, ny] = pushOut(nx, ny, NAV_M - 3);
-  a.vx = Math.cos(ang) * s;
-  a.vy = Math.sin(ang) * s;
+  a.vx = (nx - a.x) / dt;
+  a.vy = (ny - a.y) / dt;
   a.x = nx;
   a.y = ny;
   if (Math.abs(a.vx) > 1.5) a.f = a.vx > 0 ? 1 : -1;
