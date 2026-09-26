@@ -67,7 +67,7 @@ function pickTarget(h) {
   for (const b of birds) {
     if (!exposed(b)) continue;
     const d = Math.hypot(b.x - h.x, b.y - h.y);
-    if (d > spotRange(h, b, 620)) continue;
+    if (d > 620 * hawkSee(h)) continue;
     let nn = 1e9;
     for (const o of birds) {
       if (o === b) continue;
@@ -128,27 +128,8 @@ function steerTo(h, dt, x, y, maxTurn, gain) {
   h.turn += (tr - h.turn) * Math.min(1, dt * 4);
   return Math.hypot(x - h.x, y - h.y);
 }
-// fog and driven snow shorten how far a hawk can see
-const hawkSee = h => 0.25 + 0.75 * seeK();
-// how lit up a bird is to an owl's eye: its night sight is keen enough in plain dark, but a bird under a
-// yard lamp or dark against snow stands out from much further off
-function owlLit(b) {
-  let k = 1 + 0.3 * LIGHT.snow;
-  for (const l of LAMPS) {
-    const q = (wdx(l.x, b.x) ** 2 + (l.y - b.y) ** 2) / (150 * 150);
-    if (q < 1) k = Math.max(k, 1.5 - 0.3 * q);
-  }
-  return k;
-}
-/* how far off hawk h can make out bird b. A hawk hunts by eye alone. An owl hunts by eye and ear: it
-   hears anything moving at full range whatever the weather, and sees still birds too - further in lamp
-   light or over snow, less far in fog. Keeping still only helps where the light is poor. */
-function spotRange(h, b, base) {
-  if (h.kind !== 'owl') return base * hawkSee(h);
-  const ear = b.state === 'perch' ? 0 : 1 - 0.25 * (1 - seeK()),
-    eye = owlLit(b) * (0.35 + 0.65 * seeK());
-  return base * Math.max(ear, eye);
-}
+// fog and driven snow shorten how far a hawk can see; an owl hunts by ear and hardly minds
+const hawkSee = h => (h.kind === 'owl' ? 1 - 0.25 * (1 - seeK()) : 0.25 + 0.75 * seeK());
 const hawkTargetOK = t => t && birds.indexOf(t) >= 0 && exposed(t);
 function scareAround(h) {
   for (const b of birds) {
@@ -188,7 +169,8 @@ function updateHawk(h, dt) {
   switch (h.state) {
     case 'patrol': {
       /* a hawk only stays interested while it can see prey; hidden flocks bore it */
-      const seen = st.mode === 'play' && birds.some(b => exposed(b) && d2(b, h) < spotRange(h, b, 900) ** 2);
+      const sr = 900 * hawkSee(h),
+        seen = st.mode === 'play' && birds.some(b => exposed(b) && d2(b, h) < sr * sr);
       if (seen) {
         h.bored = Math.max(0, h.bored - dt * 2);
         h.tcx += (L.x - h.tcx) * dt * 0.08;
