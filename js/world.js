@@ -952,7 +952,7 @@ function genLayout() {
         off = rnd(8, 20),
         bx = cx + c * off,
         by = cy + s * off,
-        wall = pick(['#ECE7DA', '#ECE7DA', '#E4DCC8']),
+        wall = '#F0EDE6', // always painted white
         roof = pick(['slate', 'slate', 'dark']),
         at = u => [bx + c * u, by + s * u],
         mk = (u, o) => Object.assign({ cx: at(u)[0], cy: at(u)[1], ang: ba, wall, roof }, o);
