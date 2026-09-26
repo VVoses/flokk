@@ -95,7 +95,14 @@ function worldShift(d) {
     if (h.prey) h.prey.x += d;
   }
   for (const q of parts) q.x += d;
-  for (const a of ANIMALS) if (a.k === 'goose' || a.k === 'rook') a.x += d;
+  for (const a of ANIMALS)
+    if (a.k === 'goose' || a.k === 'rook') a.x += d;
+    else if (a.wild) {
+      a.x += d;
+      a.gx += d;
+      a.tx += d;
+    }
+  wildShift(d);
   cam.x += d;
   WX -= d;
   demo.tx += d;
@@ -116,6 +123,8 @@ function needFor(n) {
 }
 
 /* ---------- insects ---------- */
+// the flock can't fly out past the shoreline (see update.js), so keep swarms where it can still reach them
+const insectMaxY = x => shoreY(x) - 10;
 function randomSpot() {
   for (let i = 0; i < 30; i++) {
     const u = Math.random();
@@ -133,10 +142,11 @@ function randomSpot() {
       x = rr(100, W - 100);
       y = rr(100, H - 100);
     }
-    if (x < 60 || y < 60 || x > W - 60 || y > H - 60) continue;
+    if (x < 60 || y < 60 || x > W - 60 || y > insectMaxY(x)) continue;
     return [x, y];
   }
-  return [rr(200, W - 200), rr(200, H - 200)];
+  const x = rr(200, W - 200);
+  return [x, Math.min(rr(200, H - 200), insectMaxY(x))];
 }
 function inView(x, y, m) {
   if (!V) return false;
@@ -211,12 +221,14 @@ function groundSpot(cx, cy, R0) {
   }
   return null;
 }
-function freePerch(b, cx, cy, R0) {
+// wantCover: the flock is hiding in trees, so a sheltered perch is worth a longer hop than a bare one
+function freePerch(b, cx, cy, R0, wantCover = false) {
   let best = null,
     bs = 1e9;
   for (const p of perchesNear(cx, cy, R0)) {
     if (p.occ || p.off) continue;
-    const s = Math.hypot(p.x - cx, p.y - cy) + 0.35 * Math.hypot(p.x - b.x, p.y - b.y);
+    const s =
+      Math.hypot(p.x - cx, p.y - cy) + 0.35 * Math.hypot(p.x - b.x, p.y - b.y) + (wantCover && !p.cover ? 180 : 0);
     if (s < bs) {
       bs = s;
       best = p;
@@ -231,7 +243,7 @@ function assign(b) {
   let p = null;
   const gr = 25 + 9 * Math.sqrt(tmpSpots.length + 1);
   if (gm) p = groundSpot(lp.x, lp.y, gr) || freePerch(b, lp.x, lp.y, 380);
-  else p = freePerch(b, lp.x, lp.y, 380) || groundSpot(lp.x, lp.y, gr);
+  else p = freePerch(b, lp.x, lp.y, 380, lp.cover) || groundSpot(lp.x, lp.y, gr);
   if (p) {
     p.occ = b;
     b.perch = p;
@@ -243,13 +255,17 @@ function assign(b) {
 }
 function settle() {
   if (st.settleCool > 0) return;
+  // the nearest free perch, but a sheltered one a little further off wins over a bare one close by
+  // (in winter a leafless birch next to a spruce hides nothing)
   let best = null,
-    bd = 90;
-  for (const p of perchesNear(L.x, L.y, 90)) {
+    bd = 1e9;
+  for (const p of perchesNear(L.x, L.y, 150)) {
     if (p.occ || p.off) continue;
     const d = Math.hypot(p.x - L.x, p.y - L.y);
-    if (d < bd) {
-      bd = d;
+    if (d > 90 && !p.cover) continue;
+    const s = d + (p.cover ? 0 : 70);
+    if (s < bd) {
+      bd = s;
       best = p;
     }
   }
@@ -443,6 +459,7 @@ function startGame() {
   RAIN.t = 0;
   RAIN.target = 0;
   RAIN.next = rr(20, 45);
+  resetWeather();
   calUpdate();
   if (SEASON !== s0) {
     applySeason(s0);

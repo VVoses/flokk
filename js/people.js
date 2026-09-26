@@ -25,14 +25,15 @@ const PEOPLE_PAL = {
     { coat: '#2F4A6A', legs: '#2A2A2E', hat: '#B3302A', pack: '#8A5A34' }
   ]
 };
-const SKIN = ['#E8C4A4', '#D9AE8A', '#C08A64', '#8E6244'];
+const SKIN = ['#E8C4A4', '#D9AE8A', '#C08A64', '#8E6244'],
+  HAIR = ['#3A2A1E', '#5A4030', '#8A6A44', '#C8A870', '#2A2624', '#9A9690'];
 const pickP = a => a[(Math.random() * a.length) | 0];
 function mkPerson(role, x, y, o) {
   return mkA(
     'human',
     x,
     y,
-    Object.assign({ role, pal: pickP(PEOPLE_PAL[role]), skin: pickP(SKIN), busy: true, plan: [] }, o)
+    Object.assign({ role, pal: pickP(PEOPLE_PAL[role]), skin: pickP(SKIN), hair: pickP(HAIR), busy: true, plan: [] }, o)
   );
 }
 
@@ -83,7 +84,7 @@ function spawnPeople() {
 function farmerPlan(a) {
   const fm = a.farm,
     Y = fm.yard,
-    mid = () => [Y.x + Y.w * rr(0.35, 0.65), Y.y + Y.h * rr(0.35, 0.65)];
+    mid = () => yardAt(Y, rr(0.35, 0.65), rr(0.35, 0.65));
   const door = frontOf(fm.house),
     b = fm.builds || [];
   const barn = b.find(o => o.kind === 'barn' || o.kind === 'sbarn'),
@@ -106,12 +107,10 @@ function farmerPlan(a) {
     )[0];
   if (SEASON === 3 && r < 0.45) {
     // clearing the yard, a strip at a time
-    const y0 = Y.y + Y.h * rr(0.3, 0.7),
-      xa = Y.x + Y.w * 0.2,
-      xb = Y.x + Y.w * 0.8;
-    go([xa, y0]);
-    go([xb, y0], { pose: 'shovel', spd: 5 });
-    go([xa, y0 + 16], { pose: 'shovel', spd: 5 });
+    const b0 = rr(0.3, 0.7);
+    go(yardAt(Y, 0.2, b0));
+    go(yardAt(Y, 0.8, b0), { pose: 'shovel', spd: 5 });
+    go(yardAt(Y, 0.2, b0 + 16 / Y.lh), { pose: 'shovel', spd: 5 });
   } else if (barn && r < 0.5) {
     // chores in the barn, then a bucket out to the animals
     go(mid());
@@ -159,7 +158,7 @@ function farmerLife(a, dt) {
     if (dog && Math.random() < 0.4 && a.plan.some(s => s.go) && !a.hide) {
       dog.follow = a;
       dog.followT = rr(15, 30);
-      callAt('whistle', a.x, a.y, 1);
+      callAt('whistle', a.x, a.y, 1, a);
     }
   }
   const s = a.plan[0];
@@ -275,179 +274,6 @@ function updatePeople(dt) {
 }
 
 /* ---- drawing: a small side-view figure, feet at the origin, facing +x ---- */
-function drawHuman(a) {
-  if (a.hide) return;
-  const P = a.pal,
-    walking = a.st === 'walk',
-    ph = a.gp || 0,
-    pose = a.pose;
-  const seated = pose === 'sit' || pose === 'stool',
-    stoop = pose === 'stoop' ? 1 : pose === 'shovel' ? 0.45 + 0.25 * Math.sin(T * 4) : pose === 'lean' ? 0.35 : 0;
-  const hipY = seated ? (pose === 'stool' ? -7 : -1.5) : -11.5;
-  const lean = stoop * 0.7 + (walking ? 0.08 : 0);
-  const shX = Math.sin(lean) * 8.5,
-    shY = hipY - Math.cos(lean) * 8.5;
-  const sw = walking ? Math.sin(ph) : 0;
-  const bob = walking ? -Math.abs(Math.cos(ph)) * 0.6 : 0;
-  ctx.save();
-  ctx.translate(0, bob);
-  ctx.lineCap = 'round';
-  // legs: thigh and shin, far leg first and a shade darker
-  const leg = (s, far) => {
-    ctx.strokeStyle = far ? shade(P.legs, 0.78) : P.legs;
-    ctx.lineWidth = 2.3;
-    let kx, ky, fx, fy;
-    if (seated && pose === 'sit') {
-      // on the jetty edge, legs over the side
-      kx = 5;
-      ky = hipY;
-      fx = 5.5 + Math.sin(T * 1.3 + (far ? 1 : 0)) * 0.8;
-      fy = hipY + 5.5;
-    } else if (seated) {
-      kx = 5;
-      ky = hipY - 0.5;
-      fx = 5.5;
-      fy = 0;
-    } else {
-      const th = s * 0.5,
-        bend = walking ? Math.max(0, -Math.sin(ph + (far ? Math.PI : 0) + 0.6)) * 0.7 : 0;
-      kx = Math.sin(th) * 5.8;
-      ky = hipY + Math.cos(th) * 5.8;
-      fx = kx + Math.sin(th - bend) * 5.8;
-      fy = Math.min(0, ky + Math.cos(th - bend) * 5.8);
-    }
-    ctx.beginPath();
-    ctx.moveTo(0, hipY);
-    ctx.lineTo(kx, ky);
-    ctx.lineTo(fx, fy);
-    ctx.stroke();
-    ctx.strokeStyle = '#2A2420';
-    ctx.lineWidth = 2.1;
-    ctx.beginPath();
-    ctx.moveTo(fx - 0.6, fy);
-    ctx.lineTo(fx + 1.6, fy);
-    ctx.stroke();
-  };
-  leg(-sw, true);
-  if (P.pack) {
-    ctx.fillStyle = P.pack;
-    ctx.beginPath();
-    ctx.ellipse(shX * 0.5 - 3.2, (shY + hipY) / 2 - 1, 2.2, 3.8, lean, 0, TAU);
-    ctx.fill();
-  }
-  // far arm
-  const arm = (far, a1, a2) => {
-    ctx.strokeStyle = far ? shade(P.coat, 0.75) : shade(P.coat, 0.92);
-    ctx.lineWidth = 2;
-    const ex = shX + Math.sin(a1) * 4.4,
-      ey = shY + 1 + Math.cos(a1) * 4.4,
-      hx = ex + Math.sin(a2) * 4,
-      hy = ey + Math.cos(a2) * 4;
-    ctx.beginPath();
-    ctx.moveTo(shX, shY + 1);
-    ctx.lineTo(ex, ey);
-    ctx.lineTo(hx, hy);
-    ctx.stroke();
-    ctx.fillStyle = a.skin;
-    ctx.beginPath();
-    ctx.arc(hx, hy, 1, 0, TAU);
-    ctx.fill();
-    return [hx, hy];
-  };
-  let A = [0.35 * sw, 0.5 * sw + 0.2],
-    B = [-0.35 * sw, -0.5 * sw + 0.2];
-  if (pose === 'lean') ((A = [1.3, 1.6]), (B = [1.2, 1.5]));
-  else if (pose === 'shovel') ((A = [0.9 + 0.3 * Math.sin(T * 4), 1.4]), (B = [0.5 + 0.3 * Math.sin(T * 4), 0.9]));
-  else if (pose === 'stoop') ((A = [0.4, 0.2]), (B = [0.2, 0.1]));
-  else if (seated) ((A = [1, 2.1]), (B = [0.9, 2]));
-  else if (a.carry === 'logs') ((A = [0.9, 2.2]), (B = [0.8, 2.1]));
-  else if (a.carry === 'bucket') A = [0.05, 0.05];
-  const hf = arm(true, B[0], B[1]);
-  // torso: a coat, slightly wider at the shoulders
-  ctx.fillStyle = P.coat;
-  ctx.beginPath();
-  ctx.moveTo(-2.4, hipY + 1.5);
-  ctx.lineTo(2.2, hipY + 1.5);
-  ctx.lineTo(shX + 2.6, shY + 0.5);
-  ctx.lineTo(shX - 2.6, shY + 0.5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,.14)';
-  ctx.fillRect(-2.4, hipY - 0.5, 4.6, 2);
-  // head and hat
-  const hx = shX + Math.sin(lean) * 3.2 + 0.3,
-    hy = shY - 2.9;
-  ctx.fillStyle = a.skin;
-  ctx.beginPath();
-  ctx.arc(hx, hy, 2.5, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = SEASON === 3 && !P.cap ? P.coat : P.hat;
-  ctx.beginPath();
-  ctx.arc(hx, hy - 0.4, 2.6, Math.PI * 1.02, Math.PI * 1.98);
-  ctx.fill();
-  if (P.cap) ctx.fillRect(hx, hy - 1.6, 3.4, 0.9);
-  else if (SEASON === 3) {
-    ctx.beginPath();
-    ctx.arc(hx - 0.4, hy - 3, 0.9, 0, TAU);
-    ctx.fill();
-  }
-  const hn = arm(false, A[0], A[1]);
-  // what the hands hold
-  if (a.carry === 'bucket') {
-    ctx.fillStyle = '#8A9298';
-    ctx.beginPath();
-    ctx.moveTo(hn[0] - 1.8, hn[1] + 0.6);
-    ctx.lineTo(hn[0] + 1.8, hn[1] + 0.6);
-    ctx.lineTo(hn[0] + 1.4, hn[1] + 4);
-    ctx.lineTo(hn[0] - 1.4, hn[1] + 4);
-    ctx.closePath();
-    ctx.fill();
-  } else if (a.carry === 'logs') {
-    ctx.fillStyle = '#8A6A48';
-    for (let i = 0; i < 3; i++) ctx.fillRect(hn[0] - 3.5, hn[1] - 1.5 - i * 1.4, 6.5, 1.3);
-  } else if (pose === 'shovel') {
-    ctx.strokeStyle = '#7A5A3A';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(hf[0] - 2, hf[1] - 2);
-    ctx.lineTo(hn[0] + 5, 0);
-    ctx.stroke();
-    ctx.fillStyle = '#5A6066';
-    ctx.fillRect(hn[0] + 4, -1.2, 3.4, 1.4);
-  } else if (a.role === 'fisher') {
-    // rod up and out over the water, line down to the float
-    const tip = [hn[0] + (a.ice ? 5 : 14), hn[1] - (a.ice ? 3 : 11) + (a.catchT > 0 ? -3 : Math.sin(T * 1.7) * 0.6)];
-    ctx.strokeStyle = '#3A3028';
-    ctx.lineWidth = 0.9;
-    ctx.beginPath();
-    ctx.moveTo(hn[0] - 1, hn[1] + 1);
-    ctx.lineTo(tip[0], tip[1]);
-    ctx.stroke();
-    const endX = a.ice ? 7 : 30,
-      endY = (a.ice ? 3 : 10) * TILT;
-    ctx.strokeStyle = 'rgba(230,230,220,.55)';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(tip[0], tip[1]);
-    ctx.quadraticCurveTo((tip[0] + endX) / 2, tip[1] + 6, endX, endY);
-    ctx.stroke();
-    if (!a.ice) {
-      ctx.fillStyle = '#D8432E';
-      ctx.fillRect(endX - 0.7, endY - 1, 1.4, 1.4);
-    }
-  }
-  ctx.restore();
-  if (pose === 'stool') {
-    ctx.strokeStyle = '#5A4430';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-2, -7);
-    ctx.lineTo(1, 0);
-    ctx.moveTo(1, -7);
-    ctx.lineTo(-2, 0);
-    ctx.stroke();
-  }
-}
 // the dark round hole beside an ice fisher, drawn on the ground layer
 function iceHoles() {
   for (const a of ANIMALS) {

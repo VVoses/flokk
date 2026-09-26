@@ -6,7 +6,8 @@ no build step, no server, no runtime dependencies.
 **Play:** hold the mouse (or a finger, or the arrow keys / WASD) where you want to fly; let go and the
 flock lands on the nearest trees, wires, roofs or ground. Eat insects to grow the flock, hide in trees
 (spruce in winter) from hawks by day and owls by night, and keep the flock fed until spring comes round
-again. Space or Shift dashes, Escape or P pauses.
+again. Space or Shift dashes, Escape or P pauses. Watch the weather: a gale pushes the flock about, a winter
+storm drains it fast unless it roosts under cover, and in fog you see a hawk late, though it sees you late too.
 
 *Hidden:* tap the little year bar (top right) three times quickly to pick a season. From the title
 screen, the game then starts in that season, with a full year ahead.
@@ -23,16 +24,21 @@ files; function bodies can use anything, since they run after everything has loa
 | file | what lives there |
 |---|---|
 | `core.js` | canvas, projection (`TILT`, `HZ`, `PY`), RNG `R`/`rnd`, periodic noise `pfbm`/`pfbmP`, `wrapX`/`wdx`, `DEV` hook |
-| `world.js` | world state, `genLayout` (lake, road, rail route, farms `FARMS`/`YARDS`, fields, cabins, zones), `genWorld` (trees, hedges, bales, fences, poles), seam twins `buildGhosts`, field polygons |
+| `world.js` | world state, `genLayout` (lake, road, rail route, farms `FARMS`/`YARDS`, fields, cabins, zones), `genWorld` (trees, hedges, bales, fences, poles), seam twins `buildGhosts`, field polygons; farms' plots are cut from one tract per farm (`plotsFor`) with balks, ditches and hedges between them in `DIVIDES` |
 | `sprites.js` | tree sprites per season (`buildSprites`, `NV` variants) |
-| `ground.js` | `paintGround` → wide canvas `GE` → seam-blended `G`; `paintFloor` (forest floor, bogs, rocks, flowers, tracks) |
+| `ground.js` | `paintGround` → wide canvas `GE` → seam-blended `G`; `paintField` (one field as a given kind); `paintFloor` (forest floor, bogs, rocks, flowers, tracks) |
 | `audio.js` | WebAudio graph, animal voices (`animalCall`, `quack`, `baa`, `moo`, `bark`), ambience, music, `audioTick` |
 | `sky.js` | shoreline `shoreY`, ridges, clouds, boulders |
 | `life.js` | `ANIMALS`, spawning, per-kind behaviour `updateAnimals`, passing flocks, smoke |
 | `interact.js` | animals reacting to each other (mobbing, cat, dog, herds, ducks); `callAt` sound queue |
-| `people.js` | the farmer's routine, the fisher, the occasional walker; `drawHuman` (people live in `ANIMALS` as `k:'human'`) |
-| `rigs.js` | drawing: 3D flier rig (`LOOK`), quadrupeds (`QSPEC`, `drawQuad`), small animals, `animalPost`, `MOVES`/`BOUNDS` |
+| `people.js` | the farmer's routine, the fisher, the occasional walker (people live in `ANIMALS` as `k:'human'`) |
+| `rigs.js` | drawing: 3D flier rig (`LOOK`), quadruped specs (`QSPEC`) and leg IK, the small side-view animals (hare, corvids, duck, heron, wild flock birds) on cards turned to their heading, `drawAnimal`, `animalPost`, `MOVES`/`BOUNDS` |
+| `figure.js` | quadrupeds and people as 3D figures: ellipsoids and limbs in the figure's own frame, turned to its heading (`hd3`), projected and sun-lit (`ello`, `ellDraw`, `limb`); planted-foot gait (`footAt`); `drawQuad`, `drawCatSit`, `drawHuman` |
+| `wild.js` | small wild flocks passing through (`WILD`, `WILD_SP`): starlings, linnets, fieldfares, snow buntings by season; they fly in, wheel, feed rolling across a field, get flushed by hawks and people, and move on |
 | `light.js` | calendar `CAL`, sun, light overlay and lamps (`LIGHTS`, beams with `dir`), seasons (`applySeason`, crossfade `TRANS`), sky backdrop, snow, weather (`RAIN`/`updateWeather`, `drawRain`, overcast light grading, thunder flashes — off in winter), time-of-day grading (`KM`/`KE` keys, `applyGlaze`) |
+| `grow.js` | the year moving inside each season: snow melting back in patches (`GROW` mask, south-facing first), straw greening, trees leafing out and dropping leaves (`growUnder`), fields sprouting, ripening and harvested one by one (`fieldStage`, stage kinds painted by `paintField`), first snow settling; `seasonP()` is how far through the season we are |
+| `air.js` | light and air (`AIR`): morning mist over the lake and hollows, dew/frost/snow glints, light shafts at dawn and dusk; never at night |
+| `weather.js` | moving weather (`WEATHER`): the wind veering and freshening (sets `WIND`), gales, gusts travelling across the land (`gustAt`, used by tree sway, sound, the flag and smoke) with crests rolling through the grass; leaves torn off in autumn, spindrift and blizzards (`WEATHER.storm`) in winter, rain rings on the water; fog banks (`drawFog`) that close the view down round the flock and shorten how far hawks see (`seeK`, `hawkSee`); a gale also pushes the flock (`windPush`) |
 | `yard.js` | farmyard props (`PROPS`): flagpole with pennant, woodpile, clothesline, wheelbarrow; `yardSpot` finds open ground |
 | `rail.js` | periodic track, trains: liveries, wagon types, detailed `drawCar` |
 | `traffic.js` | sparse road traffic (car, van, tractor with trailer): `roadAt`, `drawVehicle`, headlights, shadows |
@@ -51,7 +57,8 @@ files; function bodies can use anything, since they run after everything has loa
   shifted `V`. Gameplay checks use `inView`, which is seam-aware.
 - Perches and trees near the seam have twins (`p.gh`/`p.orig`) so lookups work across it.
 - New ground-animal states that move must be added to `MOVES` (and `BOUNDS` if they run).
-- Anything on foot moves with `groundStep` (via `walkTo`/`steerA`), which walks round buildings; pick
+- Anything on foot moves with `groundStep` (via `walkTo`/`steerA`), which plans a route round the corners of any
+  building in the way (`navPlan`); pick
   destinations with `inRectPt` or `pushOut` so they are never inside a footprint.
 - An animal with `a.busy` is driven by `interact.js` (or `people.js`) and skipped by `updateAnimals`.
 - Keep the world sparse: at most one road vehicle at a time, one farmer, one fisher, one walker.
@@ -62,6 +69,12 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
 - `python3 tools/flows.py`: end-to-end test of every screen: title, play, pause, mute, game over, fly again,
   a full year, new land, resize, night, and a phone viewport with touch.
 - `python3 tools/seasonpick.py`: checks the hidden season picker.
+- `python3 tools/seam_check.py [SEEDS]`: fails if the seam where the land repeats east-west shows as a line, in any
+  season, hour or zoom or mid-crossfade (failing screenshots in `tools/out/seam/`).
+- `python3 tools/weather_check.py [TAG]`: gusts, an autumn gale, rain on the lake, a winter storm, fog by day and night; frame times
+  and weather state printed, screenshots in `tools/out/weather/`.
+- `python3 tools/grow_check.py [TAG]`: plays a whole year headless and fails on any page error; contact sheets of one field
+  through each season and of misty dawns in `tools/out/survey/`.
 - `python3 tools/survey.py TAG`: a fixed land photographed across seasons, hours and places (contact sheets in `tools/out/survey/`).
 - `python3 tools/seasons.py TAG [HOUR] [X,Y,ZOOM]`: one place in all four seasons; `tools/timelapse.py TAG SEASON "h1,h2,..."`:
   one place through a day; `tools/night.py TAG`: yard lamps, a car's headlights and the train at night.
@@ -70,4 +83,4 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
 - `python3 tools/scene.py STEP...`: scripted run with the `?dev` helpers, e.g.
   `python3 tools/scene.py "js:dev.season(2)" "js:dev.to(1200,1500,1.2)" wait:2000 shot:autumn`
   Screenshots go to `tools/out/`. `TRACE.start(()=>[...])` records changes; read `TRACE.log`.
-- `dev.*`: `to(x,y,zoom)`, `zoom(z)`, `calm()`, `season(s,hour)`, `hour(h)`, `find(kind)`, `hawk()`, `land()`, `stats()`.
+- `dev.*`: `to(x,y,zoom)`, `zoom(z)`, `calm()`, `season(s,hour)`, `grow(p)` (pin season progress 0..1), `hour(h)`, `find(kind)`, `hawk()`, `wild(species)`, `land()`, `weather({s, ang, fog})` (pin wind strength, direction, fog; no argument unpins), `stats()`.

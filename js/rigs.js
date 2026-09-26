@@ -2,7 +2,7 @@
    Animal drawing: shared 3D flier rig and articulated ground-animal rigs.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
-/* ---------- 3D birds in flight: one rig shared by sparrows, gulls, geese, corvids and herons ---------- */
+/* ---------- 3D birds in flight: one rig shared by sparrows, gulls, geese, corvids, herons and the wild flocks ---------- */
 const LOOK = {
   sparrow: {
     K: 8.5,
@@ -408,6 +408,7 @@ function birdPose(b) {
 function skyPose(a, look) {
   let on = true;
   if (a.k === 'gull') on = Math.sin(a.anim * 0.5 + a.ph) > 0;
+  else if (look.bound) on = Math.sin(a.anim * look.bound + a.ph) > -0.3; // bursts of wingbeats, then a dip
   return {
     psi: a.hd,
     bank: a.bank || 0,
@@ -517,9 +518,10 @@ function drawSkyAnimal2(a) {
   drawFly3(a.x, PY(a.y, a.z), skyPose(a, look), look, look.K * (0.95 + 0.03 * a.z));
 }
 
-/* ---------- ground animals: articulated side-view rigs ----------
-   Legs are two-bone chains solved by IK toward feet that step in a gait cycle driven by distance walked,
-   so strides match speed. Heads ease between alert and grazing, ears flick, tails swish. */
+/* ---------- ground animals ----------
+   Four-legged animals and people are 3D figures (figure.js) built on the specs and IK here; the hare,
+   corvids, ducks and heron are side-view rigs. Gait phase comes from distance walked, so strides match
+   speed. Heads ease between alert and grazing, ears flick, tails swish. */
 function ik(hx, hy, fx, fy, l1, l2, bend) {
   let dx = fx - hx,
     dy = fy - hy,
@@ -686,331 +688,6 @@ function animalColors(a) {
     case 'fox':
       return { body: '#BE5A20', shade: '#8C4016' };
   }
-}
-function drawQuad(a) {
-  const S = QSPEC[a.k],
-    C = animalColors(a),
-    walking = MOVES.has(a.st),
-    bound = BOUNDS.has(a.st),
-    crouch = a.st === 'stalk' ? 0.6 : 1;
-  const ph = a.gp || 0,
-    legCol = S.leg || C.shade;
-  const bob = walking
-    ? bound
-      ? -Math.abs(Math.sin(ph)) * S.hip * 0.3
-      : -Math.abs(Math.sin(ph * 2)) * 0.7
-    : Math.sin(T * 1.7 + a.ph) * 0.22;
-  const bodyY = -S.hip * crouch + bob,
-    hipY = bodyY + S.H * 0.45,
-    rest = -hipY,
-    l1 = rest * 0.52,
-    l2 = rest * 0.52;
-  const stride = walking ? S.stride * (bound ? 1.5 : 1) : 0;
-  const L4 = [
-    [-S.L * 0.62, bound ? 0.5 : 0, 0, 1],
-    [S.L * 0.6, bound ? 0 : 0.25, 1, 1],
-    [-S.L * 0.62 + 1.6, bound ? 0.56 : 0.5, 0, 0],
-    [S.L * 0.6 + 1.6, bound ? 0.06 : 0.75, 1, 0]
-  ];
-  const leg = d => {
-    const p = ph + d[1] * TAU,
-      fx = d[0] + Math.sin(p) * stride * 0.5,
-      lift = walking ? Math.max(0, Math.cos(p)) * S.lift * (bound ? 1.7 : 1) : 0;
-    const hx = d[0],
-      hy = hipY;
-    const [k, f] = ik(hx, hy, fx, -lift, l1, l2, d[2] ? 1 : -1);
-    const col = d[3] ? shade(legCol, 0.72) : legCol;
-    ctx.strokeStyle = col;
-    ctx.lineCap = 'round';
-    ctx.lineWidth = S.lw * 1.25;
-    ctx.beginPath();
-    ctx.moveTo(hx, hy - 1);
-    ctx.lineTo(k[0], k[1]);
-    ctx.stroke();
-    ctx.lineWidth = S.lw;
-    ctx.beginPath();
-    ctx.moveTo(k[0], k[1]);
-    ctx.lineTo(f[0], f[1]);
-    ctx.stroke();
-    ctx.fillStyle = shade(col, 0.6);
-    ctx.beginPath();
-    ctx.ellipse(f[0] + 0.6, f[1] - 0.4, S.lw * 0.75, S.lw * 0.5, 0, 0, TAU);
-    ctx.fill();
-  };
-  // tail behind the body
-  const tailX = -S.L * 0.95,
-    tailY = bodyY - S.H * 0.35;
-  if (S.tail === 'rope') {
-    const sw = Math.sin(T * 1.4 + a.ph) * 2.2 + (a.swat > 0 ? Math.sin(a.swat * 18) * 4 : 0);
-    ctx.strokeStyle = C.body;
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.moveTo(tailX + 1, tailY);
-    ctx.quadraticCurveTo(tailX - 2, tailY + S.H * 0.8, tailX - 1 + sw, bodyY + S.H * 1.35);
-    ctx.stroke();
-    ctx.fillStyle = shade(C.body, 0.6);
-    ctx.beginPath();
-    ctx.ellipse(tailX - 1 + sw, bodyY + S.H * 1.45, 1.2, 2, 0, 0, TAU);
-    ctx.fill();
-  }
-  if (S.tail === 'cat') {
-    const sw = Math.sin(T * 1.1 + a.ph) * 3;
-    ctx.strokeStyle = C.body;
-    ctx.lineWidth = 1.6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(tailX + 1, tailY);
-    ctx.bezierCurveTo(tailX - 5, tailY - 2, tailX - 4 + sw * 0.5, tailY - 8, tailX - 2 + sw, tailY - 11);
-    ctx.stroke();
-  }
-  if (S.tail === 'dog') {
-    const wag = Math.sin(T * (a.st === 'idle' ? 5 : 10) + a.ph) * 2.4;
-    ctx.strokeStyle = C.body;
-    ctx.lineWidth = 1.8;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(tailX + 1, tailY);
-    ctx.quadraticCurveTo(tailX - 4, tailY - 2, tailX - 5 + wag, tailY - 7);
-    ctx.stroke();
-    if (a.collie) {
-      ctx.fillStyle = '#F2EEE6';
-      ctx.beginPath();
-      ctx.arc(tailX - 5 + wag, tailY - 7, 1.1, 0, TAU);
-      ctx.fill();
-    }
-  }
-  if (S.tail === 'brush') {
-    // a heavy, low-carried brush, white at the tip - streams out a little when running
-    const sw = (bound ? -2.5 : Math.sin(T * 1.1 + a.ph) * 1.4) - (walking ? stride * 0.06 : 0);
-    const tipX = tailX - 6.5 + sw,
-      tipY = tailY + 2.4;
-    ctx.strokeStyle = C.body;
-    ctx.lineWidth = 2.6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(tailX + 1, tailY - 0.5);
-    ctx.quadraticCurveTo(tailX - 5, tailY + 0.5, tipX, tipY);
-    ctx.stroke();
-    ctx.fillStyle = '#F4EFE2';
-    ctx.beginPath();
-    ctx.ellipse(tipX - 1, tipY, 1.6, 1.3, 0.3, 0, TAU);
-    ctx.fill();
-  }
-  if (S.tail === 'curl') {
-    // a little corkscrew, swaying gently as it walks
-    const wig = Math.sin(T * 2.2 + a.ph) * 0.5;
-    ctx.strokeStyle = C.body;
-    ctx.lineWidth = 1.4;
-    ctx.lineCap = 'round';
-    ctx.save();
-    ctx.translate(tailX + 1, tailY);
-    ctx.rotate(wig);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(-3, -1, -4, -3.4, -1.6, -4.2);
-    ctx.bezierCurveTo(0.4, -4.8, 0.6, -2.6, -1.2, -2.2);
-    ctx.stroke();
-    ctx.restore();
-  }
-  leg(L4[0]);
-  leg(L4[1]);
-  // body
-  ctx.fillStyle = C.body;
-  ctx.beginPath();
-  ctx.ellipse(0, bodyY, S.L, S.H, 0, 0, TAU);
-  ctx.fill();
-  if (S.hump) {
-    ctx.beginPath();
-    ctx.ellipse(S.L * 0.42, bodyY - S.H * 0.55, S.L * 0.42, S.H * 0.6, -0.15, 0, TAU);
-    ctx.fill();
-  }
-  if (S.wool) {
-    ctx.fillStyle = C.body;
-    for (let i = 0; i < 9; i++) {
-      const an = Math.PI * (1.05 + i * 0.1);
-      ctx.beginPath();
-      ctx.arc(Math.cos(an) * S.L * 0.92, bodyY + Math.sin(an) * S.H * 0.95, 2.2, 0, TAU);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(255,255,255,.35)';
-    ctx.beginPath();
-    ctx.ellipse(-1, bodyY - S.H * 0.4, S.L * 0.6, S.H * 0.3, 0, 0, TAU);
-    ctx.fill();
-  }
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(0, bodyY, S.L, S.H, 0, 0, TAU);
-  ctx.clip();
-  if (a.k === 'cow') {
-    const r = hash2((a.ph * 100) | 0, 7);
-    ctx.fillStyle = '#F1ECE2';
-    for (let i = 0; i < 4; i++) {
-      const u = hash2(i, (a.ph * 977) | 0);
-      ctx.beginPath();
-      ctx.ellipse(
-        -S.L * 0.7 + u * S.L * 1.4,
-        bodyY - S.H * 0.3 + hash2((a.ph * 31) | 0, i) * S.H,
-        3 + r * 3,
-        2 + u * 2,
-        u * 2,
-        0,
-        TAU
-      );
-      ctx.fill();
-    }
-    ctx.fillRect(-S.L, bodyY + S.H * 0.55, S.L * 2, S.H);
-  }
-  if (a.k === 'fox') {
-    ctx.fillStyle = '#F4EFE2';
-    ctx.beginPath();
-    ctx.ellipse(S.L * 0.55, bodyY + S.H * 0.35, S.L * 0.42, S.H * 0.5, 0, 0, TAU);
-    ctx.fill();
-  }
-  ctx.fillStyle = 'rgba(0,0,0,.14)';
-  ctx.fillRect(-S.L, bodyY + S.H * 0.25, S.L * 2, S.H);
-  ctx.fillStyle = 'rgba(255,255,255,.1)';
-  ctx.fillRect(-S.L, bodyY - S.H, S.L * 2, S.H * 0.5);
-  ctx.restore();
-  if (S.tail === 'flag') {
-    const up = bound ? 1 : 0;
-    ctx.fillStyle = '#F2ECE0';
-    ctx.beginPath();
-    ctx.ellipse(-S.L * 0.9, bodyY - S.H * 0.1 - up * 1.5, 2.4 + up * 1.4, 3 + up * 1.2, 0, 0, TAU);
-    ctx.fill();
-  }
-  if (S.tail === 'wool') {
-    ctx.fillStyle = C.body;
-    ctx.beginPath();
-    ctx.ellipse(-S.L * 1.02, bodyY + 1 + Math.sin(T * 6 + a.ph) * 0.4, 1.8, 2.4, 0, 0, TAU);
-    ctx.fill();
-  }
-  // neck and head ease between alert and grazing; chewing nods while down
-  const ht = a.ht || 0,
-    ease = ht * ht * (3 - 2 * ht);
-  const bx = S.L * 0.72,
-    by = bodyY - S.H * 0.3;
-  const ux = bx + Math.cos(S.neckUp) * S.neckL,
-    uy = by - Math.sin(S.neckUp) * S.neckL;
-  const gx = S.L * 0.95 + S.hRx * 0.4,
-    gy = -S.hRy * 0.9 + (ht > 0.9 ? Math.sin(T * 5 + a.ph) * 0.4 : 0);
-  const lift = Math.sin(ease * Math.PI) * S.neckL * 0.25;
-  const nx = lerp(ux, gx, ease),
-    ny = lerp(uy, gy, ease) - lift + (a.alert > 0 && ht < 0.2 ? -1.2 : 0);
-  ctx.strokeStyle = C.body;
-  ctx.lineCap = 'round';
-  ctx.lineWidth = S.neckW;
-  ctx.beginPath();
-  ctx.moveTo(bx - S.neckW * 0.3, by + S.neckW * 0.2);
-  ctx.quadraticCurveTo(lerp(bx, nx, 0.5) + 1, lerp(by, ny, 0.5) - 1, nx, ny);
-  ctx.stroke();
-  const ha = lerp(0.3, 1.35, ease);
-  ctx.save();
-  ctx.translate(nx, ny);
-  ctx.rotate(ha);
-  ctx.fillStyle = S.head || C.body;
-  ctx.beginPath();
-  ctx.ellipse(S.hRx * 0.45, 0, S.hRx, S.hRy, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = shade(S.head || C.body, 0.7);
-  ctx.beginPath();
-  ctx.ellipse(S.hRx * 1.2, S.hRy * 0.2, S.hRx * 0.35, S.hRy * 0.7, 0, 0, TAU);
-  ctx.fill();
-  if (a.k === 'cow') {
-    ctx.fillStyle = '#F1ECE2';
-    ctx.beginPath();
-    ctx.ellipse(S.hRx * 0.4, -S.hRy * 0.2, S.hRx * 0.6, S.hRy * 0.5, 0, 0, TAU);
-    ctx.fill();
-  }
-  if (a.k === 'dog' && a.collie) {
-    ctx.fillStyle = '#F2EEE6';
-    ctx.beginPath();
-    ctx.ellipse(S.hRx * 0.9, S.hRy * 0.25, S.hRx * 0.5, S.hRy * 0.4, 0, 0, TAU);
-    ctx.fill();
-  }
-  if (a.k === 'pig') {
-    ctx.fillStyle = shade(C.body, 0.82);
-    ctx.beginPath();
-    ctx.ellipse(S.hRx * 1.28, S.hRy * 0.25, S.hRx * 0.38, S.hRy * 0.42, 0, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = '#8A5A50';
-    ctx.beginPath();
-    ctx.ellipse(S.hRx * 1.42, S.hRy * 0.1, 0.6, 0.9, 0.3, 0, TAU);
-    ctx.ellipse(S.hRx * 1.42, S.hRy * 0.42, 0.6, 0.9, -0.2, 0, TAU);
-    ctx.fill();
-  }
-  ctx.fillStyle = '#111';
-  ctx.beginPath();
-  ctx.arc(S.hRx * 0.2, -S.hRy * 0.35, Math.max(0.6, S.hRy * 0.2), 0, TAU);
-  ctx.fill();
-  const flick = a.earF > 0 ? Math.sin(a.earF * 30) * 0.5 : 0;
-  if (S.bigEars || S.catEars || S.ear) {
-    ctx.fillStyle = S.ear || shade(C.body, 0.85);
-    const er = S.bigEars ? [1.4, 3.2] : S.catEars ? [1, 1.8] : [2.4, 1];
-    ctx.save();
-    ctx.translate(-S.hRx * 0.3, -S.hRy * 0.7);
-    ctx.rotate(-0.5 - flick - (S.ear ? -0.9 : 0));
-    ctx.beginPath();
-    ctx.ellipse(0, -er[1] * 0.6, er[0], er[1], 0, 0, TAU);
-    ctx.fill();
-    ctx.restore();
-  }
-  if (S.horns) {
-    ctx.strokeStyle = '#E8E1CC';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(-S.hRx * 0.2, -S.hRy * 0.8);
-    ctx.quadraticCurveTo(-S.hRx * 0.6, -S.hRy * 1.8, -S.hRx * 0.1, -S.hRy * 2.1);
-    ctx.stroke();
-  }
-  if (a.k === 'moose') {
-    ctx.strokeStyle = C.body;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(S.hRx * 0.2, S.hRy * 0.8);
-    ctx.lineTo(S.hRx * 0.1, S.hRy * 2.2);
-    ctx.stroke();
-    if (a.bull && SEASON !== 0) {
-      ctx.fillStyle = '#BCA98C';
-      ctx.beginPath();
-      ctx.ellipse(-S.hRx * 0.5, -S.hRy * 1.6, 5.5, 2, -0.7, 0, TAU);
-      ctx.ellipse(-S.hRx * 0.1, -S.hRy * 1.9, 5, 1.8, 0.3, 0, TAU);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-  leg(L4[2]);
-  leg(L4[3]);
-}
-function drawCatSit(a) {
-  const C = animalColors(a),
-    sw = Math.sin(T * 1.2 + a.ph);
-  ctx.strokeStyle = C.body;
-  ctx.lineWidth = 1.6;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-3, -1);
-  ctx.quadraticCurveTo(-8, 0, -8 + sw * 2, -4 - Math.max(0, sw) * 2);
-  ctx.stroke();
-  ell(0, -5, 4, 5, C.body);
-  ell(0.8, -2.4, 3, 1.6, C.shade);
-  const tilt = Math.sin(T * 0.4 + a.ph) * 0.15;
-  ctx.save();
-  ctx.translate(1, -11.3);
-  ctx.rotate(tilt);
-  ell(0, 0, 3, 2.7, C.body);
-  ctx.fillStyle = C.body;
-  const fl = a.earF > 0 ? Math.sin(a.earF * 30) : 0;
-  ctx.beginPath();
-  ctx.moveTo(-1.8, -1.5);
-  ctx.lineTo(-1.6 - fl * 0.5, -4.6);
-  ctx.lineTo(0, -2);
-  ctx.moveTo(0.6, -2.1);
-  ctx.lineTo(2, -4.6);
-  ctx.lineTo(2.6, -1.2);
-  ctx.fill();
-  ctx.fillStyle = '#2A2A20';
-  ctx.fillRect(0.8, -0.6, 0.9, 0.9);
-  ctx.restore();
 }
 function drawHare(a) {
   const C = SEASON === 3 ? ['#EEF0F2', '#D2D8DE'] : ['#8C7A60', '#6E5E48'],
@@ -1242,8 +919,6 @@ function drawAnimal(a) {
   ctx.save();
   ctx.globalAlpha = clamp(a.fade ?? 1, 0, 1);
   ctx.translate(a.x, PY(a.y, a.z));
-  const fs = a.fs ?? a.f;
-  ctx.scale(Math.abs(fs) < 0.15 ? 0.15 * Math.sign(fs || 1) : fs, 1);
   if (a.k === 'cat') ctx.scale(0.76, 0.76);
   else if (a.k === 'dog') ctx.scale(0.82, 0.82);
   else if (a.k === 'fox') ctx.scale(0.82, 0.82);
@@ -1251,14 +926,22 @@ function drawAnimal(a) {
     ctx.scale(0.62, 0.62);
     if (a.frolic > 0) ctx.translate(0, -Math.abs(Math.sin(a.frolic * 9)) * 6);
   }
+  // four-legged animals and people are 3D figures (figure.js); the smaller side-view rigs are drawn
+  // on a card that turns with the animal's heading, narrowing as it faces toward or away from you
   if (QSPEC[a.k]) {
     if (a.k === 'cat' && a.st === 'idle') drawCatSit(a);
     else drawQuad(a);
-  } else if (a.k === 'hare') drawHare(a);
-  else if (a.k === 'crow' || a.k === 'magpie') drawCorvid(a);
-  else if (a.k === 'duck') drawDuck(a);
-  else if (a.k === 'heron') drawHeron(a);
-  else if (a.k === 'human') drawHuman(a);
+  } else if (a.k === 'human') drawHuman(a);
+  else {
+    const hd = a.hd3 ?? (a.f > 0 ? 0 : Math.PI),
+      c = Math.cos(hd);
+    ctx.transform(Math.sign(c || 1) * Math.max(0.42, Math.abs(c)), Math.sin(hd) * TILT * 0.5, 0, 1, 0, 0);
+    if (a.k === 'hare') drawHare(a);
+    else if (a.k === 'crow' || a.k === 'magpie') drawCorvid(a);
+    else if (a.k === 'duck') drawDuck(a);
+    else if (a.k === 'heron') drawHeron(a);
+    else if (a.wild) drawWildBird(a);
+  }
   ctx.restore();
 }
 function drawTractor(a) {
@@ -1314,10 +997,14 @@ function animalPost(dt) {
     const sp = MOVES.has(a.st) ? Math.hypot(a.vx, a.vy) : 0;
     const S = QSPEC[a.k],
       strideLen =
-        (S ? S.stride : a.k === 'hare' ? 14 : a.k === 'human' ? 10 : a.k === 'crow' || a.k === 'magpie' ? 5 : 8) *
-        (BOUNDS.has(a.st) ? 1.5 : 1);
+        S && BOUNDS.has(a.st)
+          ? runStride(S, sp)
+          : (S ? S.stride : a.k === 'hare' ? 14 : a.k === 'human' ? 10 : a.k === 'crow' || a.k === 'magpie' ? 5 : 8) *
+            (BOUNDS.has(a.st) ? 1.5 : 1);
+    a.strd = strideLen;
     a.gp = (a.gp || 0) + ((sp * dt) / strideLen) * TAU;
     a.fs = (a.fs ?? a.f) + (a.f - (a.fs ?? a.f)) * Math.min(1, dt * 7);
+    figPost(a, sp, dt);
     a.ht = (a.ht || 0) + ((a.graze ? 1 : 0) - (a.ht || 0)) * Math.min(1, dt * 2.2);
     a.earT = (a.earT ?? rr(1, 5)) - dt;
     if (a.earT <= 0) {
@@ -1346,6 +1033,7 @@ const isSky = a =>
   a.k === 'goose' ||
   a.k === 'rook' ||
   a.k === 'butterfly' ||
+  (a.wild && a.st === 'fly') ||
   ((a.k === 'heron' || a.k === 'crow' || a.k === 'magpie') && (a.st === 'fly' || a.st === 'mob' || a.st === 'mobret'));
 // states in which a ground animal is moving, and the fast ones drawn with a bounding gait
 const MOVES = new Set(['walk', 'flee', 'stalk', 'pounce', 'chase']),

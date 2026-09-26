@@ -11,6 +11,7 @@ function update(dt) {
     CAL.t += dt;
     updateWeather(dt);
   }
+  weatherTick(dt);
   calUpdate();
   if (TRANS.t < 1) {
     TRANS.t = Math.min(1, TRANS.t + dt / 10);
@@ -24,6 +25,8 @@ function update(dt) {
     refreshInsects();
     seasonBanner();
   }
+  growTick(dt);
+  airTick(dt);
   if (playing && CAL.day >= YEAR_DAYS * CAL.year + (st.dayOff || 0) && CAL.hour >= START_HOUR) {
     yearWon();
     return;
@@ -34,6 +37,8 @@ function update(dt) {
       roost = st.settled && L.state === 'perch' && coveredNow(L);
     let drain = 0.0062 * [1, 0.8, 1.1, 1.6][SEASON];
     if (nightNow) drain *= roost ? 0.55 : 1.35;
+    // a winter storm cuts through anything but the thickest cover
+    if (!roost) drain *= 1 + 0.45 * WEATHER.storm;
     st.energy = clamp(st.energy - drain * dt, 0, 1);
     if (st.energy <= 0) {
       st.starveT -= dt;
@@ -117,8 +122,10 @@ function update(dt) {
       L.vx *= f;
       L.vy *= f;
     }
-    L.x += L.vx * dt;
-    L.y += L.vy * dt;
+    // a gale pushes the flock along with it: easy downwind, hard work flying into it
+    const [wx, wy] = windPush(L);
+    L.x += (L.vx + wx) * dt;
+    L.y += (L.vy + wy) * dt;
     {
       const sy = shoreY(L.x) + 30;
       if (L.y > sy) {
@@ -213,6 +220,15 @@ function update(dt) {
     s.vy = clamp(s.vy, -14, 14);
     s.x = wrapX(s.x + s.vx * dt);
     s.y += s.vy * dt;
+    // drift back from the edges of the reachable land rather than out over the fjord
+    const ym = insectMaxY(s.x);
+    if (s.y > ym) {
+      s.y = ym;
+      s.vy = -Math.abs(s.vy);
+    } else if (s.y < 60) {
+      s.y = 60;
+      s.vy = Math.abs(s.vy);
+    }
   }
   for (const f of dflies) {
     f.t -= dt;
@@ -318,7 +334,7 @@ function update(dt) {
   updateTrain(dt);
   updateTraffic(dt);
   coverHint(dt);
-  if (st.settled && Math.random() < dt * Math.min(3, birds.length * 0.12)) chirp(0.018);
+  if (st.settled && Math.random() < dt * Math.min(3, birds.length * 0.12) * chatter()) chirp(0.018);
   const base = clamp(Math.min(vw, vh) / 760, 0.72, 1.15);
   // the camera pulls back as the flock grows; eased so a mid-sized flock stays close and only a
   // big one gets the full wide view (0.32 at 83+ birds, as before)

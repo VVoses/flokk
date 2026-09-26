@@ -31,14 +31,15 @@ function strokePoly(c, P, w, col) {
   c.lineCap = 'round';
   c.stroke();
 }
-// a farmyard's outline: its rounded rectangle, pushed in and out by noise so no two yards are the same shape
+// a farmyard's outline: its rounded rectangle, pushed in and out by noise so no two yards are the same shape;
+// built in the yard's own frame and turned with it
 function yardPath(c, Y, grow) {
   const r = 46,
     n = 96,
-    x0 = Y.x,
-    y0 = Y.y,
-    w = Y.w,
-    h = Y.h,
+    w = Y.lw,
+    h = Y.lh,
+    x0 = -w / 2,
+    y0 = -h / 2,
     per = 2 * (w + h),
     o = (Y.x * 0.37 + Y.y * 0.11) % 500;
   c.beginPath();
@@ -58,11 +59,88 @@ function yardPath(c, Y, grow) {
     if (dl > r) ((px = cx + (dx / dl) * r), (py = cy + (dy / dl) * r));
     if (dl > 0.01) ((nx = dx / dl), (ny = dy / dl));
     const k = grow + 34 * (pfbm(t + o, o, 140, 3, 7) - 0.5) + 10 * (pfbm(t + o, o, 40, 11, 5) - 0.5);
-    const X = px + nx * k,
-      Yy = py + ny * k;
+    const [X, Yy] = yardWorld(Y, px + nx * k, py + ny * k);
     i ? c.lineTo(X, Yy) : c.moveTo(X, Yy);
   }
   c.closePath();
+}
+/* the churchyard: close-cut grass inside a low dry-stone wall, a gravel path from the gate to the tower door */
+function paintChurchyard(C, winter, season, edgeOffs) {
+  const Y = C.yard,
+    lw = Y.lw,
+    lh = Y.lh;
+  for (const ox of edgeOffs(Y.x, Y.x + Y.w)) {
+    g.save();
+    g.translate(ox + Y.cx, Y.cy);
+    g.rotate(Y.ang);
+    // kept grass, a little greener and smoother than the meadow round it
+    g.fillStyle = winter ? 'rgba(236,240,244,.5)' : season === 2 ? 'rgba(128,138,74,.35)' : 'rgba(96,140,64,.3)';
+    g.beginPath();
+    g.roundRect(-lw / 2, -lh / 2, lw, lh, 20);
+    g.fill();
+    // the path, from the gate in the road-side wall to the tower door
+    const [du, dv] = yardLocal(Y, ...Y.door),
+      gv = (-lh / 2) * Y.side;
+    g.lineCap = 'round';
+    g.strokeStyle = winter ? 'rgba(200,208,218,.55)' : 'rgba(176,164,132,.9)';
+    g.lineWidth = 15;
+    g.beginPath();
+    g.moveTo(du * 0.3, gv);
+    g.quadraticCurveTo(du * 0.4, (gv + dv) / 2, du, dv);
+    g.stroke();
+    g.fillStyle = winter ? 'rgba(150,160,175,.3)' : 'rgba(110,98,74,.35)';
+    for (let i = 0; i < 160; i++) {
+      const t = R(),
+        u = lerp(du * 0.3, du, t) + rnd(-6, 6),
+        v = lerp(gv, dv, t) + rnd(-3, 3);
+      g.fillRect(u, v, 1.6, 1.6);
+    }
+    // the wall: grey fieldstone, a darker foot where it stands up out of the grass, lichen on the top
+    const wall = () => {
+      g.beginPath();
+      g.roundRect(-lw / 2, -lh / 2, lw, lh, 20);
+    };
+    g.lineJoin = 'round';
+    g.strokeStyle = winter ? 'rgba(90,98,112,.35)' : 'rgba(40,36,28,.35)';
+    g.lineWidth = 13;
+    g.save();
+    g.translate(0, 3);
+    wall();
+    g.stroke();
+    g.restore();
+    g.strokeStyle = winter ? '#C9CFD6' : '#8E8A80';
+    g.lineWidth = 9;
+    wall();
+    g.stroke();
+    const per = 2 * (lw + lh);
+    for (let t = 0; t < per; t += rnd(4, 7)) {
+      let u, v;
+      if (t < lw) ((u = t - lw / 2), (v = -lh / 2));
+      else if (t < lw + lh) ((u = lw / 2), (v = t - lw - lh / 2));
+      else if (t < 2 * lw + lh) ((u = lw * 1.5 + lh - t), (v = lh / 2));
+      else ((u = -lw / 2), (v = per - t - lh / 2));
+      if (Math.abs(u) > lw / 2 - 16 && Math.abs(v) > lh / 2 - 16) continue; // leave the rounded corners plain
+      const k = R();
+      g.fillStyle = winter
+        ? k < 0.5
+          ? '#F4F6F8'
+          : '#B4BCC6'
+        : k < 0.3
+          ? '#A7A398'
+          : k < 0.6
+            ? '#76726A'
+            : k < 0.8
+              ? '#9A9684'
+              : '#A8A46C';
+      g.fillRect(u + rnd(-3, 1), v + rnd(-3, 1), rnd(3, 6), rnd(3, 5));
+    }
+    // the gateway: a gap in the wall with a stone post each side
+    g.fillStyle = winter ? 'rgba(236,240,244,.95)' : '#9C9068';
+    g.fillRect(du * 0.3 - 12, gv - 7, 24, 14);
+    g.fillStyle = winter ? '#B4BCC6' : '#6E6A62';
+    for (const sg of [-1, 1]) g.fillRect(du * 0.3 + sg * 14 - 3, gv - 5, 6, 10);
+    g.restore();
+  }
 }
 function seaGrad(c) {
   const gr = c.createLinearGradient(0, H - 330, 0, H + 40);
@@ -469,9 +547,10 @@ function paintGround(season) {
         g.fillStyle = season === 2 ? 'rgba(128,130,70,.5)' : 'rgba(96,132,60,.45)';
         g.beginPath();
         for (let i = 0; i < 420; i++) {
-          const x = rnd(YARD.x - 10, YARD.x + YARD.w + 10),
-            y = rnd(YARD.y - 10, YARD.y + YARD.h + 10);
-          const e = Math.min(x - YARD.x, YARD.x + YARD.w - x, y - YARD.y, YARD.y + YARD.h - y);
+          const u = rnd(-10, YARD.lw + 10) - YARD.lw / 2,
+            v = rnd(-10, YARD.lh + 10) - YARD.lh / 2,
+            [x, y] = yardWorld(YARD, u, v);
+          const e = Math.min(YARD.lw / 2 - Math.abs(u), YARD.lh / 2 - Math.abs(v));
           if (e > R() * 26) continue;
           g.rect(x, y, rnd(2, 4), rnd(2, 3));
         }
@@ -479,197 +558,49 @@ function paintGround(season) {
       }
       g.restore();
     }
+  if (CHURCH) paintChurchyard(CHURCH, winter, season, edgeOffs);
   const R0 = R;
   FIELDS.forEach((f, fi) => {
     for (const ox of edgeOffs(f.x, f.x + f.w)) {
       R = mulberry32((SEED ^ 0x77) + fi * 7919 + season * 131);
       g.save();
       g.translate(ox, 0);
-      g.save();
-      fieldPath(g, f);
-      g.clip();
-      const lines = (step, w, col, off = 0) => {
-        g.strokeStyle = col;
-        g.lineWidth = w;
-        g.beginPath();
-        if (f.dir) {
-          for (let x = f.x + off; x < f.x + f.w; x += step) {
-            g.moveTo(x, f.y);
-            g.lineTo(x + rnd(-3, 3), f.y + f.h);
-          }
-        } else {
-          for (let y = f.y + off; y < f.y + f.h; y += step) {
-            g.moveTo(f.x, y);
-            g.lineTo(f.x + f.w, y + rnd(-3, 3));
-          }
-        }
-        g.stroke();
-      };
-      // soft, feathered patches (hard-edged ones read as camouflage)
-      const blotch = (n, a, b2, rmin, rmax) => {
-        for (let i = 0; i < n; i++) {
-          const col = R() < 0.5 ? a : b2,
-            x = rnd(f.x, f.x + f.w),
-            y = rnd(f.y, f.y + f.h),
-            rx = rnd(rmin, rmax) * 1.3,
-            ry = rnd(0.45, 0.7),
-            an = rnd(0, 3);
-          const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1);
-          gr.addColorStop(0, col);
-          gr.addColorStop(
-            0.55,
-            col.replace(/,([\d.]+)\)$/, (m, al) => `,${al * 0.5})`)
-          );
-          gr.addColorStop(1, col.replace(/,([\d.]+)\)$/, ',0)'));
-          g.save();
-          g.translate(x, y);
-          g.rotate(an);
-          g.scale(rx, rx * ry);
-          g.fillStyle = gr;
-          g.beginPath();
-          g.arc(0, 0, 1, 0, TAU);
-          g.fill();
-          g.restore();
-        }
-      };
       let kind = f.t;
       if (winter) kind = 'snow';
       else if (season === 0)
         kind = f.t === 'pasture' ? 'pasture' : f.t === 'sty' ? 'sty' : f.t === 'plow' ? 'plow' : 'sown';
       else if (season === 1)
         kind = f.t === 'pasture' ? 'pasture' : f.t === 'sty' ? 'sty' : f.t === 'crop' ? 'crop' : 'grain';
-      if (kind === 'snow') {
-        g.fillStyle = '#EEF2F6';
-        g.fillRect(f.x, f.y, f.w, f.h);
-        blotch(26, 'rgba(255,255,255,.7)', 'rgba(200,212,226,.4)', 30, 90);
-        // furrows only show through the snow here and there - a trampled pen has no furrows to show
-        if (f.t !== 'pasture' && f.t !== 'sty') {
-          g.save();
-          g.globalAlpha = 0.55;
-          lines(13, 1.3, 'rgba(160,176,196,.3)');
-          g.restore();
-        }
-      } else if (kind === 'sty') {
-        // churned, muddy pen - soft irregular wallows instead of tilled rows
-        g.fillStyle = '#6B4A32';
-        g.fillRect(f.x, f.y, f.w, f.h);
-        blotch(20, 'rgba(84,58,38,.55)', 'rgba(120,90,58,.4)', 10, 26);
-        blotch(8, 'rgba(46,34,24,.5)', 'rgba(60,44,30,.4)', 16, 30);
-        for (let i = 0; i < 3; i++) {
-          g.fillStyle = 'rgba(38,32,26,.4)';
-          g.beginPath();
-          g.ellipse(
-            rnd(f.x + 14, f.x + f.w - 14),
-            rnd(f.y + 14, f.y + f.h - 14),
-            rnd(9, 15),
-            rnd(5, 9),
-            rnd(0, 3),
-            0,
-            TAU
-          );
-          g.fill();
-        }
-      } else if (kind === 'stubble') {
-        g.fillStyle = '#C9AA5C';
-        g.fillRect(f.x, f.y, f.w, f.h);
-        blotch(34, 'rgba(222,194,116,.45)', 'rgba(170,138,70,.3)', 30, 90);
-        lines(8, 1.8, 'rgba(120,94,42,.3)');
-        lines(8, 1.1, 'rgba(236,214,150,.26)', 4);
-        lines(92, 5, 'rgba(132,104,52,.3)', 30);
-      } else if (kind === 'plow') {
-        g.fillStyle = '#7A5A3F';
-        g.fillRect(f.x, f.y, f.w, f.h);
-        blotch(28, 'rgba(95,70,48,.5)', 'rgba(140,108,78,.35)', 30, 80);
-        lines(8, 3.5, 'rgba(50,34,22,.5)');
-        lines(8, 1.2, 'rgba(172,136,100,.3)', 3);
-      } else if (kind === 'sown') {
-        g.fillStyle = '#806247';
-        g.fillRect(f.x, f.y, f.w, f.h);
-        blotch(22, 'rgba(100,76,54,.5)', 'rgba(150,120,90,.3)', 30, 80);
-        lines(9, 2, 'rgba(60,44,30,.4)');
-        lines(9, 1.6, 'rgba(130,170,80,.5)', 4);
-      } else if (kind === 'grain') {
-        g.fillStyle = '#A9B25A';
-        g.fillRect(f.x, f.y, f.w, f.h);
-        blotch(36, 'rgba(206,200,116,.4)', 'rgba(128,150,74,.3)', 30, 100);
-        lines(8, 1.6, 'rgba(90,110,50,.26)');
-        lines(8, 1, 'rgba(230,226,160,.24)', 4);
-      } else if (kind === 'pasture') {
-        g.fillStyle = season === 1 ? '#7DA452' : season === 0 ? '#94B866' : '#8DAE5E';
-        g.fillRect(f.x, f.y, f.w, f.h);
-        for (let i = 0; i < 90; i++) {
-          g.fillStyle = R() < 0.5 ? 'rgba(110,150,70,.4)' : 'rgba(170,190,100,.3)';
-          g.beginPath();
-          g.arc(rnd(f.x, f.x + f.w), rnd(f.y, f.y + f.h), rnd(8, 36), 0, TAU);
-          g.fill();
-        }
-        g.strokeStyle = 'rgba(150,150,100,.35)';
-        g.lineWidth = 5;
-        for (let i = 0; i < 4; i++) {
-          g.beginPath();
-          g.moveTo(rnd(f.x, f.x + f.w), f.y);
-          g.bezierCurveTo(
-            rnd(f.x, f.x + f.w),
-            rnd(f.y, f.y + f.h),
-            rnd(f.x, f.x + f.w),
-            rnd(f.y, f.y + f.h),
-            rnd(f.x, f.x + f.w),
-            f.y + f.h
-          );
-          g.stroke();
-        }
-      } else {
-        g.fillStyle = '#6D573F';
-        g.fillRect(f.x, f.y, f.w, f.h);
-        lines(14, 6, season === 1 ? '#4F8036' : '#5B8A3E');
-        lines(14, 2.5, '#76A152', -1.5);
-      }
-      g.restore();
-      {
-        const mc = winter ? '236,240,245' : season === 2 ? '150,150,86' : season === 1 ? '104,140,70' : '122,152,80';
-        fieldPath(g, f);
-        g.lineJoin = 'round';
-        for (const [w2, al] of [
-          [22, 0.16],
-          [11, 0.24],
-          [5, 0.3]
-        ]) {
-          g.lineWidth = w2;
-          g.strokeStyle = `rgba(${mc},${al})`;
-          g.stroke();
-        }
-        g.lineWidth = 1.2;
-        g.strokeStyle = winter ? 'rgba(160,172,188,.3)' : 'rgba(70,60,34,.18)';
-        g.stroke();
-      }
-      if (f.t === 'pasture' && season < 2) {
-        const cols =
-          season === 0 ? ['#F4F2EA', '#F4F2EA', '#E9D35A', '#F4F2EA'] : ['#E8E4F2', '#E9D35A', '#B08AD0', '#F2F0E6'];
-        for (let i = 0; i < (f.w * f.h) / (season === 0 ? 1100 : 800); i++) {
-          g.fillStyle = cols[(R() * 4) | 0];
-          const x = rnd(f.x, f.x + f.w),
-            y = rnd(f.y, f.y + f.h);
-          if (inField(f, x, y, -3)) g.fillRect(x, y, 2.4, 2.4);
-        }
-      }
-      if (f.t === 'sty' && !winter) {
-        g.fillStyle = 'rgba(226,198,140,.55)';
-        for (let i = 0; i < 16; i++) {
-          const x = rnd(f.x, f.x + f.w),
-            y = rnd(f.y, f.y + f.h),
-            an = rnd(0, TAU);
-          if (!inField(f, x, y, -4)) continue;
-          g.save();
-          g.translate(x, y);
-          g.rotate(an);
-          g.fillRect(-rnd(2, 4), 0, rnd(4, 8), 1);
-          g.restore();
-        }
-      }
+      else if (f.t === 'crop') kind = 'plow'; // autumn: the potatoes are lifted (grow.js shows them before that)
+      paintField(g, f, kind, season);
       g.restore();
     }
   });
   R = R0;
+  // what lies between neighbouring plots: a ditch is a dark wet line in rank grass (a frozen, drifted
+  // groove in winter); a hedge sits on a darker, weedy bank; a balk is just the meadow showing through
+  for (const D of DIVIDES) {
+    const xs = D.pts.map(q => q[0]);
+    for (const ox of edgeOffs(Math.min(...xs), Math.max(...xs))) {
+      g.save();
+      g.translate(ox, 0);
+      g.lineJoin = g.lineCap = 'round';
+      if (D.t === 'ditch') {
+        if (winter) {
+          strokePoly(g, D.pts, 12, 'rgba(176,190,208,.35)');
+          strokePoly(g, D.pts, 4, 'rgba(140,156,178,.5)');
+        } else {
+          const bank = season === 2 ? '120,112,60' : '74,96,46';
+          strokePoly(g, D.pts, D.w + 6, `rgba(${bank},.35)`);
+          strokePoly(g, D.pts, 6, 'rgba(46,52,40,.6)');
+          strokePoly(g, D.pts, 2.5, season === 0 ? 'rgba(96,120,128,.8)' : 'rgba(64,78,72,.7)');
+          strokePoly(g, offsetPoly(D.pts, -1.5), 1, 'rgba(190,210,214,.3)');
+        }
+      } else if (D.t === 'hedge')
+        strokePoly(g, D.pts, D.w * 0.7, winter ? 'rgba(170,180,196,.25)' : 'rgba(70,84,44,.28)');
+      g.restore();
+    }
+  }
   paintRailBed(winter);
   if (winter) {
     strokePoly(g, ROAD, 32, 'rgba(150,160,175,.35)');
@@ -852,6 +783,195 @@ function paintGround(season) {
   composeG();
   paintTracks(season);
   R = keepR;
+  G.ver = (G.ver || 0) + 1; // lets the seam strip in render.js know to rebuild
+}
+/* one field painted as a given kind (the kinds a field passes through over the year: snow, plow, sown, grain,
+   ripe, stubble, crop, dormant pasture, pasture, sty). Also used by grow.js for the within-season stages. */
+function paintField(g, f, kind, season, edge = true) {
+  const winter = season === 3;
+  g.save();
+  fieldPath(g, f);
+  g.clip();
+  const lines = (step, w, col, off = 0) => {
+    g.strokeStyle = col;
+    g.lineWidth = w;
+    // rows run along the plot's heading (plots cut from a tract carry `ang`, older ones `dir`)
+    const an = f.ang !== undefined ? f.ang : f.dir ? Math.PI / 2 : 0,
+      r = Math.hypot(f.w, f.h) / 2;
+    g.save();
+    g.translate(f.x + f.w / 2, f.y + f.h / 2);
+    g.rotate(an);
+    g.beginPath();
+    for (let y = -r + off; y < r; y += step) {
+      g.moveTo(-r, y);
+      g.lineTo(r, y + rnd(-3, 3));
+    }
+    g.stroke();
+    g.restore();
+  };
+  // soft, feathered patches (hard-edged ones read as camouflage)
+  const blotch = (n, a, b2, rmin, rmax) => {
+    for (let i = 0; i < n; i++) {
+      const col = R() < 0.5 ? a : b2,
+        x = rnd(f.x, f.x + f.w),
+        y = rnd(f.y, f.y + f.h),
+        rx = rnd(rmin, rmax) * 1.3,
+        ry = rnd(0.45, 0.7),
+        an = rnd(0, 3);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+      gr.addColorStop(0, col);
+      gr.addColorStop(
+        0.55,
+        col.replace(/,([\d.]+)\)$/, (m, al) => `,${al * 0.5})`)
+      );
+      gr.addColorStop(1, col.replace(/,([\d.]+)\)$/, ',0)'));
+      g.save();
+      g.translate(x, y);
+      g.rotate(an);
+      g.scale(rx, rx * ry);
+      g.fillStyle = gr;
+      g.beginPath();
+      g.arc(0, 0, 1, 0, TAU);
+      g.fill();
+      g.restore();
+    }
+  };
+  if (kind === 'snow') {
+    g.fillStyle = '#EEF2F6';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(26, 'rgba(255,255,255,.7)', 'rgba(200,212,226,.4)', 30, 90);
+    // furrows only show through the snow here and there - a trampled pen has no furrows to show
+    if (f.t !== 'pasture' && f.t !== 'sty') {
+      g.save();
+      g.globalAlpha = 0.55;
+      lines(13, 1.3, 'rgba(160,176,196,.3)');
+      g.restore();
+    }
+  } else if (kind === 'sty') {
+    // churned, muddy pen - soft irregular wallows instead of tilled rows
+    g.fillStyle = '#6B4A32';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(20, 'rgba(84,58,38,.55)', 'rgba(120,90,58,.4)', 10, 26);
+    blotch(8, 'rgba(46,34,24,.5)', 'rgba(60,44,30,.4)', 16, 30);
+    for (let i = 0; i < 3; i++) {
+      g.fillStyle = 'rgba(38,32,26,.4)';
+      g.beginPath();
+      g.ellipse(rnd(f.x + 14, f.x + f.w - 14), rnd(f.y + 14, f.y + f.h - 14), rnd(9, 15), rnd(5, 9), rnd(0, 3), 0, TAU);
+      g.fill();
+    }
+  } else if (kind === 'stubble') {
+    g.fillStyle = '#C9AA5C';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(34, 'rgba(222,194,116,.45)', 'rgba(170,138,70,.3)', 30, 90);
+    lines(8, 1.8, 'rgba(120,94,42,.3)');
+    lines(8, 1.1, 'rgba(236,214,150,.26)', 4);
+    lines(92, 5, 'rgba(132,104,52,.3)', 30);
+  } else if (kind === 'plow') {
+    g.fillStyle = '#7A5A3F';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(28, 'rgba(95,70,48,.5)', 'rgba(140,108,78,.35)', 30, 80);
+    lines(8, 3.5, 'rgba(50,34,22,.5)');
+    lines(8, 1.2, 'rgba(172,136,100,.3)', 3);
+  } else if (kind === 'sown') {
+    g.fillStyle = '#806247';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(22, 'rgba(100,76,54,.5)', 'rgba(150,120,90,.3)', 30, 80);
+    lines(9, 2, 'rgba(60,44,30,.4)');
+    lines(9, 1.6, 'rgba(130,170,80,.5)', 4);
+  } else if (kind === 'grain') {
+    g.fillStyle = '#A9B25A';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(36, 'rgba(206,200,116,.4)', 'rgba(128,150,74,.3)', 30, 100);
+    lines(8, 1.6, 'rgba(90,110,50,.26)');
+    lines(8, 1, 'rgba(230,226,160,.24)', 4);
+  } else if (kind === 'ripe') {
+    // standing grain gone gold, combed into soft swathes by the wind
+    g.fillStyle = '#CFAC55';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(40, 'rgba(236,210,128,.5)', 'rgba(170,134,58,.35)', 30, 100);
+    lines(6, 2, 'rgba(146,112,46,.3)');
+    lines(6, 1.2, 'rgba(246,226,156,.32)', 3);
+    blotch(10, 'rgba(120,96,40,.22)', 'rgba(250,232,170,.26)', 60, 140);
+  } else if (kind === 'dormant') {
+    // last year's grass, flattened and straw-coloured by the snow, with the first green at its roots
+    g.fillStyle = '#A89A6A';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(30, 'rgba(188,172,118,.5)', 'rgba(126,130,78,.35)', 20, 70);
+    g.fillStyle = 'rgba(122,150,70,.35)';
+    for (let i = 0; i < (f.w * f.h) / 300; i++) g.fillRect(rnd(f.x, f.x + f.w), rnd(f.y, f.y + f.h), 2, 2);
+  } else if (kind === 'pasture') {
+    g.fillStyle = season === 1 ? '#7DA452' : season === 0 ? '#94B866' : '#8DAE5E';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    for (let i = 0; i < 90; i++) {
+      g.fillStyle = R() < 0.5 ? 'rgba(110,150,70,.4)' : 'rgba(170,190,100,.3)';
+      g.beginPath();
+      g.arc(rnd(f.x, f.x + f.w), rnd(f.y, f.y + f.h), rnd(8, 36), 0, TAU);
+      g.fill();
+    }
+    g.strokeStyle = 'rgba(150,150,100,.35)';
+    g.lineWidth = 5;
+    for (let i = 0; i < 4; i++) {
+      g.beginPath();
+      g.moveTo(rnd(f.x, f.x + f.w), f.y);
+      g.bezierCurveTo(
+        rnd(f.x, f.x + f.w),
+        rnd(f.y, f.y + f.h),
+        rnd(f.x, f.x + f.w),
+        rnd(f.y, f.y + f.h),
+        rnd(f.x, f.x + f.w),
+        f.y + f.h
+      );
+      g.stroke();
+    }
+  } else {
+    g.fillStyle = '#6D573F';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    lines(14, 6, season === 1 ? '#4F8036' : '#5B8A3E');
+    lines(14, 2.5, '#76A152', -1.5);
+  }
+  g.restore();
+  if (!edge) return;
+  {
+    const mc = winter ? '236,240,245' : season === 2 ? '150,150,86' : season === 1 ? '104,140,70' : '122,152,80';
+    fieldPath(g, f);
+    g.lineJoin = 'round';
+    for (const [w2, al] of [
+      [22, 0.16],
+      [11, 0.24],
+      [5, 0.3]
+    ]) {
+      g.lineWidth = w2;
+      g.strokeStyle = `rgba(${mc},${al})`;
+      g.stroke();
+    }
+    g.lineWidth = 1.2;
+    g.strokeStyle = winter ? 'rgba(160,172,188,.3)' : 'rgba(70,60,34,.18)';
+    g.stroke();
+  }
+  if (f.t === 'pasture' && season < 2) {
+    const cols =
+      season === 0 ? ['#F4F2EA', '#F4F2EA', '#E9D35A', '#F4F2EA'] : ['#E8E4F2', '#E9D35A', '#B08AD0', '#F2F0E6'];
+    for (let i = 0; i < (f.w * f.h) / (season === 0 ? 1100 : 800); i++) {
+      g.fillStyle = cols[(R() * 4) | 0];
+      const x = rnd(f.x, f.x + f.w),
+        y = rnd(f.y, f.y + f.h);
+      if (inField(f, x, y, -3)) g.fillRect(x, y, 2.4, 2.4);
+    }
+  }
+  if (f.t === 'sty' && !winter) {
+    g.fillStyle = 'rgba(226,198,140,.55)';
+    for (let i = 0; i < 16; i++) {
+      const x = rnd(f.x, f.x + f.w),
+        y = rnd(f.y, f.y + f.h),
+        an = rnd(0, TAU);
+      if (!inField(f, x, y, -4)) continue;
+      g.save();
+      g.translate(x, y);
+      g.rotate(an);
+      g.fillRect(-rnd(2, 4), 0, rnd(4, 8), 1);
+      g.restore();
+    }
+  }
 }
 /* hare and deer tracks wandering across the snow, painted last and straight onto G's own
    canonical width - each trail is folded back into [0,W) with wrapX as it's drawn, so a trail

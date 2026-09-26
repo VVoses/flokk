@@ -100,6 +100,9 @@ function calUpdate() {
     LIGHT.a = clamp(Math.max(LIGHT.a, k * 0.16), 0, 0.85);
     LIGHT.rim *= 1 - k * 0.85;
   }
+  // a winter gale drives the snow thick and sideways; fog and storms grey the light (weather.js)
+  LIGHT.snow = Math.max(LIGHT.snow, WEATHER.storm * winterW());
+  weatherLight();
 }
 function mixHex(a, b, t) {
   const A = parseInt(a.slice(1), 16),
@@ -155,13 +158,14 @@ function buildLights() {
       });
     }
   }
+  if (CHURCH) placeGraves(CHURCH);
   for (const fm of FARMS) {
     const house = fm.house;
     if (!house) continue;
     const Y = fm.yard;
-    const sgx = house.cx < Y.x + Y.w / 2 ? 1 : -1;
-    const lx = clamp(house.cx + sgx * 95, Y.x + 15, Y.x + Y.w - 15),
-      ly = clamp(house.cy + 48, Y.y + 15, Y.y + Y.h - 15);
+    // the yard lamp stands off the house's gable, on the yard side, kept inside the yard
+    const [hu, hv] = yardLocal(Y, house.cx, house.cy),
+      [lx, ly] = yardClamp(Y, ...yardWorld(Y, hu + (hu < 0 ? 95 : -95), hv + 48), 15);
     LAMPS.push({ x: lx, y: ly });
     LIGHTS.push({ x: lx, y: ly, h: 2.25, r: 135, i: 0.9, fl: 1 });
     addPerch(lx, ly, 2.4, 'pole', false, 0);
@@ -213,6 +217,33 @@ function applyGlaze() {
   }
   ctx.globalCompositeOperation = 'source-over';
 }
+// a headlamp's throw: a cone that starts at the lamp and widens and fades forward along the ground,
+// soft at its edges and with nothing behind the lamp. One mask for cutting the dark, one warm for the glow.
+function mkCone(col) {
+  const c = mk(256, 128),
+    q = c.getContext('2d');
+  for (let i = 0; i < 8; i++) {
+    const w = 60 * (1 - i / 8) + 6;
+    q.fillStyle = `rgba(${col},0.2)`;
+    q.beginPath();
+    q.moveTo(0, 64 - 1.5);
+    q.lineTo(256, 64 - w);
+    q.lineTo(256, 64 + w);
+    q.lineTo(0, 64 + 1.5);
+    q.closePath();
+    q.fill();
+  }
+  q.globalCompositeOperation = 'destination-in';
+  const gr = q.createLinearGradient(0, 0, 256, 0);
+  gr.addColorStop(0, 'rgba(0,0,0,.7)');
+  gr.addColorStop(0.08, 'rgba(0,0,0,1)');
+  gr.addColorStop(0.45, 'rgba(0,0,0,.5)');
+  gr.addColorStop(1, 'rgba(0,0,0,0)');
+  q.fillStyle = gr;
+  q.fillRect(0, 0, 256, 128);
+  return c;
+}
+const CONE = { cut: mkCone('0,0,0'), glow: mkCone('255,176,96') };
 function applyLight(tx, ty, KS, inK) {
   const a = LIGHT.a;
   if (a + LIGHT.a2 < 0.012) return;
@@ -248,7 +279,7 @@ function applyLight(tx, ty, KS, inK) {
           const col = pass === 'lighter' ? (l.soft ? '150,170,210' : '255,176,96') : '0,0,0';
           const kk = pass === 'lighter' ? k * (l.soft ? 0.05 : 0.2) : k * 0.95;
           // the glow round the source itself stays small; the pool on the ground carries the light
-          const hr = l.dir !== undefined ? 22 : l.r * 0.55;
+          const hr = l.dir !== undefined ? 12 : l.r * 0.55;
           let gr = c.createRadialGradient(X, Y, 0, X, Y, hr);
           gr.addColorStop(0, `rgba(${col},${kk})`);
           gr.addColorStop(1, `rgba(${col},0)`);
@@ -258,15 +289,11 @@ function applyLight(tx, ty, KS, inK) {
           c.translate(X, Yg);
           c.scale(1, TILT);
           if (l.dir !== undefined) {
-            // a beam: a fan thrown forward along the ground from the lamp
+            // a beam: a cone thrown forward along the ground from the lamp, none of it behind
             c.rotate(l.dir);
-            c.scale(1, 0.42);
-            gr = c.createRadialGradient(0, 0, 0, l.r * 0.45, 0, l.r);
-            gr.addColorStop(0, `rgba(${col},${kk * 0.9})`);
-            gr.addColorStop(0.5, `rgba(${col},${kk * 0.35})`);
-            gr.addColorStop(1, `rgba(${col},0)`);
-            c.fillStyle = gr;
-            c.fillRect(-l.r * 0.2, -l.r * 1.5, l.r * 1.7, l.r * 3);
+            c.globalAlpha = Math.min(1, kk * (pass === 'lighter' ? 1.7 : 1));
+            c.drawImage(pass === 'lighter' ? CONE.glow : CONE.cut, 0, -l.r * 0.34, l.r * 1.4, l.r * 0.68);
+            c.globalAlpha = 1;
             c.restore();
             continue;
           }
@@ -351,7 +378,12 @@ function applySeason(s, smooth) {
   if (smooth && s !== SEASON) {
     TRANS.prevG = mk(G.width, G.height);
     TRANS.prevG.getContext('2d').drawImage(G, 0, 0);
-    TRANS.prevSPR = { spruce: SPR.spruce.slice(), birch: SPR.birch.slice(), decid: SPR.decid.slice() };
+    TRANS.prevSPR = {
+      spruce: SPR.spruce.slice(),
+      birch: SPR.birch.slice(),
+      decid: SPR.decid.slice(),
+      bush: BSPR.cur.slice()
+    };
     TRANS.prevSeason = SEASON;
     TRANS.t = 0;
   } else {
@@ -379,6 +411,7 @@ function applySeason(s, smooth) {
       }
     }
   }
+  growSeason();
   spawnAnimals();
   if (smooth) {
     for (const a of ANIMALS) a.fade = 0;
@@ -469,7 +502,14 @@ function drawSkyBehind(tx, ty) {
         gcol = LIGHT.eve ? '#F2A084' : '#F4BCAE';
       const gr = ctx.createLinearGradient(0, L2.by - L2.mx, 0, L2.by);
       const top = mixHex(snowAll && !L2.trees ? mixHex(L2.top, '#E8EDF1', 0.55) : L2.top, gcol, glowK),
-        bot = snowAll ? mixHex(L2.bot, '#DCE3E8', L2.trees ? 0.35 : 0.5) : L2.bot;
+        // the nearest band sits right on the land's northern edge: while snow lies there (winter, and spring
+        // until it melts) its foot is snowy forest floor like the ground in front of it, or the snow would
+        // end in a straight line against a dark band
+        bot = L2.p
+          ? snowAll
+            ? mixHex(L2.bot, '#DCE3E8', L2.trees ? 0.35 : 0.5)
+            : L2.bot
+          : mixHex(L2.bot, '#DCE3E8', 0.8 * (snowAll ? 1 : GROW.maskOn ? GROW.northSnow : 0));
       gr.addColorStop(0, tintHex(top));
       gr.addColorStop(1, tintHex(bot));
       ctx.fillStyle = gr;
@@ -555,7 +595,7 @@ function drawSkyBehind(tx, ty) {
 
 /* ---------- winter snowfall ---------- */
 const FLAKES = [];
-for (let i = 0; i < 220; i++)
+for (let i = 0; i < 440; i++)
   FLAKES.push({
     x: Math.random(),
     y: Math.random(),
@@ -567,21 +607,41 @@ function drawSnowfall(dt) {
   const I = LIGHT.snow;
   if (I < 0.02) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const n = Math.floor(FLAKES.length * I);
-  ctx.fillStyle = `rgba(250,252,255,${0.85 - 0.35 * LIGHT.night})`;
+  // in a storm (weather.js) twice the flakes, driven hard along the wind, and the world whited out behind them
+  const sm = WEATHER.storm,
+    n = Math.floor(FLAKES.length * I * (0.5 + 0.5 * sm)),
+    drive = WIND.x * (0.03 + 0.5 * sm * (0.5 + WEATHER.g));
+  if (sm > 0.02) {
+    ctx.fillStyle = `rgba(228,234,240,${sm * (0.3 - 0.16 * LIGHT.night)})`;
+    ctx.fillRect(0, 0, vw, vh);
+  }
+  ctx.fillStyle = ctx.strokeStyle = `rgba(250,252,255,${0.85 - 0.35 * LIGHT.night})`;
+  // flakes go by as streaks once the wind is really driving them
+  const sx = drive * vw * 0.04,
+    sy = 0.18 * (1 + 0.6 * sm) * vh * 0.04;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
   for (let i = 0; i < n; i++) {
     const f = FLAKES[i];
-    f.y += f.v * dt * 0.18;
-    f.x += (Math.sin(T * 0.8 + f.p) * 0.02 + WIND.x * 0.03 * f.v) * dt;
+    f.y += f.v * dt * 0.18 * (1 + 0.6 * sm);
+    f.x += (Math.sin(T * 0.8 + f.p) * 0.02 * (1 - sm) + drive * f.v) * dt;
     if (f.y > 1) f.y -= 1;
     if (f.x > 1) f.x -= 1;
     if (f.x < 0) f.x += 1;
     const X = (f.x * vw - (((cam.x + WX) * cam.z * 0.5 * f.s) % vw) + vw * 2) % vw,
       Y = (f.y * vh - ((cam.py * cam.z * 0.5 * f.s) % vh) + vh * 2) % vh;
-    ctx.beginPath();
-    ctx.arc(X, Y, f.s, 0, TAU);
-    ctx.fill();
+    if (sm > 0.3) {
+      ctx.moveTo(X, Y);
+      ctx.lineTo(X - sx * f.v * f.s * 0.7, Y - sy * f.v - f.s * 2 * Math.sin(f.p + T * 3));
+    } else {
+      ctx.moveTo(X + f.s, Y);
+      ctx.arc(X, Y, f.s, 0, TAU);
+    }
   }
+  if (sm > 0.3) {
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  } else ctx.fill();
 }
 
 /* ---------- rain ---------- */

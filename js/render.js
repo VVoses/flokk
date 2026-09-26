@@ -412,8 +412,10 @@ function treeSway(t) {
   const stiff = t.type === 'spruce' ? 0.55 : t.type === 'birch' ? 1.25 : 0.95;
   const ph = t.x * 0.013 + t.y * 0.021;
   const flutter = Math.sin(T * 1.7 + ph) * 0.65 + Math.sin(T * 0.6 + ph * 1.7) * 0.35;
-  const lean = WIND.x * amb_gust() * 0.5;
-  return (flutter * 0.04 + lean * 0.035) * stiff;
+  // the gust passing over this tree (weather.js), so you can watch a gust come through a stand tree by tree
+  const g = gustAt(t.x, t.y),
+    lean = Math.cos(WEATHER.ang) * WEATHER.s * (0.25 + g);
+  return (flutter * 0.04 * (0.5 + 0.5 * WEATHER.s + 0.8 * g) + lean * 0.03) * stiff;
 }
 function drawTree(t) {
   const spr = SPR[t.type][t.v],
@@ -432,16 +434,19 @@ function drawTree(t) {
     ctx.drawImage(TRANS.prevSPR[t.type][t.v], x, y, w, h);
     ctx.globalAlpha = e;
   }
-  ctx.drawImage(spr, x, y, w, h);
+  // bare twigs and first leaves under a tree still leafing out, or losing its leaves (grow.js)
+  const la = growUnder(t, x, y, w, h);
+  ctx.globalAlpha *= la;
+  if (la > 0.005) ctx.drawImage(spr, x, y, w, h);
   ctx.globalAlpha = 1;
-  if (LIGHT.rim > 0.04) {
+  if (LIGHT.rim > 0.04 && la > 0.005) {
     const r = RIM[t.type][t.v];
     if (r) {
       const si = LIGHT.rimSide > 0 ? 1 : 0;
-      ctx.globalAlpha = LIGHT.rim * 0.3;
+      ctx.globalAlpha = LIGHT.rim * 0.3 * la;
       ctx.drawImage(r.c[1 - si], x, y, w, h);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28);
+      ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28) * la;
       ctx.drawImage(r.w[si], x, y, w, h);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
@@ -498,13 +503,96 @@ function drawReflections(tk, ty, z) {
   }
   ctx.globalAlpha = 1;
 }
+// a round-headed opening on a wall: Q(u, h) is the wall point; u0..u1 wide, from h0 up to the crown at h1
+function arch(Q, u0, u1, h0, h1, fill, stroke, rise = 3.5) {
+  const m = (u0 + u1) / 2,
+    hw = (u1 - u0) / 2,
+    pts = [Q(u0, h0), Q(u1, h0)];
+  for (let i = 0; i <= 8; i++) {
+    const t = (i / 8) * Math.PI;
+    pts.push(Q(m + hw * Math.cos(t), h1 - rise + rise * Math.sin(t)));
+  }
+  ctx.beginPath();
+  pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+// the church spire: a tall four-sided pyramid on the tower, shingled, with an iron cross at the tip
+function drawSpire(b, P, poly, cols, hl, hd) {
+  const o = 3,
+    c = Math.cos(b.ang),
+    s = Math.sin(b.ang),
+    ap = P(0, 0, b.rh),
+    base = b.wh - 2,
+    faces = [
+      [-hl - o, -hd - o, hl + o, -hd - o, 0, -1],
+      [hl + o, -hd - o, hl + o, hd + o, 1, 0],
+      [hl + o, hd + o, -hl - o, hd + o, 0, 1],
+      [-hl - o, hd + o, -hl - o, -hd - o, -1, 0]
+    ].map(([x1, y1, x2, y2, nx, ny]) => ({ x1, y1, x2, y2, wnx: nx * c - ny * s, wny: nx * s + ny * c }));
+  faces.sort((a, q) => a.wny - q.wny);
+  const ww = winterW();
+  for (const f of faces) {
+    let col = shade(cols, clamp(1 - 0.3 * f.wnx + 0.1 * f.wny, 0.6, 1.15));
+    if (LIGHT.rim > 0.05 && f.wnx * LIGHT.rimSide > 0) col = mixRgb(col, rimCol(), LIGHT.rim * 0.4 * Math.abs(f.wnx));
+    const e0 = P(f.x1, f.y1, base),
+      e1 = P(f.x2, f.y2, base);
+    poly([e0, e1, ap], col, 'rgba(20,15,10,.35)');
+    if (f.wny <= 0) continue;
+    // shingle courses across the face, closer together towards the tip
+    ctx.strokeStyle = 'rgba(0,0,0,.16)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    for (let i = 1; i < 12; i++) {
+      const t = 1 - (1 - i / 12) ** 1.4;
+      ctx.moveTo(lerp(e0[0], ap[0], t), lerp(e0[1], ap[1], t));
+      ctx.lineTo(lerp(e1[0], ap[0], t), lerp(e1[1], ap[1], t));
+    }
+    ctx.stroke();
+    if (ww > 0.5) {
+      // snow only holds in a lip along the flared foot of a spire this steep
+      ctx.strokeStyle = '#F7F9FB';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(e0[0], e0[1]);
+      ctx.lineTo(e1[0], e1[1]);
+      ctx.stroke();
+    }
+  }
+  // iron cross
+  ctx.strokeStyle = '#2E2B28';
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(ap[0], ap[1] + 1);
+  ctx.lineTo(ap[0], ap[1] - 13);
+  ctx.moveTo(ap[0] - 4, ap[1] - 8.5);
+  ctx.lineTo(ap[0] + 4, ap[1] - 8.5);
+  ctx.stroke();
+  ctx.fillStyle = '#C9A95A';
+  ctx.fillRect(ap[0] - 1, ap[1] - 1.5, 2, 2);
+}
+const rnd2 = (b, h, u) => hash2((h * 13 + b.cy) | 0, (u * 1013) | 0);
 /* building: real walls, gable ends and a pitched roof, projected in 2.5D */
 function drawBuilding(b) {
+  // the church draws as its parts (tower, nave, chancel), back to front
+  if (b.parts) {
+    for (const p of b.parts.slice().sort((a, q) => a.cy - q.cy)) drawBuilding(p);
+    return;
+  }
   const c = Math.cos(b.ang),
     s = Math.sin(b.ang),
     hl = b.len / 2,
     hd = b.dep / 2;
-  const P = (lx, ly, h) => [b.cx + lx * c - ly * s, (b.cy + lx * s + ly * c) * TILT - h];
+  const z = b.z || 0, // raised parts (a stave church's nave on its gallery) start this high
+    P = (lx, ly, h) => [b.cx + lx * c - ly * s, (b.cy + lx * s + ly * c) * TILT - h - z];
   const poly = (pts, fill, stroke) => {
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
@@ -526,17 +614,54 @@ function drawBuilding(b) {
   ];
   const wh = b.wh,
     rh = b.rh;
-  for (const [x1, y1, x2, y2, nx, ny, gable] of sides) {
-    const wnx = nx * c - ny * s,
+  // a soft contact shadow where the walls meet the ground (not under parts raised on others)
+  if (!z)
+    for (const g of [7, 4.5, 2])
+      poly(
+        [P(-hl - g, -hd - g, 0), P(hl + g, -hd - g, 0), P(hl + g, hd + g, 0), P(-hl - g, hd + g, 0)],
+        'rgba(20,24,18,.07)'
+      );
+  for (const [x1, y1, x2, y2, nx, ny, gb] of sides) {
+    const gable = gb && !b.spire,
+      wnx = nx * c - ny * s,
       wny = nx * s + ny * c;
     if (wny <= 0.02) continue;
     const lit = clamp(1 - 0.28 * wnx - 0.08, 0.62, 1.12);
-    let col = shade(b.wall, lit);
-    if (LIGHT.rim > 0.05 && wnx * LIGHT.rimSide > 0) col = mixRgb(col, rimCol(), LIGHT.rim * 0.42 * Math.abs(wnx));
+    const wcol = k => {
+      const cc = shade(b.wall, lit * k);
+      return LIGHT.rim > 0.05 && wnx * LIGHT.rimSide > 0 ? mixRgb(cc, rimCol(), LIGHT.rim * 0.42 * Math.abs(wnx)) : cc;
+    };
     const Q = (u, v) => P(lerp(x1, x2, u), lerp(y1, y2, u), v);
+    // walls darken toward the ground, where less sky reaches them
+    const g0 = Q(0.5, 0),
+      g1 = Q(0.5, gable ? rh : wh),
+      col = ctx.createLinearGradient(g0[0], g0[1], g1[0], g1[1]);
+    col.addColorStop(0, wcol(0.8));
+    col.addColorStop(0.3, wcol(0.97));
+    col.addColorStop(1, wcol(1.05));
     poly([Q(0, 0), Q(1, 0), Q(1, wh), Q(0, wh)], col);
     if (gable) poly([Q(0, wh), Q(1, wh), P((x1 + x2) / 2, (y1 + y2) / 2, rh)], col);
-    if (b.wall !== '#E6E0D2') {
+    if (b.stone) {
+      // fieldstone: rough courses of lighter and darker stones in lime mortar
+      const L = Math.hypot(x2 - x1, y2 - y1),
+        top = gable ? rh : wh;
+      for (let hh = 3; hh < top - 2; hh += 5)
+        for (let u = ((hh * 7) % 9) / L; u < 1; u += (rnd2(b, hh, u) * 8) / L + 4 / L) {
+          const cap = gable ? lerp(wh, rh, 1 - Math.abs(u - 0.5) * 2) : wh;
+          if (hh > cap - 2) continue;
+          const k = hash2((u * 997) | 0, (hh * 31 + b.cx) | 0),
+            a = Q(u, hh),
+            w = Math.min(1 - u, (3 + 3 * k) / L),
+            q = Q(u + w, hh + 3);
+          ctx.fillStyle = k < 0.5 ? 'rgba(0,0,0,.1)' : 'rgba(255,250,235,.1)';
+          ctx.fillRect(
+            Math.min(a[0], q[0]),
+            Math.min(a[1], q[1]),
+            Math.abs(q[0] - a[0]) + 0.5,
+            Math.abs(q[1] - a[1]) + 0.5
+          );
+        }
+    } else if (b.wall !== '#E6E0D2') {
       ctx.strokeStyle = 'rgba(0,0,0,.13)';
       ctx.lineWidth = 0.8;
       ctx.beginPath();
@@ -562,6 +687,19 @@ function drawBuilding(b) {
       }
       ctx.stroke();
     }
+    // the overhanging eaves shade the top of the wall; a stone plinth runs along its foot
+    if (!gable) {
+      const e0 = Q(0, wh),
+        d0 = Q(0, wh - 8),
+        eg = ctx.createLinearGradient(e0[0], e0[1], d0[0], d0[1]);
+      eg.addColorStop(0, 'rgba(15,12,10,.36)');
+      eg.addColorStop(1, 'rgba(15,12,10,0)');
+      poly([e0, Q(1, wh), Q(1, wh - 8), d0], eg);
+    }
+    if (!z) {
+      poly([Q(0, 0), Q(1, 0), Q(1, 2.6), Q(0, 2.6)], shade('#8C877D', lit * 0.92));
+      poly([Q(0, 2.6), Q(1, 2.6), Q(1, 3.2), Q(0, 3.2)], 'rgba(0,0,0,.12)');
+    }
     // a house's front door sits in the middle of the side the farmer walks out of, with a stone step
     const front = b.kind === 'house' && ny === 1;
     if (front) {
@@ -576,7 +714,50 @@ function drawBuilding(b) {
       ctx.fillStyle = '#D9C27A';
       ctx.fillRect(k[0] - 0.7, k[1] - 0.7, 1.4, 1.4);
     }
-    if (b.windows) {
+    if (b.portal && nx === -1) {
+      // the church door, facing the road
+      const L = Math.hypot(x2 - x1, y2 - y1),
+        w = 6 / L,
+        tar = b.wall === '#3B2A1F';
+      arch(
+        Q,
+        0.5 - w,
+        0.5 + w,
+        0,
+        Math.min(20, wh * 0.9 + (gable ? (rh - wh) * 0.5 : 0)),
+        shade(tar ? '#6A4A30' : '#4A3226', lit),
+        tar ? '#8A6A48' : '#F1ECE2'
+      );
+    }
+    if (b.spire) {
+      // louvred openings for the bells up top
+      const L = Math.hypot(x2 - x1, y2 - y1);
+      for (const u of [0.32, 0.68]) arch(Q, u - 3.2 / L, u + 3.2 / L, wh * 0.76, wh * 0.9, 'rgba(30,26,22,.85)');
+    } else if (b.tall) {
+      // the church's tall, round-headed windows, none in the gable ends
+      if (!gable) {
+        const L = Math.hypot(x2 - x1, y2 - y1),
+          n = Math.max(1, Math.round(L / 30));
+        for (let i = 0; i < n; i++) {
+          const u = (i + 0.5) / n,
+            w = 4.5 / L;
+          arch(Q, u - w, u + w, wh * 0.22, wh * 0.82, winCol(), '#F4F0E6');
+          // small panes behind white glazing bars
+          const m0 = Q(u, wh * 0.22),
+            m1 = Q(u, wh * 0.8),
+            h0 = Q(u - w, wh * 0.52),
+            h1 = Q(u + w, wh * 0.52);
+          ctx.strokeStyle = 'rgba(244,240,230,.85)';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(m0[0], m0[1]);
+          ctx.lineTo(m1[0], m1[1]);
+          ctx.moveTo(h0[0], h0[1]);
+          ctx.lineTo(h1[0], h1[1]);
+          ctx.stroke();
+        }
+      }
+    } else if (b.windows) {
       const L = Math.hypot(x2 - x1, y2 - y1);
       const n = gable ? 1 : Math.max(front ? 2 : 1, Math.floor(L / 34));
       for (let i = 0; i < n; i++) {
@@ -587,6 +768,12 @@ function drawBuilding(b) {
           u = u < 0.5 ? 0.5 - 0.2 : 0.5 + 0.2;
         }
         poly([Q(u - w, wh * 0.35), Q(u + w, wh * 0.35), Q(u + w, wh * 0.78), Q(u - w, wh * 0.78)], winCol(), '#F4F0E6');
+        // set into the wall: shade under the head, a sill standing out below
+        poly([Q(u - w, wh * 0.78), Q(u + w, wh * 0.78), Q(u + w, wh * 0.7), Q(u - w, wh * 0.7)], 'rgba(0,0,0,.2)');
+        poly(
+          [Q(u - w * 1.3, wh * 0.35), Q(u + w * 1.3, wh * 0.35), Q(u + w * 1.3, wh * 0.3), Q(u - w * 1.3, wh * 0.3)],
+          '#F4F0E6'
+        );
       }
     }
     if (b.door && !gable) {
@@ -608,8 +795,12 @@ function drawBuilding(b) {
     cols = mixHex(
       { tile: '#8A3A2C', slate: '#55575A', turf: '#6F8A48', metal: '#6A7880', dark: '#3A3836' }[b.roof],
       '#E4EAF0',
-      ww
+      b.spire ? ww * 0.45 : ww
     );
+  if (b.spire) {
+    drawSpire(b, P, poly, cols, hl, hd);
+    return;
+  }
   const o = 5;
   const planes = [-1, 1].map(sg => {
     const eave = [P(-hl - o, sg * (hd + o), wh - 3), P(hl + o, sg * (hd + o), wh - 3)];
@@ -620,10 +811,23 @@ function drawBuilding(b) {
   planes.sort((a, b) => a.wy - b.wy);
   for (const pl of planes) {
     const lit = pl.wy < 0 ? 1.12 : 0.86 - 0.1 * pl.wx;
-    let rc = shade(cols, lit);
-    if (LIGHT.rim > 0.05 && pl.wx * LIGHT.rimSide > 0) rc = mixRgb(rc, rimCol(), LIGHT.rim * 0.35 * Math.abs(pl.wx));
-    poly(pl.pts, rc, 'rgba(20,15,10,.35)');
+    const rcol = k => {
+      const cc = shade(cols, lit * k);
+      return LIGHT.rim > 0.05 && pl.wx * LIGHT.rimSide > 0
+        ? mixRgb(cc, rimCol(), LIGHT.rim * 0.35 * Math.abs(pl.wx))
+        : cc;
+    };
     const [e0, e1, r0, r1] = pl.pts;
+    // each roof plane catches a little more light up by the ridge than down at the eaves
+    const rg = ctx.createLinearGradient(
+      (r0[0] + r1[0]) / 2,
+      (r0[1] + r1[1]) / 2,
+      (e0[0] + e1[0]) / 2,
+      (e0[1] + e1[1]) / 2
+    );
+    rg.addColorStop(0, rcol(1.07));
+    rg.addColorStop(1, rcol(0.9));
+    poly(pl.pts, rg, 'rgba(20,15,10,.35)');
     if (ww > 0.5) {
       // snowed over: soft blue towards the eaves, a rounded lip of snow hanging over the edge
       const em = [(e0[0] + e1[0]) / 2, (e0[1] + e1[1]) / 2],
@@ -674,6 +878,21 @@ function drawBuilding(b) {
       ctx.stroke();
     }
   }
+  // the roof's thickness: a board along the front eave and up each gable edge
+  const board = b.trim ? '#ECE6DA' : shade(cols, 0.5);
+  for (const pl of planes) {
+    const [e0, e1, r0, r1] = pl.pts;
+    if (pl.wy > 0) poly([e0, e1, [e1[0], e1[1] + 2.4], [e0[0], e0[1] + 2.4]], board);
+    ctx.strokeStyle = board;
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(e0[0], e0[1]);
+    ctx.lineTo(r1[0], r1[1]);
+    ctx.moveTo(e1[0], e1[1]);
+    ctx.lineTo(r0[0], r0[1]);
+    ctx.stroke();
+  }
   const r0 = P(-hl - o, 0, rh),
     r1 = P(hl + o, 0, rh);
   ctx.strokeStyle = 'rgba(25,18,12,.6)';
@@ -682,6 +901,33 @@ function drawBuilding(b) {
   ctx.moveTo(r0[0], r0[1]);
   ctx.lineTo(r1[0], r1[1]);
   ctx.stroke();
+  ctx.strokeStyle = shade(cols, 1.25);
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(r0[0], r0[1] - 1.1);
+  ctx.lineTo(r1[0], r1[1] - 1.1);
+  ctx.stroke();
+  if (b.dragons) {
+    // carved dragon heads rearing off both gable tips
+    const dl = Math.hypot(r1[0] - r0[0], r1[1] - r0[1]) || 1;
+    ctx.strokeStyle = '#2A1E16';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    for (const [e, sg] of [
+      [r0, -1],
+      [r1, 1]
+    ]) {
+      const ox = ((r1[0] - r0[0]) / dl) * sg,
+        oy = ((r1[1] - r0[1]) / dl) * sg;
+      ctx.moveTo(e[0], e[1]);
+      ctx.quadraticCurveTo(e[0] + ox * 11, e[1] + oy * 11 - 5, e[0] + ox * 9, e[1] + oy * 9 - 16);
+      ctx.lineTo(e[0] + ox * 15, e[1] + oy * 15 - 18);
+      ctx.moveTo(e[0] + ox * 9, e[1] + oy * 9 - 16);
+      ctx.lineTo(e[0] + ox * 12, e[1] + oy * 12 - 13);
+    }
+    ctx.stroke();
+  }
   if (b.chimney) {
     const cx0 = hl * 0.45,
       cy0 = -hd * 0.35,
@@ -849,7 +1095,11 @@ const ASH = {
   cat: [4, 0.22],
   fox: [5, 0.26],
   tractor: [15, 0.7],
-  duck: [6, 0.08]
+  duck: [6, 0.08],
+  starling: [2, 0.1],
+  linnet: [1.6, 0.08],
+  fieldfare: [2.4, 0.13],
+  bunting: [1.8, 0.09]
 };
 function renderShadows(tx, ty, KS, inK) {
   if (!SSPR) SSPR = { spruce: SPR.spruce.map(mkSil), birch: SPR.birch.map(mkSil), decid: SPR.decid.map(mkSil) };
@@ -905,37 +1155,41 @@ function renderShadows(tx, ty, KS, inK) {
     // buildings: the projected volume (footprint, eaves and ridge)
     trainShadowHulls(c);
     vehicleShadows(c);
-    for (const b of BUILDS) {
-      if (!visG(b.cx, b.cy, b.len + 180)) continue;
-      const cs = Math.cos(b.ang),
-        sn = Math.sin(b.ang),
-        hl = b.len / 2 + 4,
-        hd = b.dep / 2 + 4,
-        pts = [];
-      const P = (lx, ly, h) => {
-        const q = h / HZ;
-        pts.push([b.cx + lx * cs - ly * sn + q * SX, b.cy + lx * sn + ly * cs + q * SY]);
-      };
-      for (const [lx, ly] of [
-        [-hl, -hd],
-        [hl, -hd],
-        [hl, hd],
-        [-hl, hd]
-      ]) {
-        P(lx, ly, 0);
-        P(lx, ly, b.wh);
+    for (const b0 of BUILDS)
+      for (const b of b0.parts || [b0]) {
+        if (!visG(b0.cx, b0.cy, b0.len + (b0.parts ? 480 : 180))) break;
+        const cs = Math.cos(b.ang),
+          sn = Math.sin(b.ang),
+          hl = b.len / 2 + 4,
+          hd = b.dep / 2 + 4,
+          pts = [];
+        const P = (lx, ly, h) => {
+          const q = (h + (b.z || 0)) / HZ;
+          pts.push([b.cx + lx * cs - ly * sn + q * SX, b.cy + lx * sn + ly * cs + q * SY]);
+        };
+        for (const [lx, ly] of [
+          [-hl, -hd],
+          [hl, -hd],
+          [hl, hd],
+          [-hl, hd]
+        ]) {
+          P(lx, ly, 0);
+          P(lx, ly, b.wh);
+        }
+        if (b.spire) P(0, 0, b.rh);
+        else {
+          P(-hl, 0, b.rh);
+          P(hl, 0, b.rh);
+        }
+        if (b.chimney) {
+          P(hl * 0.45, -hd * 0.35, b.rh + 14);
+        }
+        const H2 = hull(pts);
+        c.beginPath();
+        H2.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
+        c.closePath();
+        c.fill();
       }
-      P(-hl, 0, b.rh);
-      P(hl, 0, b.rh);
-      if (b.chimney) {
-        P(hl * 0.45, -hd * 0.35, b.rh + 14);
-      }
-      const H2 = hull(pts);
-      c.beginPath();
-      H2.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
-      c.closePath();
-      c.fill();
-    }
     // poles, crossarms and sagging wires
     c.lineWidth = 3.5;
     c.beginPath();
@@ -984,7 +1238,7 @@ function renderShadows(tx, ty, KS, inK) {
     }
     c.stroke();
     // bales, rocks, animals: capsules stretched along the sun
-    if (SEASON >= 2) for (const b of BALES) if (visG(b.x, b.y, 40)) cap(b.x, b.y, BALE_H, b.r * 2);
+    if (SEASON >= 2) for (const b of BALES) if (baleShown(b) && visG(b.x, b.y, 40)) cap(b.x, b.y, BALE_H, b.r * 2);
     for (const l of LAMPS) if (visG(l.x, l.y, 140)) cap(l.x, l.y, 2.3, 2.6);
     propShadows(c, cap);
     if (FEEDER && SEASON === 3 && visG(FEEDER.x, FEEDER.y, 120)) cap(FEEDER.x, FEEDER.y, 1.6, 3);
@@ -1049,6 +1303,23 @@ function renderShadows(tx, ty, KS, inK) {
     c.strokeStyle = SHADE;
   }
 }
+// the ground's last SEAM_U units and first SEAM_U units side by side, rebuilt when the ground canvas changes
+const SEAM_U = 10, // 6 whole pixels of the ground canvas each side
+  SEAMC = new WeakMap();
+function seamStrip(img) {
+  let c = SEAMC.get(img);
+  if (!c || c.ver !== img.ver) {
+    if (!c) SEAMC.set(img, (c = document.createElement('canvas')));
+    const u = Math.round(SEAM_U * S);
+    c.width = 2 * u;
+    c.height = img.height;
+    const x = c.getContext('2d');
+    x.drawImage(img, img.width - u, 0, u, img.height, 0, 0, u, img.height);
+    x.drawImage(img, 0, 0, u, img.height, u, 0, u, img.height);
+    c.ver = img.ver;
+  }
+  return c;
+}
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
@@ -1089,27 +1360,46 @@ function render() {
       ctx.fill();
     }
   }
-  for (const k of KS) {
-    const tk = inK(k);
-    ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
-    const sx = Math.max(0, V.x0),
-      sy = Math.max(0, gy0),
-      ex = Math.min(W, V.x1),
-      ey = Math.min(H, gy1);
-    if (ex > sx && ey > sy) {
-      // at the seam, overlap each copy by a few units of its neighbour so antialiased edges never leave a hairline
-      const blit = img => {
+  /* every copy's ground first, then every copy's snow-and-straw layer on top: the ground blit runs a few
+     units past each seam, and done copy by copy it would paint over the neighbour's snow there in a line */
+  for (const pass of [0, 1])
+    for (const k of KS) {
+      const tk = inK(k);
+      ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
+      const sx = Math.max(0, V.x0),
+        sy = Math.max(0, gy0),
+        ex = Math.min(W, V.x1),
+        ey = Math.min(H, gy1);
+      if (!(ex > sx && ey > sy)) continue;
+      // where this copy meets its eastern neighbour, lay one strip of ground straddling the seam (the land's
+      // last few units and its first few, side by side) so neither copy's antialiased edge ends on bare
+      // background. Only this copy draws it: the neighbour only paints its own ground from the seam east
+      const blit = (img, sy, ey) => {
         ctx.drawImage(img, sx * S, sy * S, (ex - sx) * S, (ey - sy) * S, sx, sy, ex - sx, ey - sy);
-        if (ex >= W) ctx.drawImage(img, 0, sy * S, 4 * S, (ey - sy) * S, W, sy, 4, ey - sy);
-        if (sx <= 0) ctx.drawImage(img, (W - 4) * S, sy * S, 4 * S, (ey - sy) * S, -4, sy, 4, ey - sy);
+        if (ex >= W) {
+          const q = seamStrip(img);
+          ctx.drawImage(q, 0, sy * S, q.width, (ey - sy) * S, W - SEAM_U, sy, 2 * SEAM_U, ey - sy);
+        }
       };
-      blit(G);
-      if (TRANS.prevG) {
-        ctx.globalAlpha = 1 - tEase();
-        blit(TRANS.prevG);
-        ctx.globalAlpha = 1;
+      const paint = (sy, ey) => {
+        if (pass) return growGround(sx, sy, ex, ey);
+        blit(G, sy, ey);
+        if (TRANS.prevG) {
+          ctx.globalAlpha = 1 - tEase();
+          blit(TRANS.prevG, sy, ey);
+          ctx.globalAlpha = 1;
+        }
+      };
+      paint(sy, ey);
+      // north of y=0 the land runs on under the ridges: mirror the top rows up into that strip, so the
+      // forest floor (snow in winter) carries on instead of stopping in a straight line against a flat fill
+      if (gy0 < 0) {
+        ctx.setTransform(dpr * z, 0, 0, -dpr * z * TILT, tk, ty);
+        paint(0, Math.min(H, 150, -gy0));
       }
     }
+  for (const k of KS) {
+    const tk = inK(k);
     if (winterW() < 0.5) drawReflections(tk, ty, z);
     ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
     ctx.strokeStyle = LIGHT.rim > 0.05 ? mixHex('#E8F4EE', LIGHT.eve ? '#FFB060' : '#FFCDA8', LIGHT.rim) : '#E8F4EE';
@@ -1127,6 +1417,12 @@ function render() {
         ctx.lineTo(s.x + s.l / 2, s.y);
         ctx.stroke();
       }
+    {
+      const sc = ctx.strokeStyle;
+      drawDew();
+      ctx.strokeStyle = sc;
+      ctx.lineWidth = 2;
+    }
     for (const s of SEASPARK) {
       if (!visG(s.x, s.y, 10)) continue;
       const a = Math.max(0, Math.sin(T * s.s + s.p));
@@ -1192,12 +1488,29 @@ function render() {
       ctx.fillRect(8, -5, 3, 10);
       ctx.restore();
     }
-    for (const c of CLOUDSH) {
-      if (c.x + c.s < V.x0 || c.x - c.s > V.x1 || c.y + c.s < gy0 || c.y - c.s > gy1) continue;
-      ctx.globalAlpha = 0.38 * LIGHT.shadowA;
-      ctx.drawImage(SHADOW_SPR, c.x - c.s, c.y - c.s, c.s * 2, c.s * 2);
+    // each copy shades only its own stretch of land (cut on whole device pixels, like the snow), with the
+    // cloud shadows and mist that reach it from across the seam included, so one crossing the seam stays whole
+    ctx.save();
+    {
+      const m = ctx.getTransform(),
+        snap = x => (Math.round(m.a * x + m.e) - m.e) / m.a,
+        x0 = snap(0);
+      ctx.beginPath();
+      ctx.rect(x0, gy0 - 10, snap(W) - x0, gy1 - gy0 + 20);
+      ctx.clip();
     }
+    ctx.globalAlpha = 0.38 * LIGHT.shadowA;
+    for (const c of CLOUDSH)
+      for (const ox of [0, -W, W]) {
+        const x = c.x + ox;
+        if (x + c.s < Math.max(0, V.x0) || x - c.s > Math.min(W, V.x1) || c.y + c.s < gy0 || c.y - c.s > gy1) continue;
+        ctx.drawImage(SHADOW_SPR, x - c.s, c.y - c.s, c.s * 2, c.s * 2);
+      }
     ctx.globalAlpha = 1;
+    drawMist(); // the mist banks likewise
+    ctx.restore();
+    // gusts, spindrift, rain rings and fallen leaves are in flock coordinates, so they draw once, unclipped, in the k=0 copy
+    if (k === 0) drawWeatherGround();
   }
   V = V0;
   if (LIGHT.shadowA > 0.02) {
@@ -1235,7 +1548,7 @@ function render() {
     for (const b of BUILDS) if (visU(b.cx, b.cy, b.len, b.rh + b.len * 0.6)) items.push([b.cy, 1, b, k]);
     for (const line of LINES)
       for (const p of line) if (!p.ghost && visU(p.x, p.y, 14, POLE_H * HZ)) items.push([p.y, 2, p, k]);
-    if (SEASON >= 2) for (const b of BALES) if (visU(b.x, b.y, 14, 16)) items.push([b.y, 3, b, k]);
+    if (SEASON >= 2) for (const b of BALES) if (baleShown(b) && visU(b.x, b.y, 14, 16)) items.push([b.y, 3, b, k]);
     for (const f of FSEG) if (visU(f.p.x, f.p.y, 40, 16)) items.push([f.k, 4, f, k]);
     for (const b of BOULDERS) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 6, b, k]);
     for (const b of BUSHES) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 13, b, k]);
@@ -1464,6 +1777,7 @@ function render() {
   }
   V = V0;
   setK(0);
+  drawWeatherAir();
   if (pointer.down && st.mode === 'play') {
     const w = screenToWorld(pointer.x, pointer.y, L.z);
     ctx.strokeStyle = 'rgba(242,201,76,.65)';
@@ -1482,16 +1796,19 @@ function render() {
       setK(k);
       drawSkyAnimal(a);
     }
+  drawFog();
   applyLight(tx, ty, KS, inK);
   V = V0;
   drawSkyBehind(tx, ty);
   applyGlaze();
+  drawRays();
   drawSnowfall(lastDt);
   drawRain(lastDt);
   /* ---- screen space ---- */
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const haze = ctx.createLinearGradient(0, 0, 0, vh * 0.45);
-  haze.addColorStop(0, LIGHT.skyBot + (LIGHT.night > 0.5 ? '18' : '3a'));
+  // a misty morning softens the distance too
+  haze.addColorStop(0, LIGHT.skyBot + (LIGHT.night > 0.5 ? '18' : hex2(0.23 + 0.3 * AIR.mist)));
   haze.addColorStop(1, LIGHT.skyBot + '00');
   ctx.fillStyle = haze;
   ctx.fillRect(0, 0, vw, vh * 0.45);
@@ -1507,7 +1824,8 @@ function render() {
       sy2 = (PY(h.y, h.z) - cam.py) * z + vh / 2;
     if (sx2 > -20 && sx2 < vw + 20 && sy2 > -20 && sy2 < vh + 20) continue;
     const dist = Math.hypot(h.x - L.x, h.y - L.y);
-    if (dist > 1600 || h.state === 'carry' || h.state === 'leave') continue;
+    // in fog or a blizzard you get far less warning
+    if (dist > 1600 * seeK() || h.state === 'carry' || h.state === 'leave') continue;
     const a = Math.atan2(sy2 - vh / 2, sx2 - vw / 2);
     const m = 34;
     const ex2 = clamp(vw / 2 + Math.cos(a) * vw, m, vw - m),
@@ -1515,7 +1833,7 @@ function render() {
     ctx.save();
     ctx.translate(ex2, ey2);
     ctx.rotate(a);
-    ctx.globalAlpha = clamp(1.3 - dist / 1600, 0.3, 1);
+    ctx.globalAlpha = clamp(1.3 - dist / (1600 * seeK()), 0.3, 1);
     ctx.fillStyle = h.state === 'patrol' ? '#E0A33F' : '#E5573F';
     ctx.beginPath();
     ctx.moveTo(12, 0);

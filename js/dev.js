@@ -42,6 +42,13 @@ window.dev = {
     TRANS.prevG = null;
     TRANS.prevSPR = null;
   },
+  // pin how far through the season the land is (0..1) for gradual-change screenshots; no argument unpins
+  grow(p) {
+    DEV.growP = p;
+    GROW.mKey = '';
+    GROW.mT = 0;
+    growTick(0);
+  },
   hour(h) {
     const day = Math.floor(CAL.t / DAY_LEN);
     CAL.t = day * DAY_LEN + (((h - START_HOUR + 24) % 24) / 24) * DAY_LEN;
@@ -50,6 +57,12 @@ window.dev = {
   // first animal of a kind, and a hawk circling right here
   find(k) {
     return ANIMALS.find(a => a.k === k && !a.dying);
+  },
+  // a small wild flock (starling, linnet, fieldfare, bunting) flying in to a field near the flock now
+  wild(sp = 'starling') {
+    for (const F of WILD.flocks) for (const a of F.members) a.life = 0;
+    WILD.flocks = [];
+    return !!spawnWild(sp);
   },
   hawk(kind = 'hawk') {
     st.grace = 0;
@@ -63,6 +76,16 @@ window.dev = {
   land() {
     st.settleCool = 0;
     settle();
+  },
+  // pin the weather: dev.weather({ s: 1.5, ang: 0, fog: 0.8 }) (wind strength, where it blows, fog); no argument unpins
+  weather(o) {
+    if (!o) return (WEATHER.pin = null);
+    const p = {};
+    if (o.s !== undefined) p.sT = WEATHER.s = o.s;
+    if (o.ang !== undefined) p.angT = WEATHER.ang = o.ang;
+    if (o.fog !== undefined) p.fogT = WEATHER.fog = o.fog;
+    WEATHER.pin = p;
+    weatherTick(0);
   },
   stats() {
     return {

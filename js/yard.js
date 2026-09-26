@@ -1,5 +1,5 @@
 /* Flokk - yard.js
-   Farmyard things: a flagpole with its pennant, a woodpile, a clothesline, a wheelbarrow.
+   Farmyard things: a flagpole with its pennant, a woodpile, a clothesline, a wheelbarrow; graves in the churchyard.
    Placed once per land by buildLights (light.js); drawn as painter items (kind 12).
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
@@ -11,8 +11,7 @@ function yardSpot(Y, taken, m, pref) {
   let best = null,
     bs = 1e9;
   for (let i = 0; i < 80; i++) {
-    const x = rnd(Y.x + 34, Y.x + Y.w - 34),
-      y = rnd(Y.y + 34, Y.y + Y.h - 34);
+    const [x, y] = yardAt(Y, rnd(34, Y.lw - 34) / Y.lw, rnd(34, Y.lh - 34) / Y.lh);
     if (buildAt(x, y, m)) continue;
     if (taken.some(t => Math.hypot(t[0] - x, t[1] - y) < (t[2] || 0) + m + 18)) continue;
     if (Y.gate && Math.hypot(Y.gate[0] - x, Y.gate[1] - y) < 60) continue;
@@ -76,6 +75,31 @@ function placeProps(fm, taken) {
       ang: rnd(-0.5, 0.5)
     });
 }
+// the churchyard's graves: rows either side of the church, the old stones leaning, a few iron crosses
+function placeGraves(C) {
+  const Y = C.yard;
+  for (let u = -Y.lw / 2 + 30; u <= Y.lw / 2 - 30; u += rnd(26, 32))
+    for (let v = -Y.lh / 2 + 34; v <= Y.lh / 2 - 26; v += rnd(20, 26)) {
+      if (R() < 0.3) continue;
+      const [x, y] = yardWorld(Y, u + rnd(-5, 5), v + rnd(-3, 3));
+      if (buildAt(x, y, 22) || Math.hypot(x - Y.door[0], y - Y.door[1]) < 34) continue;
+      const [du] = yardLocal(Y, ...Y.door);
+      if (Math.abs(u - du) < 22 && v * Y.side < 0) continue; // off the path
+      const k = R(),
+        old = R() < 0.5;
+      PROPS.push({
+        k: 'grave',
+        x,
+        y,
+        shape: k < 0.14 ? 'cross' : k < 0.6 ? 'round' : 'slab',
+        w: rnd(6, 9),
+        h: rnd(8, 14),
+        lean: old ? rnd(-0.18, 0.18) : rnd(-0.03, 0.03),
+        col: old ? ['#8A877E', '#7E7C74', '#9A9588'][(R() * 3) | 0] : ['#6E6E6C', '#A8A69E', '#4E4E50'][(R() * 3) | 0],
+        moss: old ? rnd(0.2, 0.6) : 0
+      });
+    }
+}
 function propShadows(c, cap) {
   for (const p of PROPS) {
     if (!visG(p.x, p.y, 200)) continue;
@@ -88,12 +112,63 @@ function propShadows(c, cap) {
       cap(p.x - 22, p.y, LINE_H, 1.6);
       cap(p.x + 22, p.y, LINE_H, 1.6);
     } else if (p.k === 'barrow') cap(p.x, p.y, 0.25, 9);
+    else if (p.k === 'grave') cap(p.x, p.y, p.h / HZ, p.w * 0.8);
   }
 }
 function drawProp(p) {
   const X = p.x,
     gy = p.y * TILT,
     snow = SEASON === 3;
+  if (p.k === 'grave') {
+    ctx.save();
+    ctx.translate(X, gy);
+    ctx.rotate(p.lean);
+    const w = p.w,
+      h = p.h;
+    if (p.shape === 'cross') {
+      ctx.strokeStyle = '#2E2B28';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -h - 2);
+      ctx.moveTo(-w * 0.4, -h + 2.5);
+      ctx.lineTo(w * 0.4, -h + 2.5);
+      ctx.stroke();
+      if (snow) {
+        ctx.fillStyle = '#F4F7FA';
+        ctx.fillRect(-w * 0.45, -h + 0.8, w * 0.9, 1.2);
+      }
+    } else {
+      const top = p.shape === 'round' ? w / 2 : 1;
+      ctx.fillStyle = shade(p.col, 0.72);
+      ctx.fillRect(w / 2 - 0.5, -h + top, 1.6, h - top);
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, 0);
+      ctx.lineTo(-w / 2, -h + top);
+      if (p.shape === 'round') ctx.arc(0, -h + top, w / 2, Math.PI, 0);
+      else ctx.lineTo(w / 2, -h + top);
+      ctx.lineTo(w / 2, 0);
+      ctx.closePath();
+      ctx.fill();
+      if (p.moss && !snow) {
+        ctx.fillStyle = `rgba(150,160,90,${p.moss})`;
+        ctx.fillRect(-w / 2, -h * 0.3, w, h * 0.3);
+      }
+      ctx.fillStyle = 'rgba(0,0,0,.25)';
+      ctx.fillRect(-w * 0.25, -h * 0.62, w * 0.5, 0.8);
+      ctx.fillRect(-w * 0.2, -h * 0.5, w * 0.4, 0.8);
+      if (snow) {
+        ctx.fillStyle = '#F4F7FA';
+        ctx.beginPath();
+        if (p.shape === 'round') ctx.arc(0, -h + top, w / 2 + 0.4, Math.PI * 1.1, -Math.PI * 0.1);
+        else ctx.rect(-w / 2 - 0.3, -h + top - 1.4, w + 0.6, 1.8);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+    return;
+  }
   if (p.k === 'flag') {
     const top = PY(p.y, FLAG_H);
     ctx.strokeStyle = '#E8E6DE';
