@@ -713,6 +713,7 @@ function drawBuilding(b) {
       const k = Q(0.5 + w * 0.55, wh * 0.4);
       ctx.fillStyle = '#D9C27A';
       ctx.fillRect(k[0] - 0.7, k[1] - 0.7, 1.4, 1.4);
+      if (b.jul && b.jul.out) julWreath(...Q(0.5, wh * 0.56));
     }
     if (b.portal && nx === -1) {
       // the church door, facing the road
@@ -774,6 +775,8 @@ function drawBuilding(b) {
           [Q(u - w * 1.3, wh * 0.35), Q(u + w * 1.3, wh * 0.35), Q(u + w * 1.3, wh * 0.3), Q(u - w * 1.3, wh * 0.3)],
           '#F4F0E6'
         );
+        // on Christmas Eve a star and a candle bridge in the front windows (jul.js)
+        if (front && b.jul && b.jul.out && (i === 0 || i === n - 1)) julWindow(Q, u, w, wh, i, b.jul.on);
       }
     }
     if (b.door && !gable) {
@@ -883,6 +886,7 @@ function drawBuilding(b) {
   for (const pl of planes) {
     const [e0, e1, r0, r1] = pl.pts;
     if (pl.wy > 0) poly([e0, e1, [e1[0], e1[1] + 2.4], [e0[0], e0[1] + 2.4]], board);
+    if (pl.wy > 0 && b.jul && b.jul.out) julEave(b.jul, e0, e1);
     ctx.strokeStyle = board;
     ctx.lineWidth = 1.6;
     ctx.lineCap = 'round';
@@ -1664,6 +1668,7 @@ function render() {
     for (const p of PROPS) if (visU(p.x, p.y, 50, 190)) items.push([p.y + 7, 12, p, k]);
     for (const s of XSIGNS) if (visU(s.x, s.y, 20, 60)) items.push([s.y, 14, s, k]);
     if (FEEDER && SEASON === 3 && visU(FEEDER.x, FEEDER.y, 20, 90)) items.push([FEEDER.y, 9, FEEDER, k]);
+    if (SANK.on && visU(SANK.x, SANK.y, 60, 90)) items.push([SANK.y, 17, SANK, k]);
     for (const a of ANIMALS) {
       if (isSky(a)) {
         if (visU(a.x, a.y, 40, a.z * HZ + 30)) skyA.push([a, k]);
@@ -1707,6 +1712,7 @@ function render() {
     else if (kind === 11) drawVehicle(o);
     else if (kind === 12) drawProp(o);
     else if (kind === 14) drawXSign(o);
+    else if (kind === 17) drawSankFire(o);
     else if (kind === 7) drawAnimal(o);
     else if (kind === 16)
       drawWeatherBand(o); // 15 and 16 belong to weather.js (weatherItems)

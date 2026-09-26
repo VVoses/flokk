@@ -113,12 +113,14 @@ function propShadows(c, cap) {
       cap(p.x + 22, p.y, LINE_H, 1.6);
     } else if (p.k === 'barrow') cap(p.x, p.y, 0.25, 9);
     else if (p.k === 'grave') cap(p.x, p.y, p.h / HZ, p.w * 0.8);
+    else if (p.k === 'nek' && p.jul.out) cap(p.x, p.y, NEK_H, 1.8);
   }
 }
 function drawProp(p) {
   const X = p.x,
     gy = p.y * TILT,
     snow = SEASON === 3;
+  if (p.jul) return drawJulProp(p); // Christmas Eve (jul.js)
   if (p.k === 'grave') {
     ctx.save();
     ctx.translate(X, gy);

@@ -187,6 +187,7 @@ function buildLights() {
       );
     }
   }
+  buildJul();
 }
 const LMC = document.createElement('canvas'),
   lmx = LMC.getContext('2d');
@@ -330,7 +331,7 @@ function applyLight(tx, ty, KS, inK) {
   c.fillRect(0, 0, w, h);
   const nf = LIGHT.night;
   if (nf > 0.02) {
-    const src = LIGHTS.concat(trainLights(), trafficLights());
+    const src = LIGHTS.concat(trainLights(), trafficLights(), julLights(), sankLights());
     if (L && birds.includes(L)) src.push({ x: L.x, y: L.y, h: L.z, r: 170, i: 0.32, fl: 0, soft: 1 });
     const K = l => nf * l.i * (l.fl ? 0.93 + 0.07 * Math.sin(T * 11 + l.x) : 1);
     // 1. the light on the ground: round pools, and the beams thrown ahead of vehicles
@@ -342,7 +343,7 @@ function applyLight(tx, ty, KS, inK) {
         for (const l of src) {
           if (!visU(l.x, l.y, l.r * 1.4, l.h * HZ + l.r)) continue;
           const k = K(l);
-          const col = pass === 'lighter' ? (l.soft ? '150,170,210' : '255,176,96') : '0,0,0';
+          const col = pass === 'lighter' ? (l.soft ? '150,170,210' : l.col || '255,176,96') : '0,0,0';
           const kk = pass === 'lighter' ? k * (l.soft ? 0.05 : 0.2) : k * 0.95;
           c.save();
           c.translate(l.x, l.y * TILT);
@@ -440,7 +441,7 @@ function applyLight(tx, ty, KS, inK) {
             }
           if (vis < 0.02) continue;
           const k = K(l) * vis;
-          const col = pass === 'lighter' ? (l.soft ? '150,170,210' : '255,176,96') : '0,0,0';
+          const col = pass === 'lighter' ? (l.soft ? '150,170,210' : l.col || '255,176,96') : '0,0,0';
           const kk = pass === 'lighter' ? k * (l.soft ? 0.05 : 0.2) : k * 0.95;
           const hr = l.dir !== undefined ? 12 : l.r * 0.55;
           const gr = c.createRadialGradient(X, Y, 0, X, Y, hr);
