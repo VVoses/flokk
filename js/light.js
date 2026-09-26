@@ -377,9 +377,12 @@ function applyLight(tx, ty, KS, inK) {
       OCC.height = h;
     }
     const o = ocx;
+    // the set of trees covering a light is pure world-space geometry, independent of which repeated
+    // copy of the map (kk2) we're drawing it into, so the grid scan only needs to run once per frame
+    const over = treesOver(src, new Set());
     for (const kk2 of KS) {
       const tk = inK(kk2);
-      for (const t of treesOver(src, new Set())) {
+      for (const t of over) {
         if (!visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) continue;
         near.add(t);
         const k = t.k,
