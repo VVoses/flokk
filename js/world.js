@@ -629,6 +629,10 @@ function genLayout() {
       for (let gx = yard.x - 80; gx <= yard.x + yard.w + 80; gx += 60)
         for (let gy = yard.y - 80; gy <= yard.y + yard.h + 80; gy += 60)
           if (railDist(gx, gy) < 70) bad += inYard(yard, gx, gy, 20) ? 60 : 8;
+      // the road passes the yard, never through a corner of it
+      for (let gx = yard.x; gx <= yard.x + yard.w; gx += 30)
+        for (let gy = yard.y; gy <= yard.y + yard.h; gy += 30)
+          if (inYard(yard, gx, gy, 20) && roadDist(gx, gy) < 40) bad += 80;
       const fm = { px: p[0], py: p[1], side, cx, cy, yard, small, horiz, main };
       if (bad === 0) return fm;
       if (bad < bestBad) {
@@ -777,11 +781,15 @@ function genLayout() {
     fm.lane = LANES.length;
     fm.yard.gate = [ex + Ax * 30, ey + Ay * 30];
     fm.yard.builds = fm.builds || [];
+    // and leaves the road at the point nearest the gate, so it never runs alongside the road first
+    const gx = ex + Ax * 30,
+      gy = ey + Ay * 30,
+      r0 = ROAD.reduce((b, q) => (Math.hypot(q[0] - gx, q[1] - gy) < Math.hypot(b[0] - gx, b[1] - gy) ? q : b));
     LANES.push(
       catmull([
-        [fm.px, fm.py],
-        [lerp(fm.px, ex, 0.5) + rnd(-20, 20), lerp(fm.py, ey, 0.5)],
-        [ex + Ax * 30, ey + Ay * 30]
+        [r0[0], r0[1]],
+        [lerp(r0[0], ex, 0.5) + rnd(-12, 12), lerp(r0[1], ey, 0.5)],
+        [gx, gy]
       ])
     );
   };
