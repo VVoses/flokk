@@ -50,7 +50,7 @@ function update(dt) {
     // energy: cold and flying at night cost more; roosting under cover costs less
     const nightNow = LIGHT.night > 0.5,
       roost = st.settled && L.state === 'perch' && coveredNow(L);
-    let drain = 0.0062 * [1, 0.8, 1.1, 1.6][SEASON];
+    let drain = 0.0062 * [1, 0.8, 1.1, 1.75][SEASON];
     if (nightNow) drain *= roost ? 0.55 : 1.35;
     // a winter storm cuts through anything but the thickest cover
     if (!roost) drain *= 1 + 0.45 * WEATHER.storm;
@@ -218,7 +218,7 @@ function update(dt) {
       }
     if (kind) {
       const active = hawks.filter(h => h.kind === kind && h.state !== 'carry' && h.state !== 'leave').length;
-      let want = st.grace > 0 ? 0 : Math.min(7, Math.max(1, 1 + Math.floor((birds.length - 5) / 8)));
+      let want = st.grace > 0 ? 0 : Math.min(7, Math.max(1, 1 + Math.floor((birds.length - 5) / 6)));
       if (kind === 'owl') want = Math.min(2, want);
       if (SEASON === 3 && kind === 'hawk') want = Math.min(2, want);
       if (active < want && st.hawkT <= 0 && birds.some(exposed)) {

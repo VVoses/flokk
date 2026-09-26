@@ -90,7 +90,7 @@ function catchBird(h, b) {
   if (b.perch && b.perch.occ === b) b.perch.occ = null;
   st.lost++;
   feathers(b.x, b.y, b.z, b.c2);
-  thud();
+  thud(h.kind, h.bold, birds.length === 0);
   h.state = 'carry';
   h.target = null;
   h.prey = b;
@@ -235,7 +235,7 @@ function updateHawk(h, dt) {
       if (h.bored > h.patience) {
         h.state = 'leave';
         h.t = 0;
-        st.hawkT = Math.max(st.hawkT, rr(14, 22));
+        st.hawkT = Math.max(st.hawkT, rr(9, 15));
         break;
       }
       if (h.scan <= 0) {
@@ -567,12 +567,7 @@ function perchUpdate(b, dt) {
       st.eaten += 1;
       feed(p.type === 'feeder' ? 0.03 : 0.04);
       sparkle(b.x + b.hx, b.y + b.hy, b.z + 0.1, rowan ? '#E0503A' : '#E7C98A');
-      let need = needFor(birds.length);
-      while (st.food >= need) {
-        st.food -= need;
-        joinBird();
-        need = needFor(birds.length);
-      }
+      tryGrow();
     }
   }
 }
