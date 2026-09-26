@@ -50,7 +50,11 @@ body {
   padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px 0;
   pointer-events: none;
   text-shadow: 0 1px 12px rgba(10, 16, 12, 0.45);
-  z-index: 2; /* above the overlays, so mute, pause and the year bar stay usable on every screen */
+  z-index: 2; /* above the overlays, so mute, pause and the year bar stay usable during play and pause */
+}
+/* title and win/game-over screens are meant to read as clean and atmospheric, not gameplay HUD */
+body.no-hud .hud {
+  display: none;
 }
 .hud::before {
   /* a faint shade behind the corners keeps the HUD readable over snow and bright sky */

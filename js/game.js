@@ -640,6 +640,7 @@ function startGame() {
   $('pauseOv').hidden = true;
   pauseIcon(false);
   dashBtn.hidden = !coarse;
+  syncHud();
   seasonBanner();
   setTimeout(() => {
     if (st.mode === 'play') teach('goal', 'bring the flock safely through to spring');
@@ -652,6 +653,7 @@ function yearWon() {
   $('wonTitle').textContent = CAL.year > 1 ? `${CAL.year} years` : 'A year';
   $('wonOv').hidden = false;
   dashBtn.hidden = true;
+  syncHud();
   $('keepBtn').focus();
 }
 function keepFlying() {
@@ -659,12 +661,17 @@ function keepFlying() {
   st.mode = 'play';
   $('wonOv').hidden = true;
   dashBtn.hidden = !coarse;
+  syncHud();
   applySeason(0, true);
   refreshInsects();
   seasonBanner();
 }
 function hideBanner() {
   $('banner').classList.remove('show');
+}
+// the title and win/game-over screens read as clean and atmospheric, not gameplay HUD
+function syncHud() {
+  document.body.classList.toggle('no-hud', st.mode === 'title' || st.mode === 'won' || st.mode === 'over');
 }
 // the pause button shows play while paused
 function pauseIcon(paused) {
@@ -693,6 +700,7 @@ function gameOver() {
   $('overStats').innerHTML = overHTML();
   $('overOv').hidden = false;
   dashBtn.hidden = true;
+  syncHud();
   $('againBtn').focus();
 }
 $('startBtn').onclick = startGame;
@@ -719,6 +727,7 @@ $('muteBtn').onclick = () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && st.mode === 'play') pause();
 });
+syncHud();
 
 /* ---------- particles ---------- */
 function feathers(x, y, z, col) {
