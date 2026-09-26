@@ -1851,7 +1851,8 @@ function audioTick(dt) {
       TRAIN.honked = true;
       // quieter than before - it was the loudest single sound in the mix and jumped out over
       // everything else; now it's closer in level to the rumble and road/rain beds it plays over
-      horn(0.028 + 0.045 * pr);
+      const lx = TRAIN.cars[0].x;
+      horn(0.028 + 0.045 * pr, TRAIN, clamp(wdx(lx, L.x) / 900, -0.8, 0.8));
     }
   }
   amb.hg.gain.setTargetAtTime(0.006 * clamp(1 - sd / 240, 0, 1) ** 1.5, now, 0.3);
