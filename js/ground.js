@@ -31,14 +31,15 @@ function strokePoly(c, P, w, col) {
   c.lineCap = 'round';
   c.stroke();
 }
-// a farmyard's outline: its rounded rectangle, pushed in and out by noise so no two yards are the same shape
+// a farmyard's outline: its rounded rectangle, pushed in and out by noise so no two yards are the same shape;
+// built in the yard's own frame and turned with it
 function yardPath(c, Y, grow) {
   const r = 46,
     n = 96,
-    x0 = Y.x,
-    y0 = Y.y,
-    w = Y.w,
-    h = Y.h,
+    w = Y.lw,
+    h = Y.lh,
+    x0 = -w / 2,
+    y0 = -h / 2,
     per = 2 * (w + h),
     o = (Y.x * 0.37 + Y.y * 0.11) % 500;
   c.beginPath();
@@ -58,8 +59,7 @@ function yardPath(c, Y, grow) {
     if (dl > r) ((px = cx + (dx / dl) * r), (py = cy + (dy / dl) * r));
     if (dl > 0.01) ((nx = dx / dl), (ny = dy / dl));
     const k = grow + 34 * (pfbm(t + o, o, 140, 3, 7) - 0.5) + 10 * (pfbm(t + o, o, 40, 11, 5) - 0.5);
-    const X = px + nx * k,
-      Yy = py + ny * k;
+    const [X, Yy] = yardWorld(Y, px + nx * k, py + ny * k);
     i ? c.lineTo(X, Yy) : c.moveTo(X, Yy);
   }
   c.closePath();
@@ -469,9 +469,10 @@ function paintGround(season) {
         g.fillStyle = season === 2 ? 'rgba(128,130,70,.5)' : 'rgba(96,132,60,.45)';
         g.beginPath();
         for (let i = 0; i < 420; i++) {
-          const x = rnd(YARD.x - 10, YARD.x + YARD.w + 10),
-            y = rnd(YARD.y - 10, YARD.y + YARD.h + 10);
-          const e = Math.min(x - YARD.x, YARD.x + YARD.w - x, y - YARD.y, YARD.y + YARD.h - y);
+          const u = rnd(-10, YARD.lw + 10) - YARD.lw / 2,
+            v = rnd(-10, YARD.lh + 10) - YARD.lh / 2,
+            [x, y] = yardWorld(YARD, u, v);
+          const e = Math.min(YARD.lw / 2 - Math.abs(u), YARD.lh / 2 - Math.abs(v));
           if (e > R() * 26) continue;
           g.rect(x, y, rnd(2, 4), rnd(2, 3));
         }

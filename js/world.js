@@ -54,6 +54,56 @@ function inBuild(x, y, m = 0) {
   }
   return false;
 }
+/* ---- farmyards: rectangles turned to fit the land ----
+   A yard is lw x lh in its own frame (u along ang, v across), centred on cx,cy; x,y,w,h is its bounding box
+   and poly its corners, so the field helpers (inField, ptIn) work on it too. */
+function mkYard(cx, cy, ang, lw, lh) {
+  const c = Math.cos(ang),
+    s = Math.sin(ang),
+    poly = [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1]
+    ].map(([a, b]) => [cx + (a * lw * c - b * lh * s) / 2, cy + (a * lw * s + b * lh * c) / 2]),
+    xs = poly.map(p => p[0]),
+    ys = poly.map(p => p[1]),
+    x = Math.min(...xs),
+    y = Math.min(...ys);
+  return { cx, cy, ang, lw, lh, poly, x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
+// x,y in yard Y's own frame, from its centre
+function yardLocal(Y, x, y) {
+  const dx = x - Y.cx,
+    dy = y - Y.cy,
+    c = Math.cos(Y.ang),
+    s = Math.sin(Y.ang);
+  return [dx * c + dy * s, -dx * s + dy * c];
+}
+function yardWorld(Y, u, v) {
+  const c = Math.cos(Y.ang),
+    s = Math.sin(Y.ang);
+  return [Y.cx + u * c - v * s, Y.cy + u * s + v * c];
+}
+function inYard(Y, x, y, m = 0) {
+  if (!inRect(x, y, Y, Math.max(0, m) + 1)) return false;
+  const [u, v] = yardLocal(Y, x, y);
+  return Math.abs(u) < Y.lw / 2 + m && Math.abs(v) < Y.lh / 2 + m;
+}
+// the point at fractions a (along) and b (across) of yard Y
+const yardAt = (Y, a, b) => yardWorld(Y, (a - 0.5) * Y.lw, (b - 0.5) * Y.lh);
+// the nearest point to x,y at least m inside yard Y
+function yardClamp(Y, x, y, m = 0) {
+  const [u, v] = yardLocal(Y, x, y);
+  return yardWorld(Y, clamp(u, -Y.lw / 2 + m, Y.lw / 2 - m), clamp(v, -Y.lh / 2 + m, Y.lh / 2 - m));
+}
+// the road's heading near x: averaged over +-span, so a local wiggle doesn't turn a whole farm
+function roadAng(x, span = 250) {
+  const near = x2 => ROAD.reduce((b, q) => (Math.abs(q[0] - x2) < Math.abs(b[0] - x2) ? q : b));
+  const a = near(x - span),
+    b = near(x + span);
+  return Math.atan2(b[1] - a[1], b[0] - a[0]);
+}
 /* ---- walking around buildings ----
    Anything on foot uses groundStep(): it looks a little ahead, and if a building is in the way it turns
    (keeping to one side until clear) so it walks round the corner instead of across the roof. */
@@ -282,7 +332,7 @@ const TREES = [],
 function blocked(x, y, r) {
   if (inWater(x, y, r * 0.6 + 6)) return true;
   for (const f of FIELDS) if (inField(f, x, y, r * 0.5)) return true;
-  for (const Y of YARDS) if (inRect(x, y, Y, r * 0.4)) return true;
+  for (const Y of YARDS) if (inYard(Y, x, y, r * 0.4)) return true;
   if (inBuild(x, y, r * 0.6 + 12)) return true;
   if (roadDist(x, y) < 52 + r * 0.85) return true;
   if (railDist(x, y) < 34 + r * 0.85) return true;
@@ -427,24 +477,26 @@ function genLayout() {
         b = small ? rnd(420, 500) : rnd(560, 680),
         w = horiz ? b : a,
         h = horiz ? a : b;
+      // the yard lines up with its stretch of road, give or take; now and then it sits at its own angle
       const back = i < 140 ? 110 : rnd(110, 420),
-        cx = p[0] + (i < 300 ? 0 : rnd(-260, 260)),
-        cy = p[1] + side * (h / 2 + back),
-        yard = { x: cx - w / 2, y: cy - h / 2, w, h };
+        ang = roadAng(p[0]) + (R() < 0.3 ? rnd(-0.4, 0.4) : rnd(-0.1, 0.1)),
+        Ax = -Math.sin(ang) * side,
+        Ay = Math.cos(ang) * side,
+        off = i < 300 ? 0 : rnd(-260, 260),
+        cx = p[0] + Math.cos(ang) * off + Ax * (h / 2 + back),
+        cy = p[1] + Math.sin(ang) * off + Ay * (h / 2 + back),
+        yard = mkYard(cx, cy, ang, w, h);
       if (yard.y < NORTH || yard.y + yard.h > H - 440) continue;
       // score the spot: water and rail near the yard, a road too far away, or other yards in the way all count against it
       let bad = yardFree(yard, 200) ? 0 : 400;
       for (let gx = yard.x - 150; gx <= yard.x + yard.w + 150; gx += 60)
         for (let gy = yard.y - 150; gy <= yard.y + yard.h + 150; gy += 60) {
-          if (inWater(gx, gy, 0))
-            bad += gx > yard.x && gx < yard.x + yard.w && gy > yard.y && gy < yard.y + yard.h ? 40 : 6;
+          if (inWater(gx, gy, 0)) bad += inYard(yard, gx, gy) ? 40 : 6;
         }
-      if (roadDist(cx, cy - side * (h / 2 - 10)) > back + Math.abs(cx - p[0]) + 60) bad += 60;
+      if (roadDist(cx - Ax * (h / 2 - 10), cy - Ay * (h / 2 - 10)) > back + Math.abs(off) + 60) bad += 60;
       for (let gx = yard.x - 80; gx <= yard.x + yard.w + 80; gx += 60)
         for (let gy = yard.y - 80; gy <= yard.y + yard.h + 80; gy += 60)
-          if (railDist(gx, gy) < 70)
-            bad +=
-              gx > yard.x - 20 && gx < yard.x + yard.w + 20 && gy > yard.y - 20 && gy < yard.y + yard.h + 20 ? 60 : 8;
+          if (railDist(gx, gy) < 70) bad += inYard(yard, gx, gy, 20) ? 60 : 8;
       const fm = { px: p[0], py: p[1], side, cx, cy, yard, small, horiz, main };
       if (bad === 0) return fm;
       if (bad < bestBad) {
@@ -490,8 +542,8 @@ function genLayout() {
     const house = pick(HOUSE),
       barn = pick(BARN),
       red = barn === '#8E2F24' || barn === '#A0442E';
-    const W0 = horiz ? yard.h : yard.w,
-      H0 = horiz ? yard.w : yard.h; // the plan's own across/away extents
+    const W0 = horiz ? yard.lh : yard.lw,
+      H0 = horiz ? yard.lw : yard.lh; // the plan's own across/away extents
     for (const [kind, u, v, rot0] of plan) {
       if (kind === 'shed?' && R() < 0.35) continue;
       let pu = u * W0 * mx,
@@ -503,10 +555,18 @@ function genLayout() {
         pv = t * side;
         rot = 1 - rot;
       }
-      const cx = fm.cx + pu,
-        cy = fm.cy + pv,
-        ang = (rot ? Math.PI / 2 : 0) + rnd(-0.05, 0.05);
-      const room = (rot ? yard.h : yard.w) * 0.62;
+      // every building turns with its yard, and a little on its own: added one at a time over the years
+      const ya = yard.ang,
+        cx = fm.cx + pu * Math.cos(ya) - pv * Math.sin(ya),
+        cy = fm.cy + pu * Math.sin(ya) + pv * Math.cos(ya),
+        own =
+          kind === 'house' || kind === 'barn' || kind === 'sbarn'
+            ? rnd(-0.1, 0.1)
+            : R() < 0.35
+              ? rnd(-0.4, 0.4)
+              : rnd(-0.12, 0.12),
+        ang = ya + (rot ? Math.PI / 2 : 0) + own;
+      const room = (rot ? yard.lh : yard.lw) * 0.62;
       let b;
       if (kind === 'house')
         b = {
@@ -575,16 +635,21 @@ function genLayout() {
       (fm.builds || (fm.builds = [])).push(b);
       if (kind === 'house') fm.house = b;
     }
-    const ey = fm.cy - (side * fm.yard.h) / 2,
-      ex = fm.cx + rnd(-0.2, 0.2) * fm.yard.w;
+    // the lane comes in through the middle of the side facing the road
+    const ya = yard.ang,
+      Ax = -Math.sin(ya) * side,
+      Ay = Math.cos(ya) * side,
+      t = rnd(-0.2, 0.2) * yard.lw,
+      ex = fm.cx - (Ax * yard.lh) / 2 + Math.cos(ya) * t,
+      ey = fm.cy - (Ay * yard.lh) / 2 + Math.sin(ya) * t;
     fm.lane = LANES.length;
-    fm.yard.gate = [ex, ey + side * 30];
+    fm.yard.gate = [ex + Ax * 30, ey + Ay * 30];
     fm.yard.builds = fm.builds || [];
     LANES.push(
       catmull([
         [fm.px, fm.py],
         [lerp(fm.px, ex, 0.5) + rnd(-20, 20), lerp(fm.py, ey, 0.5)],
-        [ex, ey + side * 30]
+        [ex + Ax * 30, ey + Ay * 30]
       ])
     );
   };
@@ -612,7 +677,7 @@ function genLayout() {
     for (const p of P) if (p[1] < NORTH || p[1] > H - 440 || p[0] < 130 || p[0] > W - 130) return p;
     const bad = (x, y) => {
       if (inWater(x, y, 40) || roadDist(x, y) < 42 || railDist(x, y) < 48 || inBuild(x, y, 24)) return true;
-      for (const Y of YARDS) if (inRect(x, y, Y, 40)) return true;
+      for (const Y of YARDS) if (inYard(Y, x, y, 40)) return true;
       for (const o of FIELDS) if (!own.has(o) && inField(o, x, y, 24)) return true;
       return false;
     };
@@ -634,11 +699,9 @@ function genLayout() {
   // a plot keeps to sensible shapes: no slivers, no sharp wedges
   const shapely = Q => Q.length >= 3 && polyArea(Q) / Math.max(1, polyDiam(Q)) >= 95 && minAngle(Q) > 0.95;
   const plotsFor = (fm, side, maxN, depth, halfW) => {
-    // the road's general heading across the tract, not its local wiggle
-    const near = x => ROAD.reduce((b, q) => (Math.abs(q[0] - x) < Math.abs(b[0] - x) ? q : b));
-    const pa = near(fm.px - halfW * 0.6),
-      pb = near(fm.px + halfW * 0.6),
-      th = clamp(Math.atan2(pb[1] - pa[1], pb[0] - pa[0]), -0.4, 0.4);
+    // behind the yard the land is laid out square to the yard; across the road it follows the road's
+    // general heading, turned a little its own way, so neighbouring holdings don't share one grid
+    const th = side === fm.side ? fm.yard.ang : roadAng(fm.px, halfW * 0.6) + rnd(-0.25, 0.25);
     const ux = Math.cos(th),
       uy = Math.sin(th),
       vx = -uy * side,
@@ -767,7 +830,7 @@ function genLayout() {
           roadDist(x, y) > 40 &&
           railDist(x, y) > 40 &&
           !inWater(x, y, 20) &&
-          !YARDS.some(Y => inRect(x, y, Y, 30)) &&
+          !YARDS.some(Y => inYard(Y, x, y, 30)) &&
           !inBuild(x, y, 20);
         if (ok) run.push([x, y]);
         else flush();
@@ -776,49 +839,56 @@ function genLayout() {
     }
   };
   // a small fenced, muddy pig pen snug against a farmyard, with a low lean-to shelter at its inner edge
-  const styOK = (r, fm) => {
+  const styOK = (P, fm) => {
+    const r = polyBox(P);
     if (r.y < NORTH || r.y + r.h > H - 440 || r.x < 60 || r.x + r.w > W - 60) return false;
-    for (const o of YARDS)
-      if (o !== fm.yard && r.x < o.x + o.w + 30 && r.x + r.w > o.x - 30 && r.y < o.y + o.h + 30 && r.y + r.h > o.y - 30)
-        return false;
-    for (const o of FIELDS)
-      if (r.x < o.x + o.w + 20 && r.x + r.w > o.x - 20 && r.y < o.y + o.h + 20 && r.y + r.h > o.y - 20) return false;
-    for (let gx = r.x - 12; gx <= r.x + r.w + 12; gx += 30)
-      for (let gy = r.y - 12; gy <= r.y + r.h + 12; gy += 30) {
+    for (let gx = r.x - 12; gx <= r.x + r.w + 12; gx += 15)
+      for (let gy = r.y - 12; gy <= r.y + r.h + 12; gy += 15) {
+        if (!pip(P, gx, gy) && edgeDist(P, gx, gy) > 12) continue;
         if (inWater(gx, gy, 20)) return false;
         if (roadDist(gx, gy) < 40 || railDist(gx, gy) < 45) return false;
         if (inBuild(gx, gy, 14)) return false;
+        for (const o of YARDS) if (inYard(o, gx, gy, o === fm.yard ? 4 : 30)) return false;
+        for (const o of FIELDS) if (inField(o, gx, gy, 20)) return false;
       }
     return true;
   };
   const placeSty = fm => {
-    const Y = fm.yard;
+    const Y = fm.yard,
+      ya = Y.ang,
+      c = Math.cos(ya),
+      s = Math.sin(ya),
+      at = (u, v) => [Y.cx + u * c - v * s, Y.cy + u * s + v * c];
     for (let i = 0; i < 200; i++) {
+      // pen w x h in the yard's own frame, just off one of its sides
       const w = rnd(72, 104),
         h = rnd(60, 86),
         vert = R() < 0.5,
+        sg = R() < 0.5 ? 1 : -1,
         gap = rnd(16, 34);
-      let x, y;
+      let u, v;
       if (vert) {
-        x = R() < 0.5 ? Y.x - gap - w : Y.x + Y.w + gap;
-        y = rnd(Y.y - h * 0.3, Y.y + Y.h - h * 0.7);
+        u = sg * (Y.lw / 2 + gap + w / 2);
+        v = rnd(-Y.lh / 2 + h * 0.2, Y.lh / 2 - h * 0.2);
       } else {
-        x = rnd(Y.x - w * 0.3, Y.x + Y.w - w * 0.7);
-        y = R() < 0.5 ? Y.y - gap - h : Y.y + Y.h + gap;
+        u = rnd(-Y.lw / 2 + w * 0.2, Y.lw / 2 - w * 0.2);
+        v = sg * (Y.lh / 2 + gap + h / 2);
       }
-      const r = { x, y, w, h };
-      if (!styOK(r, fm)) continue;
-      r.t = 'sty';
-      r.dir = 0;
-      r.poly = mkPenPoly(r);
+      const tw = rnd(-0.12, 0.12),
+        tc = Math.cos(tw),
+        ts = Math.sin(tw),
+        corner = (du, dv) => at(u + du * tc - dv * ts + rnd(-4, 4), v + du * ts + dv * tc + rnd(-4, 4)),
+        P = [corner(-w / 2, -h / 2), corner(w / 2, -h / 2), corner(w / 2, h / 2), corner(-w / 2, h / 2)];
+      if (!styOK(P, fm)) continue;
+      const bb = polyBox(P),
+        r = { x: bb.x, y: bb.y, w: bb.w, h: bb.h, t: 'sty', dir: 0, ang: ya + tw, poly: P };
       FIELDS.push(r);
       // the shelter sits at whichever edge of the pen faces back toward the yard
-      const tx = vert ? (x < Y.x ? 1 : -1) : 0,
-        ty = !vert ? (y < Y.y ? 1 : -1) : 0;
+      const [bx, by] = vert ? at(u - sg * (w * 0.5 - 19), v) : at(u, v - sg * (h * 0.5 - 16));
       const b = {
-        cx: r.x + r.w / 2 + tx * (r.w * 0.5 - 19),
-        cy: r.y + r.h / 2 + ty * (r.h * 0.5 - 16),
-        ang: vert ? Math.PI / 2 : 0,
+        cx: bx,
+        cy: by,
+        ang: ya + tw + (vert ? Math.PI / 2 : 0),
         len: rnd(30, 38),
         dep: rnd(24, 28),
         roof: pick(['turf', 'turf', 'slate']),
@@ -848,7 +918,7 @@ function genLayout() {
       side: 1,
       cx: p[0],
       cy: p[1] + 430,
-      yard: { x: p[0] - 195, y: p[1] + 110, w: 390, h: 640 },
+      yard: mkYard(p[0], p[1] + 430, 0, 390, 640),
       main: true
     };
   }
@@ -920,7 +990,7 @@ function genLayout() {
     if (
       roadDist(c.cx, c.cy) > 90 &&
       railDist(c.cx, c.cy) > 110 &&
-      !YARDS.some(Y => inRect(c.cx, c.cy, Y, 80)) &&
+      !YARDS.some(Y => inYard(Y, c.cx, c.cy, 80)) &&
       !FIELDS.some(f => inRect(c.cx, c.cy, f, 60))
     )
       BUILDS.push(c);
@@ -1314,16 +1384,11 @@ function wireUp(poles) {
    f.edge marks each outline point 0 open land, 1 road or rail, 2 forest. */
 const VERGE = 36, // road or rail centre line to the field edge
   FREACH = 240; // how far an edge may reach out beyond its planned box
-function fieldLean(x, y, ox, oy) {
-  // two octaves: a broad drift (which way the whole plot leans) plus a finer ripple so a long edge
-  // undulates instead of staying a single straight lean end to end - smooth, roughly [-0.5, 0.5]
-  return pfbm(x, y, 190, ox, oy) * 0.72 + pfbm(x, y, 70, ox + 41, oy + 19) * 0.28 - 0.5;
-}
 // may field f cover the point (x,y)?
 function fieldFree(f, x, y) {
   if (x < 30 || x > W - 30 || y < NORTH - 60 || y > H - 400) return false;
   if (inWater(x, y, 26) || roadDist(x, y) < VERGE || railDist(x, y) < VERGE) return false;
-  for (const Y of YARDS) if (inRect(x, y, Y, 22)) return false;
+  for (const Y of YARDS) if (inYard(Y, x, y, 22)) return false;
   if (inBuild(x, y, 18)) return false;
   for (const P of LANES) if (polyDist(x, y, P) < 20) return false;
   for (const o of FIELDS) if (o !== f && (o.poly ? inField(o, x, y, 14) : inRect(x, y, o, 4))) return false;
@@ -1469,41 +1534,6 @@ function shapeFields() {
   const own = f => f.t !== 'sty' && !f.plot;
   for (const f of FIELDS) if (own(f)) f.poly = null;
   for (const f of FIELDS) if (own(f)) shapeField(f);
-}
-// a pig pen stays a small, fenced, nearly square plot inside its own box, only leaning a little
-function mkPenPoly(f) {
-  const jx = f.w * 0.26,
-    jy = f.h * 0.26;
-  const raw = [
-    [f.x, f.y],
-    [f.x + f.w, f.y],
-    [f.x + f.w, f.y + f.h],
-    [f.x, f.y + f.h]
-  ];
-  const c = raw.map(([x, y]) => [
-    clamp(x + fieldLean(x, y, 17, 53) * jx, f.x, f.x + f.w),
-    clamp(y + fieldLean(x, y, 61, 29) * jy, f.y, f.y + f.h)
-  ]);
-  const bulge = Math.min(f.w, f.h) * 0.22;
-  const P = [];
-  for (let i = 0; i < 4; i++) {
-    const a = c[i],
-      b = c[(i + 1) % 4];
-    P.push(a);
-    const edgeLen = Math.hypot(b[0] - a[0], b[1] - a[1]),
-      n = Math.max(2, Math.round(edgeLen / 130)) + (R() < 0.5 ? 1 : 0);
-    for (let k = 1; k <= n; k++) {
-      const t = k / (n + 1) + rnd(-0.05, 0.05),
-        px = lerp(a[0], b[0], t),
-        py = lerp(a[1], b[1], t),
-        dx = b[0] - a[0],
-        dy = b[1] - a[1],
-        l = Math.hypot(dx, dy) || 1,
-        o = fieldLean(px, py, 7, 91) * bulge;
-      P.push([clamp(px + (dy / l) * o, f.x, f.x + f.w), clamp(py - (dx / l) * o, f.y, f.y + f.h)]);
-    }
-  }
-  return P;
 }
 function pip(P, x, y) {
   let c = false;

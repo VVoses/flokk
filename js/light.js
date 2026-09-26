@@ -159,9 +159,9 @@ function buildLights() {
     const house = fm.house;
     if (!house) continue;
     const Y = fm.yard;
-    const sgx = house.cx < Y.x + Y.w / 2 ? 1 : -1;
-    const lx = clamp(house.cx + sgx * 95, Y.x + 15, Y.x + Y.w - 15),
-      ly = clamp(house.cy + 48, Y.y + 15, Y.y + Y.h - 15);
+    // the yard lamp stands off the house's gable, on the yard side, kept inside the yard
+    const [hu, hv] = yardLocal(Y, house.cx, house.cy),
+      [lx, ly] = yardClamp(Y, ...yardWorld(Y, hu + (hu < 0 ? 95 : -95), hv + 48), 15);
     LAMPS.push({ x: lx, y: ly });
     LIGHTS.push({ x: lx, y: ly, h: 2.25, r: 135, i: 0.9, fl: 1 });
     addPerch(lx, ly, 2.4, 'pole', false, 0);
