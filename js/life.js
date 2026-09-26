@@ -521,10 +521,23 @@ function updateAnimals(dt) {
           a.x += a.vx * dt;
           a.f = a.vx > 0 ? 1 : -1;
         }
+        // swing round through facing down-field (toward the next row) rather than flipping on the spot
+        const aim = a.f > 0 ? 0 : Math.PI;
+        a.ang ??= aim;
+        let dA = angDiff(aim, a.ang);
+        if (Math.abs(dA) > 2.8) dA = (Math.cos(a.ang) > 0 ? 1 : -1) * Math.abs(dA);
+        a.ang += dA * Math.min(1, dt * 2.5);
         a.dust = (a.dust || 0) - dt;
         if (a.dust <= 0 && inView(a.x, a.y, 200)) {
           a.dust = 0.14;
-          parts.push({ k: 'd', x: a.x - a.f * 14 + rr(-3, 3), y: a.y + rr(-2, 2), z: 0.05, life: 1.4, max: 1.4 });
+          parts.push({
+            k: 'd',
+            x: a.x - Math.cos(a.ang) * 26 + rr(-3, 3),
+            y: a.y + rr(-2, 2),
+            z: 0.05,
+            life: 1.4,
+            max: 1.4
+          });
         }
         break;
       }
