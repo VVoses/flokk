@@ -57,7 +57,7 @@ landLabels();
 resetWorld(14, START.x, START.y - 150);
 cam.x = L.x;
 cam.py = PY(L.y, L.z * 0.7);
-cam.z = clamp(Math.min(vw, vh) / 760, 0.55, 1.15);
+cam.z = clamp(Math.min(vw, vh) / 760, 0.72, 1.15);
 let last = performance.now(),
   lastDt = 0.016;
 function frame(now) {
