@@ -22,6 +22,8 @@ function hud(dt) {
   const dive = hawks.some(h => h.state === 'dive'),
     stalk = hawks.some(h => h.state === 'stalk' || h.state === 'hover');
   const hidden = birds.filter(coveredNow).length;
+  // one flying off (with or without a catch) is no longer a threat, however long it stays in sight
+  const hunting = hawks.filter(h => h.state !== 'leave' && h.state !== 'carry').length;
   const pk = hawks.some(h => h.kind === 'owl') ? 'owl' : 'hawk',
     Pk = pk === 'owl' ? 'Owl' : 'Hawk';
   if (dive) {
@@ -33,11 +35,11 @@ function hud(dt) {
   } else if (st.settled && hidden === birds.length && birds.length) {
     txt = 'Hidden in the trees';
   } else if (st.settled) {
-    cls = hawks.length ? 'warn' : '';
+    cls = hunting ? 'warn' : '';
     txt = hidden ? `Resting · ${hidden} hidden` : 'Resting in the open';
-  } else if (hawks.length) {
+  } else if (hunting) {
     cls = 'warn';
-    txt = hawks.length === 1 ? `A ${pk} is circling` : `${hawks.length} ${pk}s circling`;
+    txt = hunting === 1 ? `A ${pk} is circling` : `${hunting} ${pk}s circling`;
   } else if (st.mode === 'play' && st.grace > 0) txt = 'Flying · the sky is calm';
   ui.count.classList.toggle('danger', cls === 'danger');
   ui.count.classList.toggle('safe', cls !== 'danger' && birds.length > 0 && hidden === birds.length);

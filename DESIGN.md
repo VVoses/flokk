@@ -54,7 +54,7 @@ Every effect has to exist **in** the world, at a place, behind and in front of t
 screen is a window onto the land, not a stack of layers.
 
 - **Show a natural phenomenon through its effects, never as a drawn overlay.** Wind is visible because trees lean,
-  grass bends in a travelling wave, smoke and the flag stream, animals brace, and dry ground lifts dust. There is
+  grass bends in a travelling wave, smoke and the flag stream, and animals brace. There is
   no "wind" sprite.
 - Snow, rain and blown leaves fall to a spot on the ground, and trees and roofs in front of them hide them. Fog
   lies in banks among the trees, with tall trees and roofs standing up out of it.

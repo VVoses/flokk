@@ -50,7 +50,8 @@ function update(dt) {
     } else st.starveT = 3;
   }
   st.dashT -= dt;
-  st.stamina = Math.min(1, st.stamina + dt * 0.17);
+  // slow refill: one dash about every five seconds, a full bar in ~14s, so a dash is spent with care
+  st.stamina = Math.min(1, st.stamina + dt * 0.07);
   st.settleCool -= dt;
   let steer = false,
     useT = false,
