@@ -209,6 +209,12 @@ function initAudio() {
     ac = null;
   }
 }
+// how freely the flock chatters: sparrows go quiet as the light goes and roost in silence through the
+// night, and they hush at once while a hawk or owl is hunting overhead, so as not to give themselves away
+function chatter() {
+  if (hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover')) return 0;
+  return clamp(1 - 1.4 * LIGHT.night, 0, 1);
+}
 function chirp(vol = 0.045, base) {
   if (!ac || muted) return;
   const t = ac.currentTime;
