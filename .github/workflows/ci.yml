@@ -35,6 +35,9 @@ jobs:
       - name: syntax check + headless smoke
         run: npm run check
 
+      - name: farms meet the road cleanly
+        run: python3 tools/road_check.py
+
       - name: full flow (title, play, pause, game over, full year, resize, night, phone)
         run: python3 tools/flows.py
 

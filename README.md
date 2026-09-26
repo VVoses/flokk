@@ -74,6 +74,8 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
 - `python3 tools/flows.py`: end-to-end test of every screen: title, play, pause, mute, game over, fly again,
   a full year, new land, resize, night, and a phone viewport with touch.
 - `python3 tools/seasonpick.py`: checks the hidden season picker.
+- `python3 tools/road_check.py [N]`: over N generated lands, fails if a farm lane runs alongside the road before
+  turning in, or the road cuts through a farmyard.
 - `python3 tools/seam_check.py [SEEDS]`: fails if the seam where the land repeats east-west shows as a line, in any
   season, hour or zoom or mid-crossfade (failing screenshots in `tools/out/seam/`).
 - `python3 tools/weather_check.py [TAG]`: gusts, an autumn gale, rain on the lake, a winter storm, fog by day and night; frame times
