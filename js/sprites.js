@@ -354,8 +354,359 @@ function drawLeafy(g, type, vi, season, stage) {
     }
   }
 }
+/* ---------- bush sprites ----------
+   Drawn once per season into little canvases, like the trees, and stamped per bush scaled to its size.
+   Variants 0-5 are plain leafy shrubs (hazel, willow, alder buckthorn), 6-8 carry berries or hips (dog rose,
+   hawthorn, guelder rose), 9-11 are junipers: dark, upright and evergreen, the one bush that keeps its
+   colour under snow. Leafy ones are a tangle of stems under a crown built from hundreds of small leaf dabs,
+   lit from the upper left, so they read as foliage rather than a stack of solid blobs; in winter they are
+   bare twigs with snow along the upper sides. */
+const BR = 20, // bush sprite units per bush radius
+  BSS = 3, // and its pixel density
+  BSW = Math.ceil(BR * 2.8),
+  BSH = Math.ceil(BR * 2.4),
+  BAX = BSW / 2,
+  BAY = BSH - 5,
+  NBV = 12,
+  BUSH_H = 0.68; // the height/radius ratio a sprite is drawn for; a bush's own ratio stretches it
+const BSPR = { cur: [], bare: [], bud: [] };
+const BLEAF = {
+  spring: [
+    ['#4A7430', '#66963E', '#88B654', '#B2D47A'],
+    ['#557A36', '#72994A', '#95B866', '#BDD690']
+  ],
+  summer: [
+    ['#2C4C24', '#3C632E', '#527C3C', '#6C9750'],
+    ['#374F30', '#4C6A42', '#658457', '#84A172'], // willow: greyer, silvery on top
+    ['#2E4A28', '#416434', '#5A8042', '#779B56']
+  ],
+  autumn: [
+    ['#6A6428', '#9E8A32', '#C9AC46', '#E4CC74'], // hazel, clear yellow
+    ['#565F2C', '#7E8838', '#A6AA4A', '#C8C674'], // willow, green going sallow
+    ['#643024', '#924229', '#B8603C', '#D68A60'], // guelder rose / rowan red
+    ['#71452A', '#A4622E', '#CC8840', '#E8B068'], // orange
+    ['#583E26', '#84582E', '#A6763A', '#C69858'] // hawthorn rust
+  ],
+  juniper: ['#1F3429', '#2C4636', '#41614B', '#65836A'],
+  juniperW: ['#243029', '#34453A', '#4E6152', '#76887A'] // bronzed by the cold
+};
+// which leaf set, stem colour and autumn colour each leafy variant uses
+const BVAR = [
+  { sum: 0, aut: 0, stem: '#6A5A48' },
+  { sum: 1, aut: 1, stem: '#7A3E2C' },
+  { sum: 2, aut: 3, stem: '#5C4A3A' },
+  { sum: 0, aut: 4, stem: '#625244', cling: true }, // young oak/beech: keeps a few dry leaves all winter
+  { sum: 1, aut: 1, stem: '#8A4632' },
+  { sum: 2, aut: 0, stem: '#6A5A48' },
+  { sum: 0, aut: 2, stem: '#5E3A2C', berry: '#C0321E', bloom: '#F4EEF0' },
+  { sum: 2, aut: 4, stem: '#4E3A2E', berry: '#A8241C', bloom: '#FFFFFF' },
+  { sum: 1, aut: 2, stem: '#6A4A3A', berry: '#D63A22', bloom: '#F2E6EC' }
+];
+function makeBush(vi, season, stage) {
+  const keepR = R;
+  R = mulberry32(7100 + vi * 97);
+  const c = mk(BSW * BSS, BSH * BSS),
+    g = c.getContext('2d');
+  g.scale(BSS, BSS);
+  g.translate(BAX, BAY);
+  if (vi >= 9) drawJuniper(g, vi, season);
+  else drawShrub(g, vi, season, stage);
+  g.globalCompositeOperation = 'source-atop';
+  const gr = g.createLinearGradient(-BR, -BR * 1.4, BR, 0);
+  gr.addColorStop(0, 'rgba(255,245,200,.1)');
+  gr.addColorStop(0.5, 'rgba(0,0,0,0)');
+  gr.addColorStop(1, 'rgba(8,18,4,.3)');
+  g.fillStyle = gr;
+  g.fillRect(-BAX, -BAY, BSW, BSH);
+  R = keepR;
+  return c;
+}
+// a small leaf: a pointed ellipse at an angle
+function leafDab(g, x, y, r, a) {
+  g.beginPath();
+  g.ellipse(x, y, r, r * 0.55, a, 0, TAU);
+  g.fill();
+}
+function drawShrub(g, vi, season, stage) {
+  const V = BVAR[vi],
+    winter = season === 3,
+    bare = winter || stage === 'bare',
+    bud = stage === 'bud';
+  // the crown: a few overlapping domes, the middle ones highest, so each variant has its own outline
+  const n = 3 + ((R() * 3) | 0),
+    lobes = [];
+  for (let i = 0; i < n; i++) {
+    const u = n === 1 ? 0 : i / (n - 1) - 0.5,
+      rr = BR * rnd(0.36, 0.52) * (1 - Math.abs(u) * 0.35);
+    lobes.push({ x: u * BR * rnd(1.15, 1.4), y: -BR * rnd(0.42, 0.56) * (1 - Math.abs(u) * 0.6) - rr * 0.35, r: rr });
+  }
+  // how deep inside the crown a point is (1 at a dome's heart, 0 at its edge, below 0 outside), and the dome
+  const inside = (x, y) => {
+    let best = -9,
+      L = null;
+    for (const l of lobes) {
+      const d = 1 - Math.hypot((x - l.x) / l.r, (y - l.y) / (l.r * 0.9));
+      if (d > best) {
+        best = d;
+        L = l;
+      }
+    }
+    return [best, L];
+  };
+  // stems: fanning up from the root, branching twice; tips stay inside the crown
+  const segs = [],
+    tips = [];
+  const grow = (x, y, ang, len, w, d) => {
+    let x2 = x + Math.cos(ang) * len,
+      y2 = y + Math.sin(ang) * len;
+    const [dd, L] = inside(x2, y2);
+    if (dd < 0.05 && y2 < -BR * 0.2) {
+      const k = 0.95 / (1 - dd + 0.05);
+      x2 = L.x + (x2 - L.x) * k;
+      y2 = L.y + (y2 - L.y) * k;
+    }
+    segs.push([x, y, x2, y2, w]);
+    if (d <= 0) {
+      tips.push([x2, y2]);
+      return;
+    }
+    for (let i = 0; i < 2 + (R() < 0.35 ? 1 : 0); i++)
+      grow(x2, y2, ang + rnd(-0.55, 0.55), len * rnd(0.6, 0.78), w * 0.62, d - 1);
+  };
+  const ns = 5 + ((R() * 3) | 0);
+  for (let i = 0; i < ns; i++) {
+    const u = i / (ns - 1) - 0.5;
+    grow(u * BR * 0.35, 0, -Math.PI / 2 + u * 1.7 + rnd(-0.15, 0.15), BR * rnd(0.34, 0.46), 1.7, 2);
+  }
+  const stems = (col, snowy, twigs) => {
+    g.strokeStyle = col;
+    g.lineCap = 'round';
+    for (const [x1, y1, x2, y2, w] of segs) {
+      g.lineWidth = Math.max(0.45, w);
+      g.beginPath();
+      g.moveTo(x1, y1);
+      g.lineTo(x2, y2);
+      g.stroke();
+    }
+    if (!twigs) return;
+    // fine twigs at the tips
+    g.lineWidth = 0.4;
+    g.strokeStyle = shade(col, 1.15);
+    g.beginPath();
+    for (const [tx, ty] of tips)
+      for (let i = 0; i < 4; i++) {
+        const a = -Math.PI / 2 + rnd(-1.3, 1.3),
+          l = rnd(2.5, 5.5);
+        g.moveTo(tx, ty);
+        g.lineTo(tx + Math.cos(a) * l, ty + Math.sin(a) * l);
+      }
+    g.stroke();
+    if (!snowy) return;
+    g.strokeStyle = 'rgba(246,249,252,.92)';
+    g.lineWidth = 0.9;
+    g.beginPath();
+    for (const [x1, y1, x2, y2, w] of segs) {
+      if (Math.abs(x2 - x1) < Math.abs(y2 - y1) * 0.45) continue; // snow only lies on the flatter twigs
+      g.moveTo(x1, y1 - w * 0.55);
+      g.lineTo(x2, y2 - w * 0.55);
+    }
+    g.stroke();
+    g.fillStyle = '#F4F7FA';
+    for (const [tx, ty] of tips)
+      if (R() < 0.35) {
+        g.beginPath();
+        g.ellipse(tx, ty - 0.4, rnd(1, 2), rnd(0.5, 0.9), 0, 0, TAU);
+        g.fill();
+      }
+  };
+  if (bare) {
+    stems(V.stem, winter, true);
+    if (winter && V.cling) {
+      // a few dry leaves still hanging on
+      for (let i = 0; i < 26; i++) {
+        const [tx, ty] = tips[(R() * tips.length) | 0];
+        g.fillStyle = R() < 0.5 ? '#9A7446' : '#B48E58';
+        leafDab(g, tx + rnd(-3, 3), ty + rnd(-2, 3), rnd(1.1, 1.7), rnd(0, TAU));
+      }
+    }
+    if (V.berry && season >= 2) {
+      // what the birds have left: a scattering in late autumn, fewer still by winter
+      g.fillStyle = V.berry;
+      for (const [tx, ty] of tips) {
+        if (R() < (winter ? 0.8 : 0.6)) continue;
+        for (let j = 0; j < 3; j++) {
+          g.beginPath();
+          g.arc(tx + rnd(-2, 2), ty + rnd(-1, 2), 0.9, 0, TAU);
+          g.fill();
+        }
+      }
+    }
+    return;
+  }
+  const P = season === 0 ? BLEAF.spring[vi % 2] : season === 2 ? BLEAF.autumn[V.aut] : BLEAF.summer[V.sum],
+    P2 = season === 2 ? BLEAF.summer[V.sum] : null; // a little green left among the autumn colour
+  stems(shade(V.stem, 0.45), false, false); // in the bush's own shade under the leaves
+  // the shaded body of the crown, so the leaves never show daylight through the middle
+  if (!bud) {
+    g.fillStyle = shade(P[0], 0.8);
+    for (const l of lobes) {
+      g.beginPath();
+      g.ellipse(l.x + l.r * 0.05, l.y + l.r * 0.12, l.r * 0.86, l.r * 0.78, 0, 0, TAU);
+      g.fill();
+    }
+  }
+  // the leaves: sampled through the crown, shaded by which way their bit of dome faces, darkest drawn first
+  const dabs = [],
+    N = bud ? 170 : 520;
+  let top = 0,
+    tries = 0;
+  for (const l of lobes) top = Math.min(top, l.y - l.r);
+  while (dabs.length < N && tries++ < N * 8) {
+    const x = rnd(-BR * 1.3, BR * 1.3),
+      y = rnd(top - 2, 0),
+      [d, L] = inside(x, y);
+    if (d < (bud ? 0.1 : -0.1)) continue;
+    const nx = (x - L.x) / L.r,
+      ny = (y - L.y) / L.r,
+      lit = -nx * 0.45 - ny * 0.85 + (1 - d) * 0.25 * -ny, // upper left catches the sun
+      low = clamp((y - top) / -top, 0, 1); // the underside and base sit in the bush's own shade
+    let v = 1.55 + lit * 1.35 - low * 1.1 + rnd(-0.55, 0.55);
+    v = clamp(Math.round(v), 0, 3);
+    let col = P[v];
+    if (P2 && R() < 0.14 + low * 0.2) col = P2[Math.min(3, v)];
+    dabs.push([v + R() * 0.5, x, y, col, bud ? rnd(0.8, 1.3) : rnd(1.3, 2.3)]);
+  }
+  dabs.sort((a, b) => a[0] - b[0]);
+  for (const [, x, y, col, r] of dabs) {
+    g.fillStyle = col;
+    leafDab(g, x, y, r, rnd(-0.9, 0.9) + (x < 0 ? -0.5 : 0.5));
+  }
+  if (!V.berry) return;
+  if (season === 0 && !bud) {
+    // blossom, in small sprays on the sunny side
+    g.fillStyle = V.bloom;
+    for (let i = 0; i < 16; i++) {
+      const L = lobes[(R() * lobes.length) | 0],
+        a = rnd(-2.6, -0.4),
+        d = rnd(0.4, 0.9) * L.r,
+        x = L.x + Math.cos(a) * d,
+        y = L.y + Math.sin(a) * d * 0.9;
+      for (let j = 0; j < 4; j++) {
+        g.beginPath();
+        g.arc(x + rnd(-2, 2), y + rnd(-1.5, 1.5), rnd(0.7, 1.1), 0, TAU);
+        g.fill();
+      }
+    }
+  } else if (season === 2) {
+    // berries and hips hanging in bunches through the outer leaves
+    for (let i = 0; i < 8; i++) {
+      const L = lobes[(R() * lobes.length) | 0],
+        a = rnd(-3, 0.3),
+        d = rnd(0.35, 0.85) * L.r,
+        x = L.x + Math.cos(a) * d,
+        y = L.y + Math.sin(a) * d * 0.9;
+      for (let j = 0; j < 4; j++) {
+        const bx = x + rnd(-1.8, 1.8),
+          by = y + rnd(-1, 2);
+        g.fillStyle = V.berry;
+        g.beginPath();
+        g.arc(bx, by, 0.95, 0, TAU);
+        g.fill();
+        g.fillStyle = 'rgba(255,230,210,.55)';
+        g.beginPath();
+        g.arc(bx - 0.3, by - 0.35, 0.3, 0, TAU);
+        g.fill();
+      }
+    }
+  }
+}
+// juniper: an upright, ragged column of dark needles, a few leaning stems; snow sits on its shoulders in winter
+function drawJuniper(g, vi, season) {
+  const winter = season === 3,
+    P = winter ? BLEAF.juniperW : BLEAF.juniper,
+    tall = BR * rnd(1.35, 1.7),
+    lobes = [],
+    n = 3 + ((R() * 2) | 0);
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1) - 0.5,
+      h = tall * (1 - Math.abs(u) * rnd(0.5, 0.8));
+    lobes.push({
+      x: u * BR * 0.7 + rnd(-1.5, 1.5),
+      y: -h * 0.5,
+      rx: BR * rnd(0.26, 0.36),
+      ry: h * 0.5,
+      lean: u * 0.25
+    });
+  }
+  const inside = (x, y) => {
+    let best = -9,
+      L = null;
+    for (const l of lobes) {
+      const xx = x - l.x - (y - l.y) * l.lean * -0.5;
+      const d = 1 - Math.hypot(xx / l.rx, (y - l.y) / l.ry);
+      if (d > best) {
+        best = d;
+        L = l;
+      }
+    }
+    return [best, L];
+  };
+  g.fillStyle = shade(P[0], 0.8);
+  for (const l of lobes) {
+    g.beginPath();
+    g.ellipse(l.x, l.y, l.rx * 0.85, l.ry * 0.9, l.lean * 0.5, 0, TAU);
+    g.fill();
+  }
+  // a glimpse of the grey stems at the foot
+  g.strokeStyle = '#5A4E44';
+  g.lineWidth = 1.1;
+  g.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const x = rnd(-3, 3);
+    g.moveTo(x, 0);
+    g.lineTo(x * 1.6, -BR * 0.25);
+  }
+  g.stroke();
+  const dabs = [];
+  let tries = 0;
+  while (dabs.length < 480 && tries++ < 5000) {
+    const x = rnd(-BR, BR),
+      y = rnd(-tall - 2, 0),
+      [d, L] = inside(x, y);
+    if (d < -0.12) continue;
+    const nx = (x - L.x) / L.rx,
+      ny = (y - L.y) / L.ry,
+      lit = -nx * 0.7 - ny * 0.5,
+      low = clamp(y / -tall, 0, 1);
+    let v = clamp(Math.round(1.3 + lit * 1.3 + (low - 0.5) * 0.8 + rnd(-0.6, 0.6)), 0, 3);
+    // snow caught on the upper, outward-facing sprays (drawn last, over the needles)
+    const snow = winter && ny < -0.2 && lit > -0.2 && R() < 0.3 + -ny * 0.5;
+    dabs.push([v + (snow ? 5 : 0) + R() * 0.5, x, y, snow ? (R() < 0.7 ? '#F2F5F8' : '#D8E0E8') : P[v]]);
+  }
+  dabs.sort((a, b) => a[0] - b[0]);
+  g.lineCap = 'round';
+  g.lineWidth = 1.1;
+  for (const [, x, y, col] of dabs) {
+    // short needle sprays, pointing up and out
+    g.strokeStyle = col;
+    const a = -Math.PI / 2 + (x < 0 ? -0.5 : 0.5) + rnd(-0.5, 0.5),
+      l = rnd(1.6, 3);
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+    g.stroke();
+  }
+}
+function buildBushSprites(s) {
+  for (let i = 0; i < NBV; i++) {
+    BSPR.cur[i] = makeBush(i, s);
+    BSPR.bare[i] = s === 0 || s === 2 ? makeBush(i, s, 'bare') : null;
+    BSPR.bud[i] = s === 0 ? makeBush(i, s, 'bud') : null;
+  }
+}
 const NV = 12;
 function buildSprites(s) {
   for (const t of ['spruce', 'birch', 'decid']) for (let i = 0; i < NV; i++) SPR[t][i] = makeSprite(t, i, s);
+  buildBushSprites(s);
 }
 buildSprites(0);

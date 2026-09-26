@@ -182,14 +182,21 @@ function genBushes() {
       return;
     for (const f of FIELDS) if (inField(f, x, y, r * 0.4)) return;
     for (const Y of YARDS) if (inYard(Y, x, y, -10)) return; // fine right at the fence line, not in the yard proper
-    const n = 4 + ((R() * 3) | 0),
-      lobes = [];
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * TAU + rnd(-0.3, 0.3),
-        d = rnd(0.12, 0.5) * r;
-      lobes.push([Math.cos(a) * d, Math.sin(a) * d, r * rnd(0.42, 0.64)]);
-    }
-    const b = { x, y, r, h: r * rnd(0.55, 0.82), lobes, berries: R() < 0.32, ph: rnd(0, 9) };
+    // (draws once used for the old blob shapes, kept so the rest of the world generates exactly as before)
+    const n = 4 + ((R() * 3) | 0);
+    for (let i = 0; i < n * 3; i++) R();
+    const b = { x, y, r, h: r * rnd(0.55, 0.82), berries: R() < 0.32, ph: rnd(0, 9) };
+    // sprite variant (sprites.js), from the bush's own phase so the world's random stream is left as it was:
+    // junipers mostly in the forest band, berry bushes from the berry variants, the rest plain leafy shrubs
+    const q = b.ph * 1.618,
+      hsh = q - Math.floor(q);
+    b.v =
+      hsh < 0.1 + 0.3 * clamp(forestness(x, y) * 1.5, 0, 1) && !b.berries
+        ? 9 + (((b.ph * 7) | 0) % 3)
+        : b.berries
+          ? 6 + (((b.ph * 5) | 0) % 3)
+          : ((b.ph * 11) | 0) % 6;
+    b.flip = ((b.ph * 13) | 0) % 2 === 1;
     BUSHES.push(b);
     addPerch(x, y + 1, (b.h / HZ) * 0.68, 'bush', false, null, y + 0.5);
   };
@@ -261,50 +268,46 @@ function drawBoulder(b) {
     ctx.stroke();
   }
 }
-const BUSH_AUT = [
-  ['#A47A2E', '#D2A84E'],
-  ['#B8582E', '#E08248'],
-  ['#8C9138', '#B7BE58']
-];
+/* a bush is its variant's sprite (sprites.js) stretched to its own size; leafy ones leaf out and drop
+   their leaves through spring and autumn like the trees, a little ahead of them */
 function drawBush(b) {
-  const X = b.x,
-    Yb = b.y * TILT,
-    snow = SEASON === 3,
-    aut = SEASON === 2;
-  const base = snow ? '#8C8272' : aut ? null : SEASON === 0 ? '#6F9A4C' : '#54803E';
-  const hi = snow ? '#A79C89' : aut ? null : SEASON === 0 ? '#8FBB63' : '#6C9955';
-  b.lobes.forEach(([dx, dy, rr], i) => {
-    ctx.fillStyle = aut ? BUSH_AUT[i % BUSH_AUT.length][0] : base;
-    ctx.beginPath();
-    ctx.ellipse(X + dx, Yb + dy * TILT * 0.6 - rr * 0.55, rr, rr * 0.82, 0, 0, TAU);
-    ctx.fill();
-  });
-  b.lobes.forEach(([dx, dy, rr], i) => {
-    ctx.fillStyle = aut ? BUSH_AUT[i % BUSH_AUT.length][1] : hi;
-    ctx.beginPath();
-    ctx.ellipse(X + dx * 0.9, Yb + dy * TILT * 0.6 - rr * 0.85, rr * 0.55, rr * 0.32, 0, 0, TAU);
-    ctx.fill();
-  });
-  if (snow) {
-    ctx.fillStyle = '#F4F7FA';
-    for (const [dx, dy, rr] of b.lobes) {
-      ctx.beginPath();
-      ctx.ellipse(X + dx, Yb + dy * TILT * 0.6 - rr * 1.0, rr * 0.6, rr * 0.22, 0, 0, TAU);
-      ctx.fill();
-    }
-  } else if (b.berries && SEASON !== 1) {
-    // little clustered dots: pale blossom in spring, red berries in autumn
-    let s = (b.ph * 10000) | 0;
-    ctx.fillStyle = SEASON === 0 ? '#F2E3EC' : '#B3402C';
-    for (let i = 0; i < 5; i++) {
-      s = (s * 9301 + 49297) % 233280;
-      const q = s / 233280,
-        [dx, dy, rr] = b.lobes[i % b.lobes.length],
-        ang = q * TAU,
-        d = q * rr * 0.7;
-      ctx.beginPath();
-      ctx.arc(X + dx + Math.cos(ang) * d, Yb + dy * TILT * 0.6 - rr * 0.7 + Math.sin(ang) * d * 0.5, 1.1, 0, TAU);
-      ctx.fill();
-    }
+  const kx = b.r / BR,
+    ky = (kx * (b.h / b.r)) / BUSH_H,
+    x = -BAX * kx * (b.flip ? -1 : 1),
+    y = -BAY * ky,
+    w = BSW * kx * (b.flip ? -1 : 1),
+    h = BSH * ky;
+  ctx.save();
+  ctx.translate(b.x, b.y * TILT);
+  ctx.transform(1, 0, treeSway(b) * 0.45, 1, 0, 0);
+  if (TRANS.prevSPR && TRANS.prevSPR.bush) {
+    const e = tEase();
+    ctx.globalAlpha = 1 - e * 0.6;
+    ctx.drawImage(TRANS.prevSPR.bush[b.v], x, y, w, h);
+    ctx.globalAlpha = e;
   }
+  let la = 1;
+  if (b.v < 9 && GROW.leafSeason === SEASON && (SEASON === 0 || SEASON === 2) && BSPR.bare[b.v]) {
+    const p = GROW.p,
+      j = jit(Math.round(b.x * 0.37 + b.y * 1.3)) * 0.1,
+      a0 = ctx.globalAlpha;
+    if (SEASON === 0) {
+      const e1 = smooth(0.05 + j, 0.22 + j, p),
+        e2 = smooth(0.22 + j, 0.5 + j, p);
+      if (e2 < 1) {
+        if (e1 < 0.99) ctx.drawImage(BSPR.bare[b.v], x, y, w, h);
+        ctx.globalAlpha = a0 * e1;
+        if (e1 > 0.01) ctx.drawImage(BSPR.bud[b.v], x, y, w, h);
+        ctx.globalAlpha = a0;
+      }
+      la = e2;
+    } else {
+      const fall = smooth(0.55 + j, 0.95, p) * 0.85;
+      if (fall > 0.01) ctx.drawImage(BSPR.bare[b.v], x, y, w, h);
+      la = 1 - fall;
+    }
+    ctx.globalAlpha = a0 * la;
+  }
+  if (la > 0.005) ctx.drawImage(BSPR.cur[b.v], x, y, w, h);
+  ctx.restore();
 }
