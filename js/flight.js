@@ -491,7 +491,7 @@ function landUpdate(b, dt) {
     b.z = p.h;
     if (p.ang != null) b.heading = p.ang + (Math.random() < 0.85 ? 0 : Math.PI);
     b.idle = rr(0.4, 2);
-    if (Math.random() < 0.25) chirp(0.025);
+    if (Math.random() < 0.25 * chatter()) chirp(0.025);
   }
 }
 function perchUpdate(b, dt) {

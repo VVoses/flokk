@@ -209,6 +209,12 @@ function initAudio() {
     ac = null;
   }
 }
+// how freely the flock chatters: sparrows go quiet as the light goes and roost in silence through the
+// night, and they hush at once while a hawk or owl is hunting overhead, so as not to give themselves away
+function chatter() {
+  if (hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover')) return 0;
+  return clamp(1 - 1.4 * LIGHT.night, 0, 1);
+}
 function chirp(vol = 0.045, base) {
   if (!ac || muted) return;
   const t = ac.currentTime;
@@ -1851,7 +1857,8 @@ function audioTick(dt) {
       TRAIN.honked = true;
       // quieter than before - it was the loudest single sound in the mix and jumped out over
       // everything else; now it's closer in level to the rumble and road/rain beds it plays over
-      horn(0.028 + 0.045 * pr);
+      const lx = TRAIN.cars[0].x;
+      horn(0.028 + 0.045 * pr, TRAIN, clamp(wdx(lx, L.x) / 900, -0.8, 0.8));
     }
   }
   amb.hg.gain.setTargetAtTime(0.006 * clamp(1 - sd / 240, 0, 1) ** 1.5, now, 0.3);
