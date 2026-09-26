@@ -1341,14 +1341,17 @@ function render() {
       ctx.fill();
     }
   }
-  for (const k of KS) {
-    const tk = inK(k);
-    ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
-    const sx = Math.max(0, V.x0),
-      sy = Math.max(0, gy0),
-      ex = Math.min(W, V.x1),
-      ey = Math.min(H, gy1);
-    if (ex > sx && ey > sy) {
+  /* every copy's ground first, then every copy's snow-and-straw layer on top: the ground blit runs a few
+     units past each seam, and done copy by copy it would paint over the neighbour's snow there in a line */
+  for (const pass of [0, 1])
+    for (const k of KS) {
+      const tk = inK(k);
+      ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
+      const sx = Math.max(0, V.x0),
+        sy = Math.max(0, gy0),
+        ex = Math.min(W, V.x1),
+        ey = Math.min(H, gy1);
+      if (!(ex > sx && ey > sy)) continue;
       // at the seam, overlap each copy by a few units of its neighbour so antialiased edges never leave a hairline
       const blit = (img, sy, ey) => {
         ctx.drawImage(img, sx * S, sy * S, (ex - sx) * S, (ey - sy) * S, sx, sy, ex - sx, ey - sy);
@@ -1356,13 +1359,13 @@ function render() {
         if (sx <= 0) ctx.drawImage(img, (W - 4) * S, sy * S, 4 * S, (ey - sy) * S, -4, sy, 4, ey - sy);
       };
       const paint = (sy, ey) => {
+        if (pass) return growGround(sx, sy, ex, ey);
         blit(G, sy, ey);
         if (TRANS.prevG) {
           ctx.globalAlpha = 1 - tEase();
           blit(TRANS.prevG, sy, ey);
           ctx.globalAlpha = 1;
         }
-        growGround(sx, sy, ex, ey);
       };
       paint(sy, ey);
       // north of y=0 the land runs on under the ridges: mirror the top rows up into that strip, so the
@@ -1370,9 +1373,10 @@ function render() {
       if (gy0 < 0) {
         ctx.setTransform(dpr * z, 0, 0, -dpr * z * TILT, tk, ty);
         paint(0, Math.min(H, 150, -gy0));
-        ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
       }
     }
+  for (const k of KS) {
+    const tk = inK(k);
     if (winterW() < 0.5) drawReflections(tk, ty, z);
     ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tk, ty);
     ctx.strokeStyle = LIGHT.rim > 0.05 ? mixHex('#E8F4EE', LIGHT.eve ? '#FFB060' : '#FFCDA8', LIGHT.rim) : '#E8F4EE';
