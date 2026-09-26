@@ -669,9 +669,9 @@ function keepFlying() {
 function hideBanner() {
   $('banner').classList.remove('show');
 }
-// the title and win/game-over screens read as clean and atmospheric, not gameplay HUD
+// menu/pause/win screens read as clean and atmospheric, not gameplay HUD - only actual flight shows it
 function syncHud() {
-  document.body.classList.toggle('no-hud', st.mode === 'title' || st.mode === 'won' || st.mode === 'over');
+  document.body.classList.toggle('no-hud', st.mode !== 'play');
 }
 // the pause button shows play while paused
 function pauseIcon(paused) {
@@ -684,6 +684,7 @@ function pause() {
   pauseIcon(true);
   st.mode = 'pause';
   pointer.down = false;
+  syncHud();
   $('pauseStats').innerHTML = statsHTML();
   $('pauseOv').hidden = false;
   $('resumeBtn').focus();
@@ -692,6 +693,7 @@ function resume() {
   st.mode = 'play';
   $('pauseOv').hidden = true;
   pauseIcon(false);
+  syncHud();
 }
 function gameOver() {
   hideBanner();
