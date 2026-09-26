@@ -167,6 +167,8 @@ const runStride = (S, sp) => Math.max(S.stride * 1.5, sp / (2.6 * Math.sqrt(11 /
    much it is walking (legs settle rather than snap when it stops) */
 function figPost(a, sp, dt) {
   if (sp > 1) a.hdT = Math.atan2(a.vy, a.vx);
+  else if (a.lee !== undefined)
+    a.hdT = a.lee; // standing with its back to a hard wind (weather.js)
   else if (a.pose || a.role === 'fisher') a.hdT = a.f > 0 ? 0.35 : Math.PI - 0.35;
   else if (a.hdT === undefined) a.hdT = a.f > 0 ? 0.3 : Math.PI - 0.3;
   // standing still and turning to face the other way: mirror, keeping the same angle to the viewer
