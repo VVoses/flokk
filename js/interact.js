@@ -638,11 +638,11 @@ function lambLife(a, dt) {
     if (!a.mom) return;
   }
   const d = Math.sqrt(near2(a, a.mom));
-  a.bleat = (a.bleat ?? rr(2, 6)) - dt;
+  a.bleat = (a.bleat ?? rr(4, 12)) - dt;
   if (d > 70 && a.bleat <= 0) {
-    a.bleat = rr(3, 6);
+    a.bleat = rr(9, 18);
     callAt('lamb', a.x, a.y, 1);
-    a.mom.answer = rr(0.5, 1);
+    if (Math.random() < 0.6) a.mom.answer = rr(0.5, 1);
   }
   if (d > 45 && a.st !== 'walk') {
     a.tx = a.mom.x + rr(-14, 14);
