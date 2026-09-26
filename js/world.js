@@ -13,6 +13,7 @@ let LAKE,
   YARDS = [],
   FARMS = [],
   BUILDS,
+  CHURCH = null, // {b, yard, px, py}: the parish church, its churchyard and the road point by its gate
   NAUST,
   JET,
   BOAT,
@@ -81,6 +82,7 @@ function inYard(Y, x, y, m = 0) {
   const [u, v] = yardLocal(Y, x, y);
   return Math.abs(u) < Y.lw / 2 + m && Math.abs(v) < Y.lh / 2 + m;
 }
+const inChurchyard = (x, y, m = 0) => !!CHURCH && inYard(CHURCH.yard, x, y, m);
 // the point at fractions a (along) and b (across) of yard Y
 const yardAt = (Y, a, b) => yardWorld(Y, (a - 0.5) * Y.lw, (b - 0.5) * Y.lh);
 // the nearest point to x,y at least m inside yard Y
@@ -432,6 +434,7 @@ function blocked(x, y, r) {
   if (inWater(x, y, r * 0.6 + 6)) return true;
   for (const f of FIELDS) if (inField(f, x, y, r * 0.5)) return true;
   for (const Y of YARDS) if (inYard(Y, x, y, r * 0.4)) return true;
+  if (inChurchyard(x, y, r * 0.4)) return true;
   if (inBuild(x, y, r * 0.6 + 12)) return true;
   if (roadDist(x, y) < 52 + r * 0.85) return true;
   if (railDist(x, y) < 34 + r * 0.85) return true;
@@ -548,6 +551,7 @@ function genLayout() {
   // farmsteads beside the road: a main farm and a second, differently laid-out one further along
   LANES = [];
   BUILDS = [];
+  CHURCH = null;
   FIELDS = [];
   DIVIDES = [];
   YARDS = [];
@@ -754,7 +758,7 @@ function genLayout() {
   };
   const fieldOK = r => {
     if (r.w < 210 || r.h < 210 || r.y < NORTH) return false;
-    for (const o of YARDS)
+    for (const o of CHURCH ? YARDS.concat(CHURCH.yard) : YARDS)
       if (r.x < o.x + o.w + 40 && r.x + r.w > o.x - 40 && r.y < o.y + o.h + 40 && r.y + r.h > o.y - 40) return false;
     for (const o of FIELDS)
       if (r.x < o.x + o.w + 6 && r.x + r.w > o.x - 6 && r.y < o.y + o.h + 6 && r.y + r.h > o.y - 6) return false;
@@ -777,6 +781,7 @@ function genLayout() {
     const bad = (x, y) => {
       if (inWater(x, y, 40) || roadDist(x, y) < 42 || railDist(x, y) < 48 || inBuild(x, y, 24)) return true;
       for (const Y of YARDS) if (inYard(Y, x, y, 40)) return true;
+      if (inChurchyard(x, y, 40)) return true;
       for (const o of FIELDS) if (!own.has(o) && inField(o, x, y, 24)) return true;
       return false;
     };
@@ -930,6 +935,7 @@ function genLayout() {
           railDist(x, y) > 40 &&
           !inWater(x, y, 20) &&
           !YARDS.some(Y => inYard(Y, x, y, 30)) &&
+          !inChurchyard(x, y, 30) &&
           !inBuild(x, y, 20);
         if (ok) run.push([x, y]);
         else flush();
@@ -1008,6 +1014,134 @@ function genLayout() {
       return;
     }
   };
+  /* the parish church: a white wooden long church by the road, well away from the farms, with its tower
+     and spire at the end facing the road, a lower chancel at the far end, and a walled churchyard round it.
+     The church is one building for walking and shadows (b.len spans all three parts); b.parts are drawn. */
+  const placeChurch = () => {
+    CHURCH = null;
+    for (let i = 0; i < 1500; i++) {
+      const p = ROAD[(R() * ROAD.length) | 0];
+      if (p[0] < 480 || p[0] > W - 480) continue;
+      if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < (i < 400 ? 900 : i < 900 ? 640 : 380))) continue;
+      const side = R() < 0.5 ? 1 : -1,
+        ang = roadAng(p[0]) + rnd(-0.08, 0.08),
+        Ax = -Math.sin(ang) * side,
+        Ay = Math.cos(ang) * side,
+        lw = rnd(300, 360),
+        lh = rnd(250, 290),
+        back = i < 300 ? 70 : rnd(70, 360), // right by the road if there's room, else up a lane of its own
+        cx = p[0] + Ax * (lh / 2 + back),
+        cy = p[1] + Ay * (lh / 2 + back),
+        yard = mkYard(cx, cy, ang, lw, lh);
+      if (yard.y < NORTH || yard.y + yard.h > H - 440 || !yardFree(yard, 160)) continue;
+      let bad = false;
+      for (let gx = yard.x - 60; gx <= yard.x + yard.w + 60 && !bad; gx += 40)
+        for (let gy = yard.y - 60; gy <= yard.y + yard.h + 60 && !bad; gy += 40)
+          if (inWater(gx, gy, 20) || railDist(gx, gy) < 60 || (inYard(yard, gx, gy) && roadDist(gx, gy) < 50))
+            bad = true;
+      if (bad) continue;
+      // the church stands with its long axis running away from the road, its door end first. Three kinds:
+      // a white-painted wooden church with a tall spire; an old grey fieldstone church with a squat tower
+      // and a short spire; or a stave church, tarred black, its steep shingled roofs stacked in tiers over
+      // a low gallery, dragon heads on the gables and a little turret astride the ridge
+      const kind = pick(['white', 'stone', 'stave']),
+        stone = kind === 'stone',
+        ba = ang + (Math.PI / 2) * side + rnd(-0.04, 0.04),
+        c = Math.cos(ba),
+        s = Math.sin(ba),
+        off = rnd(8, 20),
+        bx = cx + c * off,
+        by = cy + s * off,
+        wall =
+          kind === 'white'
+            ? '#F0EDE6'
+            : kind === 'stave'
+              ? '#3B2A1F'
+              : pick(['#9A958A', '#A39C8C', '#8C897F', '#D8D2C4']), // grey fieldstone, or lime-washed
+        roof = kind === 'stave' ? 'dark' : stone ? pick(['slate', 'slate', 'dark']) : pick(['slate', 'slate', 'dark']),
+        at = u => [bx + c * u, by + s * u],
+        mk = (u, o) => Object.assign({ cx: at(u)[0], cy: at(u)[1], ang: ba, wall, roof }, o);
+      let len, u0, parts, top;
+      if (kind === 'stave') {
+        const gl = rnd(84, 96), // the gallery round the nave
+          cl = 30;
+        len = gl + cl - 4;
+        u0 = -len / 2;
+        const mid = u0 + gl / 2;
+        top = 152;
+        parts = [
+          mk(mid, { len: gl, dep: 78, wh: 12, rh: 36, portal: true }),
+          mk(mid, { len: gl - 18, dep: 46, wh: 42, rh: 82, z: 20, dragons: true }),
+          mk(u0 + gl - 4 + cl / 2, { len: cl, dep: 36, wh: 22, rh: 46 }),
+          mk(mid, { len: 16, dep: 16, wh: 16, rh: 152 - 92, z: 92, spire: true, kind: 'turret' })
+        ];
+      } else {
+        const tw = stone ? 36 : 30,
+          nl = rnd(104, 118),
+          cl = 34,
+          th = stone ? 76 : 64, // tower walls
+          sp = stone ? 50 : 94; // and the spire on top
+        len = tw + nl + cl - 4;
+        u0 = -len / 2;
+        top = th + sp;
+        parts = [
+          mk(u0 + tw / 2, { len: tw, dep: tw, wh: th, rh: th + sp, spire: true, portal: true, kind: 'tower', stone }),
+          mk(u0 + tw - 2 + nl / 2, { len: nl, dep: 54, wh: 34, rh: 66, windows: true, tall: true, stone }),
+          mk(u0 + tw + nl - 4 + cl / 2, { len: cl, dep: 38, wh: 30, rh: 54, windows: true, tall: true, stone })
+        ];
+      }
+      const b = {
+        cx: bx,
+        cy: by,
+        ang: ba,
+        len,
+        dep: kind === 'stave' ? 78 : 54,
+        wh: 34,
+        rh: top,
+        wall,
+        roof,
+        windows: kind !== 'stave', // the stave church has hardly a window; it stands dark at night
+        kind: 'church',
+        look: kind,
+        parts
+      };
+      // the gate in the wall facing the road, and a short gravel lane to it
+      const gx = cx - Ax * (lh / 2),
+        gy = cy - Ay * (lh / 2);
+      yard.gate = [gx + Ax * 20, gy + Ay * 20];
+      yard.door = at(u0 - 12);
+      yard.side = side;
+      BUILDS.push(b);
+      CHURCH = { b, yard, px: p[0], py: p[1] };
+      if (kind === 'stave') {
+        // a stave church keeps its bells in a free-standing tarred bell tower, off to one side of the gate
+        const [bu, bv] = [rnd(0.26, 0.34) * yard.lw * (R() < 0.5 ? 1 : -1), -side * (lh / 2 - 44)],
+          [tx, ty] = yardWorld(yard, bu, bv);
+        if (!buildAt(tx, ty, 30))
+          BUILDS.push({
+            cx: tx,
+            cy: ty,
+            ang: ba + rnd(-0.05, 0.05),
+            len: 20,
+            dep: 20,
+            wh: 34,
+            rh: 66,
+            wall,
+            roof: 'dark',
+            spire: true,
+            kind: 'belfry'
+          });
+      }
+      LANES.push(
+        catmull([
+          [p[0], p[1]],
+          [lerp(p[0], gx, 0.5), lerp(p[1], gy, 0.5)],
+          [gx + Ax * 16, gy + Ay * 16]
+        ])
+      );
+      return;
+    }
+  };
   let main = placeFarm(true);
   if (!main) {
     const p = ROAD.find(q => q[0] > W * 0.4) || ROAD[(ROAD.length / 2) | 0];
@@ -1032,6 +1166,7 @@ function genLayout() {
     buildFarm(second);
     if (R() < 0.5) placeSty(second);
   }
+  placeChurch();
   YARD = main.yard;
   START = { x: main.px + 160 * (R() < 0.5 ? 1 : -1), y: main.py + main.side * 40 };
   // each farm's land runs back from the road behind its yard, and for a bigger farm across the road too
@@ -1051,6 +1186,7 @@ function genLayout() {
     const x = rnd(350, W - 650),
       y = rnd(NORTH, H - 550);
     if (FARMS.some(fm => Math.hypot(wdx(x, fm.cx), y - fm.cy) < 1100)) continue;
+    if (CHURCH && Math.hypot(wdx(x, CHURCH.yard.cx), y - CHURCH.yard.cy) < 700) continue;
     if (Math.hypot(x - LAKE.x, y - LAKE.y) < LAKE.r + 450) continue;
     const f = { x, y, w: rnd(260, 380), h: rnd(220, 320), t: 'pasture', dir: 0 };
     if (!fieldOK(f)) continue;
@@ -1090,6 +1226,7 @@ function genLayout() {
       roadDist(c.cx, c.cy) > 90 &&
       railDist(c.cx, c.cy) > 110 &&
       !YARDS.some(Y => inYard(Y, c.cx, c.cy, 80)) &&
+      !inChurchyard(c.cx, c.cy, 80) &&
       !FIELDS.some(f => inRect(c.cx, c.cy, f, 60))
     )
       BUILDS.push(c);
@@ -1150,6 +1287,7 @@ function genLayout() {
       const x = rnd(0, W),
         y = rnd(NORTH, H);
       if (FARMS.some(fm => Math.hypot(wdx(x, fm.cx), y - fm.cy) < 700)) continue;
+      if (CHURCH && Math.hypot(wdx(x, CHURCH.yard.cx), y - CHURCH.yard.cy) < 600) continue;
       ZONES.push([x, y, rnd(380, 950), rnd(0.22, 0.46)]);
       break;
     }
@@ -1279,6 +1417,28 @@ function genWorld(seed) {
       if (!blocked(x, y, r)) addTree(x, y, R() < 0.65 ? 'birch' : 'decid', r);
     }
   }
+  // old birches and ashes along the churchyard wall, gaps left by the gate
+  if (CHURCH) {
+    const Y = CHURCH.yard,
+      per = 2 * (Y.lw + Y.lh);
+    for (let t = rnd(0, 40); t < per; t += rnd(38, 64)) {
+      let u, v;
+      if (t < Y.lw) ((u = t - Y.lw / 2), (v = -Y.lh / 2));
+      else if (t < Y.lw + Y.lh) ((u = Y.lw / 2), (v = t - Y.lw - Y.lh / 2));
+      else if (t < 2 * Y.lw + Y.lh) ((u = Y.lw * 1.5 + Y.lh - t), (v = Y.lh / 2));
+      else ((u = -Y.lw / 2), (v = per - t - Y.lh / 2));
+      if (v * Y.side < -Y.lh / 2 + 5 && Math.abs(u) < 70) continue; // keep the gate and the view of the tower open
+      const out = 30 + rnd(0, 10),
+        [x, y] = yardWorld(
+          Y,
+          u + Math.sign(u) * (Math.abs(u) >= Y.lw / 2 - 1 ? out : 0),
+          v + Math.sign(v) * (Math.abs(v) >= Y.lh / 2 - 1 ? out : 0)
+        ),
+        r = rnd(18, 26);
+      if (R() < 0.2 || blocked(x, y, r)) continue;
+      addTree(x, y, R() < 0.6 ? 'birch' : 'decid', r);
+    }
+  }
   // bales on stubble, fences round pastures
   for (const f of FIELDS) {
     if (f.t === 'stubble') {
@@ -1313,12 +1473,21 @@ function genWorld(seed) {
   wireUp(polesPeriodic(RAIL, 150, 17));
   addPerch(BOAT.x + Math.cos(BOAT.ang) * 8, BOAT.y + Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang);
   addPerch(BOAT.x - Math.cos(BOAT.ang) * 8, BOAT.y - Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang + Math.PI);
-  for (const b of BUILDS) {
-    const c = Math.cos(b.ang),
-      s = Math.sin(b.ang);
-    for (let lx = -b.len / 2 + 8; lx <= b.len / 2 - 8; lx += 11)
-      addPerch(b.cx + c * lx, b.cy + s * lx, b.rh / HZ, 'roof', false, b.ang, b.cy + 1);
-  }
+  for (const b0 of BUILDS)
+    for (const b of b0.parts || [b0]) {
+      const c = Math.cos(b.ang),
+        s = Math.sin(b.ang);
+      // one bird can sit on the arm of the cross at the top of the spire
+      const z = b.z || 0;
+      if (b.spire) addPerch(b.cx, b.cy, (b.rh + z + 9) / HZ, 'roof', false, b.ang, b0.cy + 1);
+      else if (b0.parts && b0.parts.some(o => o !== b && o.z && !o.spire && o.cx === b.cx && o.cy === b.cy))
+        continue; // the stave church's gallery: its ridge is inside the nave
+      else
+        for (let lx = -b.len / 2 + 8; lx <= b.len / 2 - 8; lx += 11) {
+          if (b.z && Math.abs(lx) < 14) continue; // where the turret stands astride the ridge
+          addPerch(b.cx + c * lx, b.cy + s * lx, (b.rh + z) / HZ, 'roof', false, b.ang, b0.cy + 1);
+        }
+    }
   genSky();
   genBorderBits();
   buildLights();
@@ -1488,6 +1657,7 @@ function fieldFree(f, x, y) {
   if (x < 30 || x > W - 30 || y < NORTH - 60 || y > H - 400) return false;
   if (inWater(x, y, 26) || roadDist(x, y) < VERGE || railDist(x, y) < VERGE) return false;
   for (const Y of YARDS) if (inYard(Y, x, y, 22)) return false;
+  if (inChurchyard(x, y, 22)) return false;
   if (inBuild(x, y, 18)) return false;
   for (const P of LANES) if (polyDist(x, y, P) < 20) return false;
   for (const o of FIELDS) if (o !== f && (o.poly ? inField(o, x, y, 14) : inRect(x, y, o, 4))) return false;

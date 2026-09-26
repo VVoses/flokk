@@ -155,6 +155,7 @@ function buildLights() {
       });
     }
   }
+  if (CHURCH) placeGraves(CHURCH);
   for (const fm of FARMS) {
     const house = fm.house;
     if (!house) continue;
