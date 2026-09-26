@@ -1660,11 +1660,11 @@ function pad(ms, t, dur, v, cut) {
 }
 function makeMotif(S) {
   const m = [];
-  let d = S.mel[(Math.random() * S.mel.length) | 0];
+  let d = pickP(S.mel);
   for (let i = 0; i < 8; i++) {
     const on = i === 0 || Math.random() < (i % 2 ? S.p * 0.4 : S.p * 0.85);
     if (on) {
-      d += [-2, -1, -1, 0, 1, 1, 2][(Math.random() * 7) | 0];
+      d += pickP([-2, -1, -1, 0, 1, 1, 2]);
       d = clamp(d, -2, 9);
     }
     m.push(on ? d : null);
@@ -1837,7 +1837,7 @@ function audioTick(dt) {
           Math.random() < hush(a.k)
       );
       if (near.length) {
-        const a = near[(Math.random() * near.length) | 0];
+        const a = pickP(near);
         rest[a.k] = now + rr(...AMB_REST[a.k]);
         const say = b => {
           const d = Math.hypot(wdx(b.x, L.x), b.y - L.y);
@@ -1850,7 +1850,7 @@ function audioTick(dt) {
             b => b !== a && b.k === a.k && !b.dying && Math.hypot(wdx(b.x, a.x), b.y - a.y) < 500
           );
           if (mates.length) {
-            const b = mates[(Math.random() * mates.length) | 0];
+            const b = pickP(mates);
             setTimeout(() => L && say(b), rr(1200, 3500));
           }
         }

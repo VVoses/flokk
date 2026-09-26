@@ -455,12 +455,7 @@ function drawTree(t) {
   ctx.save();
   ctx.translate(t.x, t.y * TILT);
   ctx.transform(1, 0, treeSway(t), 1, 0, 0);
-  if (TRANS.prevSPR) {
-    const e = tEase();
-    ctx.globalAlpha = 1 - e * 0.6;
-    ctx.drawImage(TRANS.prevSPR[t.type][t.v], x, y, w, h);
-    ctx.globalAlpha = e;
-  }
+  crossfadeUnder(TRANS.prevSPR && TRANS.prevSPR[t.type][t.v], x, y, w, h);
   // bare twigs and first leaves under a tree still leafing out, or losing its leaves (grow.js)
   const la = growUnder(t, x, y, w, h);
   ctx.globalAlpha *= la;

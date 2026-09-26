@@ -48,7 +48,7 @@ function herdMate(a) {
   const m = ANIMALS.filter(
     o => o !== a && o.k === a.k && !o.dying && !o.lamb && (a.rect ? o.rect === a.rect : o.hx === a.hx)
   );
-  return m.length ? m[(Math.random() * m.length) | 0] : null;
+  return m.length ? pickP(m) : null;
 }
 // a corvid takes off from a threat and resettles elsewhere in its patch
 function shoo(o, fx, fy) {

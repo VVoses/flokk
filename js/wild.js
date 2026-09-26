@@ -182,7 +182,7 @@ function wildLanding(sp, F) {
     for (let i = 0; i < w; i++) cand.push(f);
   }
   for (let k = 0; k < 8 && cand.length; k++) {
-    const f = F && F.field && k < 4 ? F.field : cand[(Math.random() * cand.length) | 0];
+    const f = F && F.field && k < 4 ? F.field : pickP(cand);
     let p = ptIn(f, 40);
     if (F && f === F.field) {
       // resettle a little further on, not across the field
@@ -270,7 +270,7 @@ function wildThreat(F) {
     if (Math.abs(dx) < 340 && Math.abs(h.y - F.y) < 340) return ['hawk', F.x + dx, h.y];
   }
   for (let i = 0; i < 3 && F.members.length; i++) {
-    const a = F.members[(Math.random() * F.members.length) | 0];
+    const a = pickP(F.members);
     if (a.st === 'fly') continue;
     const p = threatNear(a, 60);
     if (p) return ['near', p[0], p[1]];
@@ -284,13 +284,7 @@ function updateWild(dt) {
     WILD.t = rr(50, 110);
     const kinds = Object.keys(WILD_SP).filter(k => WILD_SP[k].seasons.includes(SEASON));
     // no open field near enough this time: look again soon
-    if (
-      !WILD.flocks.length &&
-      kinds.length &&
-      LIGHT.night < 0.25 &&
-      !spawnWild(kinds[(Math.random() * kinds.length) | 0])
-    )
-      WILD.t = rr(10, 20);
+    if (!WILD.flocks.length && kinds.length && LIGHT.night < 0.25 && !spawnWild(pickP(kinds))) WILD.t = rr(10, 20);
   }
   for (const F of WILD.flocks) wildFlock(F, dt);
   WILD.flocks = WILD.flocks.filter(F => {

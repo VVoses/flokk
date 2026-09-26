@@ -17,6 +17,11 @@ screen, the game then starts in that season, with a full year ahead.
 [`DESIGN.md`](DESIGN.md) sets out what the game is trying to be (harsh rules, a soft and honest world) and a
 checklist of principles for new work. Read it before adding anything to the world.
 
+[`ARCHITECTURE.md`](ARCHITECTURE.md) sets out how the code is put together and why: the no-build/global-scope
+constraint and what it buys, the frame loop, the world/season/rendering models, and the shared patterns
+(movement helpers, the animal state-machine convention, the audio envelope shape) worth reusing rather than
+reinventing. Read it before a change that touches more than one file.
+
 ## Code map
 
 Canvas game. `index.html` holds the markup and loads plain scripts **in order**.

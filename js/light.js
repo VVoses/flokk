@@ -611,6 +611,17 @@ function seasonBanner() {
   void el.offsetWidth;
   el.classList.add('show');
 }
+// shared by anything that crossfades a season change at a place (drawTree in render.js, drawBush in
+// sky.js): draws the outgoing season's frozen sprite fading out underneath, if prevSpr is set, and
+// leaves globalAlpha at the fade-in progress (untouched if there's nothing to fade from) for the
+// caller to build its own, still-live drawing on top of
+function crossfadeUnder(prevSpr, x, y, w, h) {
+  if (!prevSpr) return;
+  const e = tEase();
+  ctx.globalAlpha = 1 - e * 0.6;
+  ctx.drawImage(prevSpr, x, y, w, h);
+  ctx.globalAlpha = e;
+}
 
 /* ---------- sky behind the world: drawn last, underneath, with destination-over ---------- */
 const STARS = [];

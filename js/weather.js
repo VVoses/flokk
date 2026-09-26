@@ -217,7 +217,7 @@ function leafTick(dt) {
           sp: rr(3, 9) * (Math.random() < 0.5 ? -1 : 1),
           rot: rr(0, TAU),
           ph: rr(0, TAU),
-          c: LEAF_COL[(Math.random() * LEAF_COL.length) | 0],
+          c: pickP(LEAF_COL),
           s: rr(0.9, 1.4),
           age: 0,
           down: 0

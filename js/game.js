@@ -11,7 +11,7 @@ const PAL = [
   ['#3F3833', '#5F554C', '#4D4640']
 ];
 function newBird(x, y) {
-  const p = PAL[(Math.random() * PAL.length) | 0];
+  const p = pickP(PAL);
   return {
     x,
     y,
@@ -149,7 +149,7 @@ function randomSpot() {
       x = LAKE.x + Math.cos(a) * d;
       y = LAKE.y + Math.sin(a) * d;
     } else if (u < 0.8) {
-      const f = FIELDS[(Math.random() * FIELDS.length) | 0];
+      const f = pickP(FIELDS);
       x = rr(f.x, f.x + f.w);
       y = rr(f.y, f.y + f.h);
     } else {

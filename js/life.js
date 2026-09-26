@@ -80,7 +80,7 @@ function spawnAnimals() {
   }
   const openF = FIELDS.filter(f => f.t !== 'pasture');
   for (let i = 0; i < 2 && openF.length; i++) {
-    const f = openF[(Math.random() * openF.length) | 0];
+    const f = pickP(openF);
     ANIMALS.push(mkA('hare', ...ptIn(f, 20), { rect: f }));
   }
   const nd = SEASON === 3 ? 0 : rr(3, 6) | 0;
@@ -101,7 +101,7 @@ function spawnAnimals() {
   }
   for (const Y of YARDS) for (let i = 0; i < 2; i++) ANIMALS.push(mkA('magpie', ...inRectPt(Y, 30), { rect: Y }));
   for (let i = 0; i < (rr(2, 4) | 0) && openF.length; i++) {
-    const f = openF[(Math.random() * openF.length) | 0];
+    const f = pickP(openF);
     ANIMALS.push(mkA('crow', ...ptIn(f, 20), { rect: f }));
   }
   ANIMALS.push(
@@ -133,7 +133,7 @@ function spawnAnimals() {
   let tf = null;
   if (SEASON < 3) {
     const work = FIELDS.filter(f => (f.t === 'plow' || f.t === 'stubble') && f !== LIFE.tractorF);
-    tf = work.length ? work[(Math.random() * work.length) | 0] : LIFE.tractorF;
+    tf = work.length ? pickP(work) : LIFE.tractorF;
   }
   const t0 = tf && rowStart(tf, ...ptIn(tf, 30));
   if (t0) {
@@ -156,7 +156,7 @@ function spawnAnimals() {
       ANIMALS.push(
         mkA('butterfly', rr(f.x, f.x + f.w), rr(f.y, f.y + f.h), {
           z: rr(0.3, 0.9),
-          col: ['#E8893A', '#F2EFE2', '#E9D35A', '#9C7BC8'][(Math.random() * 4) | 0],
+          col: pickP(['#E8893A', '#F2EFE2', '#E9D35A', '#9C7BC8']),
           rect: f
         })
       );
@@ -245,7 +245,7 @@ function tractorMove(a) {
     .map(f => [f, Math.hypot(wdx(f.x + f.w / 2, a.x), f.y + f.h / 2 - a.y)])
     .sort((p, q) => p[1] - q[1])
     .slice(0, 3);
-  const f = near.length && near[(Math.random() * near.length) | 0][0],
+  const f = near.length && pickP(near)[0],
     s = f && rowStart(f, a.x, a.y);
   if (!s) {
     // nowhere else to go: turn round and work this field again, back the way it came

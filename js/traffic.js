@@ -60,7 +60,7 @@ function spawnVehicle() {
     dir,
     s: RD.sAt(sx),
     dist: 0,
-    col: kind === 'tractor' ? TRACTOR_COLS[(Math.random() * 3) | 0] : CAR_COLS[(Math.random() * CAR_COLS.length) | 0],
+    col: kind === 'tractor' ? pickP(TRACTOR_COLS) : pickP(CAR_COLS),
     vmax: kind === 'tractor' ? rr(34, 44) : kind === 'van' ? rr(95, 120) : rr(105, 145),
     len: kind === 'tractor' ? 28 : kind === 'van' ? 42 : 38,
     hd: kind === 'tractor' ? 8 : 8.5,

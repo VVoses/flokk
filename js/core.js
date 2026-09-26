@@ -45,6 +45,12 @@ let R = mulberry32(777),
   SEED = 0;
 const rnd = (a, b) => a + R() * (b - a);
 const rr = (a, b) => a + Math.random() * (b - a);
+// one seeded random element of an array - the same R() every other generation helper here draws on,
+// so picking a house colour or a field crop is exactly as reproducible per-seed as everything else
+const pick = a => a[(R() * a.length) | 0];
+// the same, but plain Math.random() for anything that isn't part of world generation and has no
+// reason to be reproducible per-seed (a call's exact pitch, which colour a passing car is, ...)
+const pickP = a => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 const d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
