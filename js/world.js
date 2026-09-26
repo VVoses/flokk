@@ -941,79 +941,66 @@ function genLayout() {
           if (inWater(gx, gy, 20) || railDist(gx, gy) < 60 || (inYard(yard, gx, gy) && roadDist(gx, gy) < 50))
             bad = true;
       if (bad) continue;
-      // the church stands with its long axis running away from the road, tower first
-      // three kinds: most often a white-painted wooden church; sometimes an old grey fieldstone one with
-      // a squat tower and short spire; now and then a small chapel in barn red
-      const kind = pick(['white', 'white', 'white', 'stone', 'stone', 'red']),
+      // the church stands with its long axis running away from the road, its door end first. Three kinds:
+      // a white-painted wooden church with a tall spire; an old grey fieldstone church with a squat tower
+      // and a short spire; or a stave church, tarred black, its steep shingled roofs stacked in tiers over
+      // a low gallery, dragon heads on the gables and a little turret astride the ridge
+      const kind = pick(['white', 'white', 'stone', 'stave']),
         stone = kind === 'stone',
         ba = ang + (Math.PI / 2) * side + rnd(-0.04, 0.04),
         c = Math.cos(ba),
         s = Math.sin(ba),
-        tw = stone ? 36 : 30,
-        nl = rnd(104, 118),
-        cl = 34,
-        len = tw + nl + cl - 4,
         off = rnd(8, 20),
         bx = cx + c * off,
         by = cy + s * off,
-        wall = kind === 'white' ? '#F0EDE6' : kind === 'red' ? '#8E2F24' : pick(['#9A958A', '#A39C8C', '#8C897F']),
-        roof =
-          kind === 'red'
-            ? pick(['dark', 'slate'])
-            : stone
-              ? pick(['tile', 'slate', 'dark'])
-              : pick(['slate', 'slate', 'dark']),
-        th = stone ? 76 : kind === 'red' ? 56 : 64, // tower walls
-        sp = stone ? 50 : kind === 'red' ? 76 : 94, // and the spire on top
+        wall = kind === 'white' ? '#F0EDE6' : kind === 'stave' ? '#3B2A1F' : pick(['#9A958A', '#A39C8C', '#8C897F']),
+        roof = kind === 'stave' ? 'dark' : stone ? pick(['tile', 'slate', 'dark']) : pick(['slate', 'slate', 'dark']),
         at = u => [bx + c * u, by + s * u],
         mk = (u, o) => Object.assign({ cx: at(u)[0], cy: at(u)[1], ang: ba, wall, roof }, o);
-      const u0 = -len / 2,
-        b = {
-          cx: bx,
-          cy: by,
-          ang: ba,
-          len,
-          dep: 54,
-          wh: 34,
-          rh: th + sp,
-          wall,
-          roof,
-          windows: true,
-          kind: 'church',
-          look: kind,
-          parts: [
-            mk(u0 + tw / 2, {
-              len: tw,
-              dep: tw,
-              wh: th,
-              rh: th + sp,
-              spire: true,
-              kind: 'tower',
-              stone,
-              trim: kind === 'red'
-            }),
-            mk(u0 + tw - 2 + nl / 2, {
-              len: nl,
-              dep: 54,
-              wh: 34,
-              rh: 66,
-              windows: true,
-              tall: true,
-              stone,
-              trim: kind === 'red'
-            }),
-            mk(u0 + tw + nl - 4 + cl / 2, {
-              len: cl,
-              dep: 38,
-              wh: 30,
-              rh: 54,
-              windows: true,
-              tall: true,
-              stone,
-              trim: kind === 'red'
-            })
-          ]
-        };
+      let len, u0, parts, top;
+      if (kind === 'stave') {
+        const gl = rnd(84, 96), // the gallery round the nave
+          cl = 30;
+        len = gl + cl - 4;
+        u0 = -len / 2;
+        const mid = u0 + gl / 2;
+        top = 152;
+        parts = [
+          mk(mid, { len: gl, dep: 78, wh: 12, rh: 36, portal: true }),
+          mk(mid, { len: gl - 18, dep: 46, wh: 42, rh: 82, z: 20, dragons: true }),
+          mk(u0 + gl - 4 + cl / 2, { len: cl, dep: 36, wh: 22, rh: 46 }),
+          mk(mid, { len: 16, dep: 16, wh: 16, rh: 152 - 92, z: 92, spire: true, kind: 'turret' })
+        ];
+      } else {
+        const tw = stone ? 36 : 30,
+          nl = rnd(104, 118),
+          cl = 34,
+          th = stone ? 76 : 64, // tower walls
+          sp = stone ? 50 : 94; // and the spire on top
+        len = tw + nl + cl - 4;
+        u0 = -len / 2;
+        top = th + sp;
+        parts = [
+          mk(u0 + tw / 2, { len: tw, dep: tw, wh: th, rh: th + sp, spire: true, portal: true, kind: 'tower', stone }),
+          mk(u0 + tw - 2 + nl / 2, { len: nl, dep: 54, wh: 34, rh: 66, windows: true, tall: true, stone }),
+          mk(u0 + tw + nl - 4 + cl / 2, { len: cl, dep: 38, wh: 30, rh: 54, windows: true, tall: true, stone })
+        ];
+      }
+      const b = {
+        cx: bx,
+        cy: by,
+        ang: ba,
+        len,
+        dep: kind === 'stave' ? 78 : 54,
+        wh: 34,
+        rh: top,
+        wall,
+        roof,
+        windows: kind !== 'stave', // the stave church has hardly a window; it stands dark at night
+        kind: 'church',
+        look: kind,
+        parts
+      };
       // the gate in the wall facing the road, and a short gravel lane to it
       const gx = cx - Ax * (lh / 2),
         gy = cy - Ay * (lh / 2);
@@ -1368,10 +1355,15 @@ function genWorld(seed) {
       const c = Math.cos(b.ang),
         s = Math.sin(b.ang);
       // one bird can sit on the arm of the cross at the top of the spire
-      if (b.spire) addPerch(b.cx, b.cy, (b.rh + 9) / HZ, 'roof', false, b.ang, b0.cy + 1);
+      const z = b.z || 0;
+      if (b.spire) addPerch(b.cx, b.cy, (b.rh + z + 9) / HZ, 'roof', false, b.ang, b0.cy + 1);
+      else if (b0.parts && b0.parts.some(o => o !== b && o.z && !o.spire && o.cx === b.cx && o.cy === b.cy))
+        continue; // the stave church's gallery: its ridge is inside the nave
       else
-        for (let lx = -b.len / 2 + 8; lx <= b.len / 2 - 8; lx += 11)
-          addPerch(b.cx + c * lx, b.cy + s * lx, b.rh / HZ, 'roof', false, b.ang, b0.cy + 1);
+        for (let lx = -b.len / 2 + 8; lx <= b.len / 2 - 8; lx += 11) {
+          if (b.z && Math.abs(lx) < 14) continue; // where the turret stands astride the ridge
+          addPerch(b.cx + c * lx, b.cy + s * lx, (b.rh + z) / HZ, 'roof', false, b.ang, b0.cy + 1);
+        }
     }
   genSky();
   genBorderBits();

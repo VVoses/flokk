@@ -589,7 +589,8 @@ function drawBuilding(b) {
     s = Math.sin(b.ang),
     hl = b.len / 2,
     hd = b.dep / 2;
-  const P = (lx, ly, h) => [b.cx + lx * c - ly * s, (b.cy + lx * s + ly * c) * TILT - h];
+  const z = b.z || 0, // raised parts (a stave church's nave on its gallery) start this high
+    P = (lx, ly, h) => [b.cx + lx * c - ly * s, (b.cy + lx * s + ly * c) * TILT - h - z];
   const poly = (pts, fill, stroke) => {
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
@@ -682,13 +683,24 @@ function drawBuilding(b) {
       ctx.fillStyle = '#D9C27A';
       ctx.fillRect(k[0] - 0.7, k[1] - 0.7, 1.4, 1.4);
     }
+    if (b.portal && nx === -1) {
+      // the church door, facing the road
+      const L = Math.hypot(x2 - x1, y2 - y1),
+        w = 6 / L,
+        tar = b.wall === '#3B2A1F';
+      arch(
+        Q,
+        0.5 - w,
+        0.5 + w,
+        0,
+        Math.min(20, wh * 0.9 + (gable ? (rh - wh) * 0.5 : 0)),
+        shade(tar ? '#6A4A30' : '#4A3226', lit),
+        tar ? '#8A6A48' : '#F1ECE2'
+      );
+    }
     if (b.spire) {
-      // the tower: a door facing the road, and louvred openings for the bells up top
+      // louvred openings for the bells up top
       const L = Math.hypot(x2 - x1, y2 - y1);
-      if (nx === -1) {
-        const w = 6 / L;
-        arch(Q, 0.5 - w, 0.5 + w, 0, wh * 0.3, shade('#4A3226', lit), '#F1ECE2');
-      }
       for (const u of [0.32, 0.68]) arch(Q, u - 3.2 / L, u + 3.2 / L, wh * 0.76, wh * 0.9, 'rgba(30,26,22,.85)');
     } else if (b.tall) {
       // the church's tall, round-headed windows, none in the gable ends
@@ -811,6 +823,27 @@ function drawBuilding(b) {
   ctx.moveTo(r0[0], r0[1]);
   ctx.lineTo(r1[0], r1[1]);
   ctx.stroke();
+  if (b.dragons) {
+    // carved dragon heads rearing off both gable tips
+    const dl = Math.hypot(r1[0] - r0[0], r1[1] - r0[1]) || 1;
+    ctx.strokeStyle = '#2A1E16';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    for (const [e, sg] of [
+      [r0, -1],
+      [r1, 1]
+    ]) {
+      const ox = ((r1[0] - r0[0]) / dl) * sg,
+        oy = ((r1[1] - r0[1]) / dl) * sg;
+      ctx.moveTo(e[0], e[1]);
+      ctx.quadraticCurveTo(e[0] + ox * 11, e[1] + oy * 11 - 5, e[0] + ox * 9, e[1] + oy * 9 - 16);
+      ctx.lineTo(e[0] + ox * 15, e[1] + oy * 15 - 18);
+      ctx.moveTo(e[0] + ox * 9, e[1] + oy * 9 - 16);
+      ctx.lineTo(e[0] + ox * 12, e[1] + oy * 12 - 13);
+    }
+    ctx.stroke();
+  }
   if (b.chimney) {
     const cx0 = hl * 0.45,
       cy0 = -hd * 0.35,
@@ -1043,7 +1076,7 @@ function renderShadows(tx, ty, KS, inK) {
           hd = b.dep / 2 + 4,
           pts = [];
         const P = (lx, ly, h) => {
-          const q = h / HZ;
+          const q = (h + (b.z || 0)) / HZ;
           pts.push([b.cx + lx * cs - ly * sn + q * SX, b.cy + lx * sn + ly * cs + q * SY]);
         };
         for (const [lx, ly] of [
