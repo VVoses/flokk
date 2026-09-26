@@ -352,7 +352,12 @@ function applySeason(s, smooth) {
   if (smooth && s !== SEASON) {
     TRANS.prevG = mk(G.width, G.height);
     TRANS.prevG.getContext('2d').drawImage(G, 0, 0);
-    TRANS.prevSPR = { spruce: SPR.spruce.slice(), birch: SPR.birch.slice(), decid: SPR.decid.slice() };
+    TRANS.prevSPR = {
+      spruce: SPR.spruce.slice(),
+      birch: SPR.birch.slice(),
+      decid: SPR.decid.slice(),
+      bush: BSPR.cur.slice()
+    };
     TRANS.prevSeason = SEASON;
     TRANS.t = 0;
   } else {
