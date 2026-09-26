@@ -212,6 +212,41 @@ function flyTo(a, dt, sp, maxZ) {
   a.z = Math.min(maxZ, d / 70, a.z + dt * 1.6);
   return false;
 }
+// a tractor done with its field picks another of its own farm's ploughed, stubble or cropped fields (one of the
+// nearer ones) and heads for the end of that field's first row
+function tractorMove(a) {
+  const near = FIELDS.filter(
+    f => f !== a.rect && f.farm === a.rect.farm && (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop')
+  )
+    .map(f => [f, Math.hypot(wdx(f.x + f.w / 2, a.x), f.y + f.h / 2 - a.y)])
+    .sort((p, q) => p[1] - q[1])
+    .slice(0, 3);
+  if (!near.length) {
+    a.work = rr(60, 140);
+    return;
+  }
+  const f = near[(Math.random() * near.length) | 0][0];
+  let y = f.y + 28,
+    xr = f.poly ? xRange(f.poly, y) : [f.x, f.x + f.w];
+  for (let i = 1; (!xr || xr[1] - xr[0] < 70) && y < f.y + f.h - 24; i++) {
+    y = f.y + 28 + i * 30;
+    xr = f.poly ? xRange(f.poly, y) : [f.x, f.x + f.w];
+  }
+  if (!xr) return void (a.work = rr(60, 140));
+  // start from whichever end of the row is nearer, working away from it
+  const west = Math.abs(wdx(xr[0] + 30, a.x)) < Math.abs(wdx(xr[1] - 30, a.x));
+  a.next = f;
+  a.go = [west ? xr[0] + 30 : xr[1] - 30, y];
+  a.row = Math.round((y - f.y - 28) / 30);
+  a.dirn = west ? 1 : -1;
+}
+function tractorDust(a, dt) {
+  a.dust = (a.dust || 0) - dt;
+  if (a.dust <= 0 && inView(a.x, a.y, 200)) {
+    a.dust = 0.14;
+    parts.push({ k: 'd', x: a.x - a.f * 14 + rr(-3, 3), y: a.y + rr(-2, 2), z: 0.05, life: 1.4, max: 1.4 });
+  }
+}
 // a random spot in a field or yard that is not inside a building
 function inRectPt(r, m) {
   let p = ptIn(r, m);
@@ -491,6 +526,24 @@ function updateAnimals(dt) {
       }
       case 'tractor': {
         if (LIGHT.night > 0.4) break;
+        if (a.go) {
+          // on the way to the next field, in a higher gear than when working it
+          const dx = wdx(a.go[0], a.x),
+            dy = a.go[1] - a.y,
+            d = Math.hypot(dx, dy);
+          if (d < 6) {
+            a.rect = a.next;
+            a.go = a.next = null;
+            a.work = rr(60, 140);
+          } else {
+            a.vx = (dx / d) * 55;
+            a.x = wrapX(a.x + a.vx * dt);
+            a.y += (dy / d) * 55 * dt;
+            if (Math.abs(dx) > 2) a.f = a.vx > 0 ? 1 : -1;
+          }
+          tractorDust(a, dt);
+          break;
+        }
         const f = a.rect;
         a.ty = f.y + 28 + a.row * 30;
         if (a.ty > f.y + f.h - 24) {
@@ -506,19 +559,18 @@ function updateAnimals(dt) {
         a.tx = a.dirn > 0 ? xr[1] - 30 : xr[0] + 30;
         a.y += (a.ty - a.y) * Math.min(1, dt * 1.5);
         const dx = a.tx - a.x;
+        a.work = (a.work ?? rr(60, 140)) - dt;
         if (Math.abs(dx) < 3) {
           a.dirn *= -1;
           a.row++;
+          // enough done here: at the headland, set off for another field
+          if (a.work <= 0) tractorMove(a);
         } else {
           a.vx = Math.sign(dx) * 24;
           a.x += a.vx * dt;
           a.f = a.vx > 0 ? 1 : -1;
         }
-        a.dust = (a.dust || 0) - dt;
-        if (a.dust <= 0 && inView(a.x, a.y, 200)) {
-          a.dust = 0.14;
-          parts.push({ k: 'd', x: a.x - a.f * 14 + rr(-3, 3), y: a.y + rr(-2, 2), z: 0.05, life: 1.4, max: 1.4 });
-        }
+        tractorDust(a, dt);
         break;
       }
       case 'gull': {
@@ -704,6 +756,7 @@ function updateAnimals(dt) {
     c.x += WIND.x * 14 * dt;
     c.y += WIND.y * 14 * dt;
     if (c.x > W) c.x -= W;
+    else if (c.x < 0) c.x += W;
     if (c.y > H + 500) c.y = -400;
   }
   for (const c of SKYCLOUDS) {
