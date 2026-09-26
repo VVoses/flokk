@@ -1576,6 +1576,8 @@ function render() {
       else items.push([(p ? p.key : b.y) + b.hy * 0.01, 5, b, k]);
     }
     for (const h of hawks) if (visU(h.x, h.y, 60, h.z * HZ + 40)) hk.push([h, k]);
+    // rain, snow, blown leaves and fog banks take their place among the trees (weather.js)
+    if (k === 0) weatherItems(items);
   }
   V = V0;
   let ck = null;
@@ -1601,6 +1603,8 @@ function render() {
     else if (kind === 11) drawVehicle(o);
     else if (kind === 12) drawProp(o);
     else if (kind === 7) drawAnimal(o);
+    else if (kind === 14) drawWeatherBand(o);
+    else if (kind === 15) drawFogSlice(o);
     else drawPerched(o, o.perch && o.perch.cover ? 0.7 : 1);
   }
   for (const k of KS) {
@@ -1778,7 +1782,6 @@ function render() {
   }
   V = V0;
   setK(0);
-  drawWeatherAir();
   if (pointer.down && st.mode === 'play') {
     const w = screenToWorld(pointer.x, pointer.y, L.z);
     ctx.strokeStyle = 'rgba(242,201,76,.65)';
@@ -1803,7 +1806,6 @@ function render() {
   drawSkyBehind(tx, ty);
   applyGlaze();
   drawRays();
-  drawSnowfall(lastDt);
   drawRain(lastDt);
   /* ---- screen space ---- */
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
