@@ -2,7 +2,7 @@
    Animal drawing: shared 3D flier rig and articulated ground-animal rigs.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
-/* ---------- 3D birds in flight: one rig shared by sparrows, gulls, geese, corvids and herons ---------- */
+/* ---------- 3D birds in flight: one rig shared by sparrows, gulls, geese, corvids, herons and the wild flocks ---------- */
 const LOOK = {
   sparrow: {
     K: 8.5,
@@ -408,6 +408,7 @@ function birdPose(b) {
 function skyPose(a, look) {
   let on = true;
   if (a.k === 'gull') on = Math.sin(a.anim * 0.5 + a.ph) > 0;
+  else if (look.bound) on = Math.sin(a.anim * look.bound + a.ph) > -0.3; // bursts of wingbeats, then a dip
   return {
     psi: a.hd,
     bank: a.bank || 0,
@@ -1258,6 +1259,7 @@ function drawAnimal(a) {
   else if (a.k === 'crow' || a.k === 'magpie') drawCorvid(a);
   else if (a.k === 'duck') drawDuck(a);
   else if (a.k === 'heron') drawHeron(a);
+  else if (a.wild) drawWildBird(a);
   else if (a.k === 'human') drawHuman(a);
   ctx.restore();
 }
@@ -1346,6 +1348,7 @@ const isSky = a =>
   a.k === 'goose' ||
   a.k === 'rook' ||
   a.k === 'butterfly' ||
+  (a.wild && a.st === 'fly') ||
   ((a.k === 'heron' || a.k === 'crow' || a.k === 'magpie') && (a.st === 'fly' || a.st === 'mob' || a.st === 'mobret'));
 // states in which a ground animal is moving, and the fast ones drawn with a bounding gait
 const MOVES = new Set(['walk', 'flee', 'stalk', 'pounce', 'chase']),

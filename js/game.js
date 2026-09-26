@@ -95,7 +95,14 @@ function worldShift(d) {
     if (h.prey) h.prey.x += d;
   }
   for (const q of parts) q.x += d;
-  for (const a of ANIMALS) if (a.k === 'goose' || a.k === 'rook') a.x += d;
+  for (const a of ANIMALS)
+    if (a.k === 'goose' || a.k === 'rook') a.x += d;
+    else if (a.wild) {
+      a.x += d;
+      a.gx += d;
+      a.tx += d;
+    }
+  wildShift(d);
   cam.x += d;
   WX -= d;
   demo.tx += d;

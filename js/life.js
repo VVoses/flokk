@@ -38,6 +38,7 @@ function spawnAnimals() {
   ANIMALS = [];
   SMOKE = [];
   RINGS = [];
+  wildReset();
   const pastures = FIELDS.filter(f => f.t === 'pasture');
   if (SEASON < 3)
     pastures.slice(0, 3).forEach((f, i) => {
@@ -573,8 +574,9 @@ function updateAnimals(dt) {
     else if (a.fade !== undefined && a.fade < 1) a.fade = Math.min(1, a.fade + dt / 6);
   }
   ANIMALS = ANIMALS.filter(a => (a.life === undefined || a.life > 0) && !(a.dying && a.fade <= 0));
-  // passing flights: geese heading south in a V, and rooks crossing
+  // passing flights: geese heading south in a V, rooks crossing, small flocks dropping in to feed (wild.js)
   if (L && st.mode !== 'pause') {
+    updateWild(dt);
     LIFE.geeseT -= dt;
     if (LIFE.geeseT <= 0 && (SEASON === 0 || SEASON === 2) && LIGHT.night < 0.4) {
       LIFE.geeseT = rr(80, 150);

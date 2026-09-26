@@ -585,6 +585,39 @@ function animalCall(k, vol, pn) {
   } else if (k === 'goose') {
     sw(540, 450, 0.17, t, 3, 1100);
     sw(540, 450, 0.14, t + 0.24, 3, 1100);
+  } else if (k === 'starling') {
+    // a wheezy rising whistle, a rattle of clicks, a falling whistle
+    sw(2700, 3500, 0.16, t, 6, 3100, 'sine');
+    for (let i = 0; i < 4; i++) sw(4300, 3900, 0.025, t + 0.2 + i * 0.05, 4, 4100, 'square');
+    sw(3500, 2300, 0.24, t + 0.46, 5, 2900, 'sine', 32);
+  } else if (k === 'linnet') {
+    // a light, bouncing twitter
+    for (let i = 0; i < 5; i++) {
+      const f = rr(2600, 3400);
+      sw(f, f * 1.15, 0.05, t + i * 0.08 + rr(0, 0.02), 5, 3000, 'triangle');
+    }
+  } else if (k === 'fieldfare') {
+    // the harsh chattering "chack-chack"
+    const n = rr(2, 4) | 0;
+    for (let i = 0; i < n; i++) sw(1950, 1500, 0.07, t + i * 0.12, 2, 2400);
+  } else if (k === 'bunting') {
+    // a soft rippling trill
+    for (let i = 0; i < 8; i++) sw(2500 + (i % 2) * 450, 2700 + (i % 2) * 300, 0.04, t + i * 0.05, 5, 2900, 'sine');
+  } else if (k === 'whirr') {
+    // many small wings taking off at once
+    const s = ac.createBufferSource();
+    s.buffer = amb.noise;
+    const f = ac.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 900;
+    f.Q.value = 0.7;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(1.2, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    s.connect(f).connect(g).connect(out);
+    s.start(t, Math.random() * 3);
+    s.stop(t + 0.72);
   }
 }
 /* ---------- voices: duck and cow ---------- */
