@@ -304,7 +304,7 @@ function foxCatch(a, b) {
   if (b.perch && b.perch.occ === b) b.perch.occ = null;
   st.lost++;
   feathers(b.x, b.y, b.z, b.c2);
-  thud();
+  thud('fox', 1, !birds.length);
   if (!birds.length) {
     st.overT = 1.3;
     return;

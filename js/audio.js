@@ -307,54 +307,102 @@ function flutter(n) {
   s.start(t, Math.random() * 3);
   s.stop(t + 0.46);
 }
-function thud() {
+// kind colors what took the bird: a hawk's kill has a sharp cry over it, an owl's is muffled and
+// lower (a night kill, heard more than seen), a fox's has no aerial cry at all - just the ground
+// contact. power (roughly 0.7-1.5) is how committed the strike was - a hawk's own boldness for the
+// season works well - and scales the weight and reach of the low body underneath, so a hungry
+// winter hawk's kill actually lands harder than a wary spring one's. last marks the flock's final
+// bird: heavier and slower to let go, rather than simply louder - the difference between a loss and
+// the end. Small jitter on top so no two kills sound quite the same.
+function thud(kind = 'hawk', power = 1, last = false) {
   if (!ac || muted) return;
-  const t = ac.currentTime;
-  // a small, soft cry that gives out rather than being cut off - a whimper, not a shout
-  const co = ac.createOscillator(),
-    cg = ac.createGain(),
-    cf = ac.createBiquadFilter();
-  co.type = 'sine';
-  co.frequency.setValueAtTime(1850, t);
-  co.frequency.exponentialRampToValueAtTime(1100, t + 0.4);
-  cf.type = 'bandpass';
-  cf.frequency.value = 1400;
-  cf.Q.value = 1;
-  cg.gain.setValueAtTime(0, t);
-  cg.gain.linearRampToValueAtTime(0.042, t + 0.045);
-  cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.44);
-  co.connect(cf).connect(cg).connect(master);
-  co.start(t);
-  co.stop(t + 0.46);
+  const t = ac.currentTime,
+    tail = last ? 1.6 : 1,
+    gk = 0.85 + 0.3 * power,
+    dur = (0.4 + 0.08 * power) * tail;
+  if (kind !== 'fox') {
+    // the bird's own voice, crying out as it's taken - this is the part meant to be felt, so it's
+    // the loudest thing here. A slow, uneven vibrato (the same warble hawkCry uses, but shakier)
+    // makes the pitch quaver as it falls rather than gliding cleanly down, the way a frightened
+    // whimper breaks rather than sliding smoothly
+    const base = kind === 'owl' ? rr(980, 1080) : rr(1780, 1950);
+    const co = ac.createOscillator(),
+      co2 = ac.createOscillator(),
+      cg = ac.createGain(),
+      cf = ac.createBiquadFilter(),
+      lfo = ac.createOscillator(),
+      lg = ac.createGain();
+    co.type = 'sine';
+    co.frequency.setValueAtTime(base, t);
+    co.frequency.exponentialRampToValueAtTime(base * 0.52, t + dur * 0.88);
+    co2.type = 'sine';
+    co2.frequency.setValueAtTime(base * 0.94, t + 0.01);
+    co2.frequency.exponentialRampToValueAtTime(base * 0.46, t + dur * 0.88);
+    lfo.frequency.value = rr(11, 15);
+    lg.gain.value = base * 0.05;
+    lfo.connect(lg);
+    lg.connect(co.frequency);
+    lg.connect(co2.frequency);
+    cf.type = 'bandpass';
+    cf.frequency.value = base * 0.85;
+    cf.Q.value = 1;
+    cg.gain.setValueAtTime(0, t);
+    cg.gain.linearRampToValueAtTime(0.05 * gk, t + 0.05);
+    cg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    co.connect(cf);
+    co2.connect(cf).connect(cg).connect(master);
+    co.start(t);
+    co.stop(t + dur + 0.02);
+    co2.start(t + 0.01);
+    co2.stop(t + dur + 0.02);
+    lfo.start(t);
+    lfo.stop(t + dur + 0.02);
+  }
+  // the moment of contact: soft and dull, well under the cry above it - a felt weight rather than a
+  // crack, and never the loudest layer; support for the whimper, not competition with it
+  const hs = ac.createBufferSource();
+  hs.buffer = amb.noise;
+  const hf = ac.createBiquadFilter();
+  hf.type = 'lowpass';
+  hf.frequency.value = kind === 'fox' ? 220 : 260;
+  const hg = ac.createGain();
+  hg.gain.setValueAtTime(0, t);
+  hg.gain.linearRampToValueAtTime(0.038 * gk, t + rr(0.025, 0.035));
+  hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
+  hs.connect(hf).connect(hg).connect(master);
+  hs.start(t, Math.random() * 3);
+  hs.stop(t + 0.19);
   // feathers settling, not a strike - a soft hush with the edge filtered off, no percussive bite
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
   const f = ac.createBiquadFilter();
   f.type = 'bandpass';
-  f.frequency.value = 700;
+  f.frequency.value = kind === 'fox' ? 500 : 700;
   f.Q.value = 0.5;
   const g2 = ac.createGain();
   g2.gain.setValueAtTime(0, t + 0.04);
-  g2.gain.linearRampToValueAtTime(0.026, t + 0.11);
-  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+  g2.gain.linearRampToValueAtTime(0.026 * gk, t + 0.11);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.75);
   s.connect(f).connect(g2).connect(master);
   s.start(t, Math.random() * 3);
-  s.stop(t + 0.36);
-  // a low, muffled body underneath, faded in rather than struck - weight without a transient
+  s.stop(t + dur * 0.8);
+  // a low, muffled body underneath, faded in rather than struck - weight without a transient; this
+  // is what actually reads as defeating: it goes lower and lingers longer the harder the strike, and
+  // deepest of all when it's the last bird
   const o = ac.createOscillator(),
     gn = ac.createGain(),
     lp = ac.createBiquadFilter();
   o.type = 'sine';
-  o.frequency.setValueAtTime(115, t + 0.02);
-  o.frequency.exponentialRampToValueAtTime(42, t + 0.36);
+  o.frequency.setValueAtTime(rr(108, 122), t + 0.02);
+  o.frequency.exponentialRampToValueAtTime((last ? 24 : 38) / power, t + dur * 0.9);
   lp.type = 'lowpass';
   lp.frequency.value = 200;
   gn.gain.setValueAtTime(0, t + 0.02);
-  gn.gain.linearRampToValueAtTime(0.065, t + 0.08);
-  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  gn.gain.linearRampToValueAtTime(0.065 * gk, t + 0.08);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(lp).connect(gn).connect(master);
   o.start(t + 0.02);
-  o.stop(t + 0.42);
+  o.stop(t + dur + 0.05);
 }
 function joinSnd() {
   if (!ac || muted) return;

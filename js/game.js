@@ -122,6 +122,19 @@ function resetWorld(n, x, y) {
 function needFor(n) {
   return 4 + Math.floor(n / 5);
 }
+// spends banked food into a new bird, but only once the flock has some health to spare: a flock
+// already running on empty doesn't have young to spare either, so banked food waits rather than
+// growing the flock into more mouths it can't yet feed (a bigger flock needs proportionally more
+// food per feeding, via feed()'s split below - growing on top of that only deepens the hole)
+function tryGrow() {
+  if (st.energy <= 0.5) return;
+  let need = needFor(birds.length);
+  while (st.food >= need) {
+    st.food -= need;
+    joinBird();
+    need = needFor(birds.length);
+  }
+}
 
 /* ---------- insects ---------- */
 // the flock can't fly out past the shoreline (see update.js), so keep swarms where it can still reach them
@@ -618,7 +631,7 @@ function startGame() {
     starved: 0,
     cause: '',
     mode: 'play',
-    grace: 20,
+    grace: 14,
     food: 0,
     eaten: 0,
     lost: 0,
@@ -776,12 +789,7 @@ function eat(v, x, y, z) {
   feed(0.04 * v);
   sparkle(x, y, z);
   chirp();
-  let need = needFor(birds.length);
-  while (st.food >= need) {
-    st.food -= need;
-    joinBird();
-    need = needFor(birds.length);
-  }
+  tryGrow();
 }
 function joinBird() {
   const a = rr(0, TAU),
