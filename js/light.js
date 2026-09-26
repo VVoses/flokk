@@ -214,6 +214,33 @@ function applyGlaze() {
   }
   ctx.globalCompositeOperation = 'source-over';
 }
+// a headlamp's throw: a cone that starts at the lamp and widens and fades forward along the ground,
+// soft at its edges and with nothing behind the lamp. One mask for cutting the dark, one warm for the glow.
+function mkCone(col) {
+  const c = mk(256, 128),
+    q = c.getContext('2d');
+  for (let i = 0; i < 8; i++) {
+    const w = 60 * (1 - i / 8) + 6;
+    q.fillStyle = `rgba(${col},0.2)`;
+    q.beginPath();
+    q.moveTo(0, 64 - 1.5);
+    q.lineTo(256, 64 - w);
+    q.lineTo(256, 64 + w);
+    q.lineTo(0, 64 + 1.5);
+    q.closePath();
+    q.fill();
+  }
+  q.globalCompositeOperation = 'destination-in';
+  const gr = q.createLinearGradient(0, 0, 256, 0);
+  gr.addColorStop(0, 'rgba(0,0,0,.7)');
+  gr.addColorStop(0.08, 'rgba(0,0,0,1)');
+  gr.addColorStop(0.45, 'rgba(0,0,0,.5)');
+  gr.addColorStop(1, 'rgba(0,0,0,0)');
+  q.fillStyle = gr;
+  q.fillRect(0, 0, 256, 128);
+  return c;
+}
+const CONE = { cut: mkCone('0,0,0'), glow: mkCone('255,176,96') };
 function applyLight(tx, ty, KS, inK) {
   const a = LIGHT.a;
   if (a + LIGHT.a2 < 0.012) return;
@@ -249,7 +276,7 @@ function applyLight(tx, ty, KS, inK) {
           const col = pass === 'lighter' ? (l.soft ? '150,170,210' : '255,176,96') : '0,0,0';
           const kk = pass === 'lighter' ? k * (l.soft ? 0.05 : 0.2) : k * 0.95;
           // the glow round the source itself stays small; the pool on the ground carries the light
-          const hr = l.dir !== undefined ? 22 : l.r * 0.55;
+          const hr = l.dir !== undefined ? 12 : l.r * 0.55;
           let gr = c.createRadialGradient(X, Y, 0, X, Y, hr);
           gr.addColorStop(0, `rgba(${col},${kk})`);
           gr.addColorStop(1, `rgba(${col},0)`);
@@ -259,15 +286,11 @@ function applyLight(tx, ty, KS, inK) {
           c.translate(X, Yg);
           c.scale(1, TILT);
           if (l.dir !== undefined) {
-            // a beam: a fan thrown forward along the ground from the lamp
+            // a beam: a cone thrown forward along the ground from the lamp, none of it behind
             c.rotate(l.dir);
-            c.scale(1, 0.42);
-            gr = c.createRadialGradient(0, 0, 0, l.r * 0.45, 0, l.r);
-            gr.addColorStop(0, `rgba(${col},${kk * 0.9})`);
-            gr.addColorStop(0.5, `rgba(${col},${kk * 0.35})`);
-            gr.addColorStop(1, `rgba(${col},0)`);
-            c.fillStyle = gr;
-            c.fillRect(-l.r * 0.2, -l.r * 1.5, l.r * 1.7, l.r * 3);
+            c.globalAlpha = Math.min(1, kk * (pass === 'lighter' ? 1.7 : 1));
+            c.drawImage(pass === 'lighter' ? CONE.glow : CONE.cut, 0, -l.r * 0.34, l.r * 1.4, l.r * 0.68);
+            c.globalAlpha = 1;
             c.restore();
             continue;
           }
