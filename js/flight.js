@@ -54,6 +54,13 @@ function spawnHawk(kind = 'hawk') {
     hoverDur: 1
   });
 }
+// could the hawk or its shadow on the ground still be on screen (with a margin for wings and zoom easing)
+function hawkInView(h, pad = 140) {
+  const hw = vw / 2 / cam.z + pad,
+    hh = vh / 2 / cam.z + pad,
+    seen = (x, py) => Math.abs(wdx(x, cam.x)) < hw && Math.abs(py - cam.py) < hh;
+  return seen(h.x, PY(h.y, h.z)) || seen(h.x + h.z * SX, PY(h.y + h.z * SY, 0));
+}
 function pickTarget(h) {
   let best = null,
     bs = 1e9;
@@ -356,7 +363,8 @@ function updateHawk(h, dt) {
         zT = h.cz + 1.2;
         zRate = 0.3;
       }
-      if (h.t > (h.state === 'leave' ? 2.5 : 1.6)) h.alpha -= dt * 0.4;
+      // it flies on out of sight; only once neither it nor its shadow can be seen is it gone
+      if (!hawkInView(h)) h.alpha = 0;
       break;
     }
   }
