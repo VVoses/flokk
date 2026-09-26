@@ -1722,9 +1722,11 @@ function render() {
       glintC = gold > 0.3 ? '255,226,160' : '255,250,232',
       // zoomed out, a speck must still be a pixel or so on screen, and the cloud's haze carries it
       px = 1 / cam.z,
-      mb = Math.max(1.4, 1.5 * px),
-      ms = Math.max(1.1, 1.2 * px),
-      hazeA = clamp(0.08 + (1 - cam.z) * 0.12, 0.08, 0.16);
+      mb = Math.max(1.4, 2.1 * px),
+      ms = Math.max(1.1, 1.7 * px),
+      hazeA = clamp(0.1 + (1 - cam.z) * 0.12, 0.1, 0.18),
+      // against sun-lit land the cloud shimmers pale; at dusk and in the dark it is a smoky grey
+      hazeC = sunK > 0.4 ? '250,244,214' : '58,60,50';
     for (const s of swarms) {
       if (!visU(s.x, s.y, 60, s.z * HZ + 40)) continue;
       if (!s.moth && LIGHT.shadowA > 0.05) {
@@ -1736,13 +1738,13 @@ function render() {
       }
       if (!s.moth) {
         // many tiny wings together make a faint grey smudge in the air, shaped by where the flies are
-        ctx.fillStyle = `rgba(58,60,50,${hazeA})`;
+        ctx.fillStyle = `rgba(${hazeC},${hazeA})`;
         ctx.beginPath();
         for (const m of s.m) {
           const [mx, my, mz] = motePos(s, m),
             py = PY(my, mz);
-          ctx.moveTo(mx + 7, py);
-          ctx.ellipse(mx, py, 7, 10, 0, 0, TAU);
+          ctx.moveTo(mx + 10, py);
+          ctx.ellipse(mx, py, 10, 13, 0, 0, TAU);
         }
         ctx.fill();
       }
@@ -1776,16 +1778,16 @@ function render() {
           // each midge the flock can catch is a knot of several, buzzing round one another
           ctx.fillStyle = 'rgba(30,27,22,.85)';
           ctx.fillRect(mx - mb / 2, py - mb / 2, mb, mb);
-          for (let j = 1; j < 4; j++) {
+          for (let j = 1; j < 7; j++) {
             const q = m.ph * j;
-            const sx = mx + Math.sin(T * (6 + j * 1.7) + q) * 5 + Math.sin(T * 13.1 + q * 3) * 1.5,
-              sy = py + Math.cos(T * (4.3 + j) + q * 2) * 7 + Math.sin(T * 17 + q) * 1.5;
+            const sx = mx + Math.sin(T * (6 + j * 1.7) + q) * 7 + Math.sin(T * 13.1 + q * 3) * 1.5,
+              sy = py + Math.cos(T * (4.3 + j) + q * 2) * 9 + Math.sin(T * 17 + q) * 1.5;
             ctx.fillRect(sx - ms / 2, sy - ms / 2, ms, ms);
           }
         }
         if (glintA > 0.02) {
           // now and then a wing flashes in the sun
-          const g = Math.max(0, Math.sin(T * (fly ? 3 : 5.5) + m.ph * 7)) ** 14 * glintA;
+          const g = Math.max(0, Math.sin(T * (fly ? 3 : 5.5) + m.ph * 7)) ** 6 * glintA;
           if (g > 0.03) {
             ctx.fillStyle = `rgba(${glintC},${g})`;
             ctx.fillRect(mx - mb, py - mb, mb * 1.7, mb * 1.7);
