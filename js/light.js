@@ -331,7 +331,7 @@ function applyLight(tx, ty, KS, inK) {
   c.fillRect(0, 0, w, h);
   const nf = LIGHT.night;
   if (nf > 0.02) {
-    const src = LIGHTS.concat(trainLights(), trafficLights(), julLights());
+    const src = LIGHTS.concat(trainLights(), trafficLights(), julLights(), sankLights());
     if (L && birds.includes(L)) src.push({ x: L.x, y: L.y, h: L.z, r: 170, i: 0.32, fl: 0, soft: 1 });
     const K = l => nf * l.i * (l.fl ? 0.93 + 0.07 * Math.sin(T * 11 + l.x) : 1);
     // 1. the light on the ground: round pools, and the beams thrown ahead of vehicles

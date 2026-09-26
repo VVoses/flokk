@@ -1546,6 +1546,7 @@ function genWorld(seed) {
   genSky();
   genBorderBits();
   buildLights();
+  buildSank();
   buildExtras();
   buildGhosts();
   applySeason(0);

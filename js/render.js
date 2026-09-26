@@ -1668,6 +1668,7 @@ function render() {
     for (const p of PROPS) if (visU(p.x, p.y, 50, 190)) items.push([p.y + 7, 12, p, k]);
     for (const s of XSIGNS) if (visU(s.x, s.y, 20, 60)) items.push([s.y, 14, s, k]);
     if (FEEDER && SEASON === 3 && visU(FEEDER.x, FEEDER.y, 20, 90)) items.push([FEEDER.y, 9, FEEDER, k]);
+    if (SANK.on && visU(SANK.x, SANK.y, 60, 90)) items.push([SANK.y, 17, SANK, k]);
     for (const a of ANIMALS) {
       if (isSky(a)) {
         if (visU(a.x, a.y, 40, a.z * HZ + 30)) skyA.push([a, k]);
@@ -1711,6 +1712,7 @@ function render() {
     else if (kind === 11) drawVehicle(o);
     else if (kind === 12) drawProp(o);
     else if (kind === 14) drawXSign(o);
+    else if (kind === 17) drawSankFire(o);
     else if (kind === 7) drawAnimal(o);
     else if (kind === 16)
       drawWeatherBand(o); // 15 and 16 belong to weather.js (weatherItems)
