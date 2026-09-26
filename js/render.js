@@ -529,14 +529,29 @@ function drawBuilding(b) {
   ];
   const wh = b.wh,
     rh = b.rh;
+  // a soft contact shadow where the walls meet the ground
+  for (const g of [7, 4.5, 2])
+    poly(
+      [P(-hl - g, -hd - g, 0), P(hl + g, -hd - g, 0), P(hl + g, hd + g, 0), P(-hl - g, hd + g, 0)],
+      'rgba(20,24,18,.07)'
+    );
   for (const [x1, y1, x2, y2, nx, ny, gable] of sides) {
     const wnx = nx * c - ny * s,
       wny = nx * s + ny * c;
     if (wny <= 0.02) continue;
     const lit = clamp(1 - 0.28 * wnx - 0.08, 0.62, 1.12);
-    let col = shade(b.wall, lit);
-    if (LIGHT.rim > 0.05 && wnx * LIGHT.rimSide > 0) col = mixRgb(col, rimCol(), LIGHT.rim * 0.42 * Math.abs(wnx));
+    const wcol = k => {
+      const cc = shade(b.wall, lit * k);
+      return LIGHT.rim > 0.05 && wnx * LIGHT.rimSide > 0 ? mixRgb(cc, rimCol(), LIGHT.rim * 0.42 * Math.abs(wnx)) : cc;
+    };
     const Q = (u, v) => P(lerp(x1, x2, u), lerp(y1, y2, u), v);
+    // walls darken toward the ground, where less sky reaches them
+    const g0 = Q(0.5, 0),
+      g1 = Q(0.5, gable ? rh : wh),
+      col = ctx.createLinearGradient(g0[0], g0[1], g1[0], g1[1]);
+    col.addColorStop(0, wcol(0.8));
+    col.addColorStop(0.3, wcol(0.97));
+    col.addColorStop(1, wcol(1.05));
     poly([Q(0, 0), Q(1, 0), Q(1, wh), Q(0, wh)], col);
     if (gable) poly([Q(0, wh), Q(1, wh), P((x1 + x2) / 2, (y1 + y2) / 2, rh)], col);
     if (b.wall !== '#E6E0D2') {
@@ -565,6 +580,17 @@ function drawBuilding(b) {
       }
       ctx.stroke();
     }
+    // the overhanging eaves shade the top of the wall; a stone plinth runs along its foot
+    if (!gable) {
+      const e0 = Q(0, wh),
+        d0 = Q(0, wh - 8),
+        eg = ctx.createLinearGradient(e0[0], e0[1], d0[0], d0[1]);
+      eg.addColorStop(0, 'rgba(15,12,10,.36)');
+      eg.addColorStop(1, 'rgba(15,12,10,0)');
+      poly([e0, Q(1, wh), Q(1, wh - 8), d0], eg);
+    }
+    poly([Q(0, 0), Q(1, 0), Q(1, 2.6), Q(0, 2.6)], shade('#8C877D', lit * 0.92));
+    poly([Q(0, 2.6), Q(1, 2.6), Q(1, 3.2), Q(0, 3.2)], 'rgba(0,0,0,.12)');
     // a house's front door sits in the middle of the side the farmer walks out of, with a stone step
     const front = b.kind === 'house' && ny === 1;
     if (front) {
@@ -590,6 +616,12 @@ function drawBuilding(b) {
           u = u < 0.5 ? 0.5 - 0.2 : 0.5 + 0.2;
         }
         poly([Q(u - w, wh * 0.35), Q(u + w, wh * 0.35), Q(u + w, wh * 0.78), Q(u - w, wh * 0.78)], winCol(), '#F4F0E6');
+        // set into the wall: shade under the head, a sill standing out below
+        poly([Q(u - w, wh * 0.78), Q(u + w, wh * 0.78), Q(u + w, wh * 0.7), Q(u - w, wh * 0.7)], 'rgba(0,0,0,.2)');
+        poly(
+          [Q(u - w * 1.3, wh * 0.35), Q(u + w * 1.3, wh * 0.35), Q(u + w * 1.3, wh * 0.3), Q(u - w * 1.3, wh * 0.3)],
+          '#F4F0E6'
+        );
       }
     }
     if (b.door && !gable) {
@@ -623,10 +655,23 @@ function drawBuilding(b) {
   planes.sort((a, b) => a.wy - b.wy);
   for (const pl of planes) {
     const lit = pl.wy < 0 ? 1.12 : 0.86 - 0.1 * pl.wx;
-    let rc = shade(cols, lit);
-    if (LIGHT.rim > 0.05 && pl.wx * LIGHT.rimSide > 0) rc = mixRgb(rc, rimCol(), LIGHT.rim * 0.35 * Math.abs(pl.wx));
-    poly(pl.pts, rc, 'rgba(20,15,10,.35)');
+    const rcol = k => {
+      const cc = shade(cols, lit * k);
+      return LIGHT.rim > 0.05 && pl.wx * LIGHT.rimSide > 0
+        ? mixRgb(cc, rimCol(), LIGHT.rim * 0.35 * Math.abs(pl.wx))
+        : cc;
+    };
     const [e0, e1, r0, r1] = pl.pts;
+    // each roof plane catches a little more light up by the ridge than down at the eaves
+    const rg = ctx.createLinearGradient(
+      (r0[0] + r1[0]) / 2,
+      (r0[1] + r1[1]) / 2,
+      (e0[0] + e1[0]) / 2,
+      (e0[1] + e1[1]) / 2
+    );
+    rg.addColorStop(0, rcol(1.07));
+    rg.addColorStop(1, rcol(0.9));
+    poly(pl.pts, rg, 'rgba(20,15,10,.35)');
     if (ww > 0.5) {
       // snowed over: soft blue towards the eaves, a rounded lip of snow hanging over the edge
       const em = [(e0[0] + e1[0]) / 2, (e0[1] + e1[1]) / 2],
@@ -677,6 +722,21 @@ function drawBuilding(b) {
       ctx.stroke();
     }
   }
+  // the roof's thickness: a board along the front eave and up each gable edge
+  const board = b.trim ? '#ECE6DA' : shade(cols, 0.5);
+  for (const pl of planes) {
+    const [e0, e1, r0, r1] = pl.pts;
+    if (pl.wy > 0) poly([e0, e1, [e1[0], e1[1] + 2.4], [e0[0], e0[1] + 2.4]], board);
+    ctx.strokeStyle = board;
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(e0[0], e0[1]);
+    ctx.lineTo(r1[0], r1[1]);
+    ctx.moveTo(e1[0], e1[1]);
+    ctx.lineTo(r0[0], r0[1]);
+    ctx.stroke();
+  }
   const r0 = P(-hl - o, 0, rh),
     r1 = P(hl + o, 0, rh);
   ctx.strokeStyle = 'rgba(25,18,12,.6)';
@@ -684,6 +744,12 @@ function drawBuilding(b) {
   ctx.beginPath();
   ctx.moveTo(r0[0], r0[1]);
   ctx.lineTo(r1[0], r1[1]);
+  ctx.stroke();
+  ctx.strokeStyle = shade(cols, 1.25);
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(r0[0], r0[1] - 1.1);
+  ctx.lineTo(r1[0], r1[1] - 1.1);
   ctx.stroke();
   if (b.chimney) {
     const cx0 = hl * 0.45,
