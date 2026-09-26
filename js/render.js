@@ -1540,6 +1540,7 @@ function render() {
       ctx.quadraticCurveTo(r.x + r.l * 0.3, b - r.h * 0.6, r.x + r.l, b - r.h);
     }
     ctx.stroke();
+    drawGrass(); // standing grass over the meadows and pastures (grass.js)
     for (const t of TREES) if (visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) items.push([t.y, 0, t, k]);
     for (const b of BUILDS) if (visU(b.cx, b.cy, b.len, b.rh + b.len * 0.6)) items.push([b.cy, 1, b, k]);
     for (const line of LINES)
