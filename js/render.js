@@ -1136,6 +1136,19 @@ function drawWires() {
    Everything is drawn into a white mask with 'darken', so overlapping shadows never stack,
    then the mask is blurred slightly and multiplied onto the ground. The sun sits low in the
    north-west, so a point at height h lands (h*SX, h*SY) away on the ground. */
+// one soft wisp of chimney smoke; many overlapping ones make the plume
+const SMOKE_SPR = (() => {
+  const c = mk(64, 64),
+    g = c.getContext('2d'),
+    gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(222,222,216,1)');
+  gr.addColorStop(0.4, 'rgba(222,222,216,.7)');
+  gr.addColorStop(0.75, 'rgba(222,222,216,.2)');
+  gr.addColorStop(1, 'rgba(222,222,216,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  return c;
+})();
 const SHC = document.createElement('canvas'),
   shx = SHC.getContext('2d');
 const SHADE = 'rgb(134,144,158)';
@@ -1855,14 +1868,16 @@ function render() {
     }
     for (const p of SMOKE) {
       if (!visU(p.x, p.y, 40, p.z * HZ + 40)) continue;
+      // eased in and out, so a wisp neither pops into being nor blinks away
       const q = p.life / p.max,
-        al = p.a * Math.min(1, (1 - q) * 6) * q * q;
-      if (al < 0.01) continue;
-      ctx.fillStyle = `rgba(222,222,216,${al})`;
-      ctx.beginPath();
-      ctx.arc(p.x, PY(p.y, p.z), p.r, 0, TAU);
-      ctx.fill();
+        fin = Math.min(1, (p.max - p.life) * 5),
+        al = p.a * fin * fin * (3 - 2 * fin) * q * q;
+      if (al < 0.004) continue;
+      const R = p.r * 1.8;
+      ctx.globalAlpha = al;
+      ctx.drawImage(SMOKE_SPR, p.x - R, PY(p.y, p.z) - R, R * 2, R * 2);
     }
+    ctx.globalAlpha = 1;
   }
   V = V0;
   // aerial perspective: the far forest pales into the valley mist under the ridges
