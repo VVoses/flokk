@@ -1822,7 +1822,9 @@ function audioTick(dt) {
   const sea = L ? clamp(1 - Math.abs(shoreY(L.x) - L.y) / 520, 0, 1) * (0.55 + 0.45 * Math.sin(T * 0.45)) : 0;
   amb.wag.gain.setTargetAtTime(Math.max(0.03 * lap, 0.06 * sea), now, 0.4);
   let td = 1e9;
-  for (const a of ANIMALS) if (a.k === 'tractor' && L) td = Math.hypot(wdx(a.x, L.x), a.y - L.y);
+  // the field tractor parks for the night (life.js: LIGHT.night > 0.4), engine off - it should read
+  // as silent then, not just quieter, however close the flock roosts to it
+  for (const a of ANIMALS) if (a.k === 'tractor' && L && LIGHT.night <= 0.4) td = Math.hypot(wdx(a.x, L.x), a.y - L.y);
   let cd = 1e9,
     car = null;
   if (L)
