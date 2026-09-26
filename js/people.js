@@ -84,7 +84,7 @@ function spawnPeople() {
 function farmerPlan(a) {
   const fm = a.farm,
     Y = fm.yard,
-    mid = () => [Y.x + Y.w * rr(0.35, 0.65), Y.y + Y.h * rr(0.35, 0.65)];
+    mid = () => yardAt(Y, rr(0.35, 0.65), rr(0.35, 0.65));
   const door = frontOf(fm.house),
     b = fm.builds || [];
   const barn = b.find(o => o.kind === 'barn' || o.kind === 'sbarn'),
@@ -107,12 +107,10 @@ function farmerPlan(a) {
     )[0];
   if (SEASON === 3 && r < 0.45) {
     // clearing the yard, a strip at a time
-    const y0 = Y.y + Y.h * rr(0.3, 0.7),
-      xa = Y.x + Y.w * 0.2,
-      xb = Y.x + Y.w * 0.8;
-    go([xa, y0]);
-    go([xb, y0], { pose: 'shovel', spd: 5 });
-    go([xa, y0 + 16], { pose: 'shovel', spd: 5 });
+    const b0 = rr(0.3, 0.7);
+    go(yardAt(Y, 0.2, b0));
+    go(yardAt(Y, 0.8, b0), { pose: 'shovel', spd: 5 });
+    go(yardAt(Y, 0.2, b0 + 16 / Y.lh), { pose: 'shovel', spd: 5 });
   } else if (barn && r < 0.5) {
     // chores in the barn, then a bucket out to the animals
     go(mid());

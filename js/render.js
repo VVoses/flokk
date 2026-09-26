@@ -918,7 +918,11 @@ const ASH = {
   cat: [4, 0.22],
   fox: [5, 0.26],
   tractor: [15, 0.7],
-  duck: [6, 0.08]
+  duck: [6, 0.08],
+  starling: [2, 0.1],
+  linnet: [1.6, 0.08],
+  fieldfare: [2.4, 0.13],
+  bunting: [1.8, 0.09]
 };
 function renderShadows(tx, ty, KS, inK) {
   if (!SSPR) SSPR = { spruce: SPR.spruce.map(mkSil), birch: SPR.birch.map(mkSil), decid: SPR.decid.map(mkSil) };
@@ -1566,7 +1570,6 @@ function render() {
   drawRays();
   drawSnowfall(lastDt);
   drawRain(lastDt);
-  drawFluff(lastDt);
   /* ---- screen space ---- */
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const haze = ctx.createLinearGradient(0, 0, 0, vh * 0.45);

@@ -137,7 +137,7 @@ function genBorderBits() {
     )
       return;
     for (const f of FIELDS) if (inField(f, x, y, r)) return;
-    for (const Y of YARDS) if (inRect(x, y, Y, r)) return;
+    for (const Y of YARDS) if (inYard(Y, x, y, r)) return;
     const pts = [];
     const n = 9;
     for (let i = 0; i < n; i++) {
@@ -181,7 +181,7 @@ function genBushes() {
     )
       return;
     for (const f of FIELDS) if (inField(f, x, y, r * 0.4)) return;
-    for (const Y of YARDS) if (inRect(x, y, Y, -10)) return; // fine right at the fence line, not in the yard proper
+    for (const Y of YARDS) if (inYard(Y, x, y, -10)) return; // fine right at the fence line, not in the yard proper
     const n = 4 + ((R() * 3) | 0),
       lobes = [];
     for (let i = 0; i < n; i++) {
@@ -223,7 +223,9 @@ function genBushes() {
   }
   // a few by the yard fences, gone quiet and structural in winter
   for (const Y of YARDS)
-    for (let i = 0; i < 3; i++) if (R() < 0.6) addBush(Y.x + rnd(-20, Y.w + 20), Y.y + rnd(-20, Y.h + 20), rnd(8, 13));
+    for (let i = 0; i < 3; i++)
+      if (R() < 0.6)
+        addBush(...yardWorld(Y, rnd(-20, Y.lw + 20) - Y.lw / 2, rnd(-20, Y.lh + 20) - Y.lh / 2), rnd(8, 13));
 }
 function drawBoulder(b) {
   const X = b.x,
