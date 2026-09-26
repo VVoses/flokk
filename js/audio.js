@@ -309,28 +309,49 @@ function flutter(n) {
 }
 function thud() {
   if (!ac || muted) return;
-  const t = ac.currentTime;
-  const o = ac.createOscillator(),
-    gn = ac.createGain();
-  o.type = 'triangle';
-  o.frequency.setValueAtTime(180, t);
-  o.frequency.exponentialRampToValueAtTime(60, t + 0.2);
-  gn.gain.setValueAtTime(0.14, t);
-  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
-  o.connect(gn).connect(master);
-  o.start(t);
-  o.stop(t + 0.26);
+  const t = ac.currentTime,
+    hit = t + 0.07;
+  // a short startled cry, hard-cut rather than faded - the strike is what stops it, not a decay curve
+  const co = ac.createOscillator(),
+    cg = ac.createGain(),
+    cf = ac.createBiquadFilter();
+  co.type = 'sawtooth';
+  co.frequency.setValueAtTime(2500, t);
+  co.frequency.exponentialRampToValueAtTime(3300, hit);
+  cf.type = 'bandpass';
+  cf.frequency.value = 3000;
+  cf.Q.value = 3;
+  cg.gain.setValueAtTime(0, t);
+  cg.gain.linearRampToValueAtTime(0.06, t + 0.012);
+  cg.gain.setValueAtTime(0.055, hit - 0.008);
+  cg.gain.linearRampToValueAtTime(0.0001, hit);
+  co.connect(cf).connect(cg).connect(master);
+  co.start(t);
+  co.stop(hit + 0.01);
+  // the strike itself: a tight, percussive hit of talons and feathers, not a soft low sweep
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
   const f = ac.createBiquadFilter();
   f.type = 'highpass';
-  f.frequency.value = 1800;
+  f.frequency.value = 900;
   const g2 = ac.createGain();
-  g2.gain.setValueAtTime(0.06, t);
-  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+  g2.gain.setValueAtTime(0.001, hit);
+  g2.gain.linearRampToValueAtTime(0.17, hit + 0.006);
+  g2.gain.exponentialRampToValueAtTime(0.0001, hit + 0.15);
   s.connect(f).connect(g2).connect(master);
   s.start(t, Math.random() * 3);
-  s.stop(t + 0.3);
+  s.stop(hit + 0.16);
+  // a low, brief body to the impact - weight without the old sound's soft, drawn-out fade
+  const o = ac.createOscillator(),
+    gn = ac.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(210, hit);
+  o.frequency.exponentialRampToValueAtTime(55, hit + 0.16);
+  gn.gain.setValueAtTime(0.15, hit);
+  gn.gain.exponentialRampToValueAtTime(0.0001, hit + 0.19);
+  o.connect(gn).connect(master);
+  o.start(hit);
+  o.stop(hit + 0.2);
 }
 function joinSnd() {
   if (!ac || muted) return;
