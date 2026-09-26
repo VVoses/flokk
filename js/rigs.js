@@ -997,8 +997,11 @@ function animalPost(dt) {
     const sp = MOVES.has(a.st) ? Math.hypot(a.vx, a.vy) : 0;
     const S = QSPEC[a.k],
       strideLen =
-        (S ? S.stride : a.k === 'hare' ? 14 : a.k === 'human' ? 10 : a.k === 'crow' || a.k === 'magpie' ? 5 : 8) *
-        (BOUNDS.has(a.st) ? 1.5 : 1);
+        S && BOUNDS.has(a.st)
+          ? runStride(S, sp)
+          : (S ? S.stride : a.k === 'hare' ? 14 : a.k === 'human' ? 10 : a.k === 'crow' || a.k === 'magpie' ? 5 : 8) *
+            (BOUNDS.has(a.st) ? 1.5 : 1);
+    a.strd = strideLen;
     a.gp = (a.gp || 0) + ((sp * dt) / strideLen) * TAU;
     a.fs = (a.fs ?? a.f) + (a.f - (a.fs ?? a.f)) * Math.min(1, dt * 7);
     figPost(a, sp, dt);
