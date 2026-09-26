@@ -12,6 +12,11 @@ storm drains it fast unless it roosts under cover, and in fog you see a hawk lat
 *Hidden:* tap the little year bar (top right) three times quickly to pick a season. From the title
 screen, the game then starts in that season, with a full year ahead.
 
+## Design
+
+[`DESIGN.md`](DESIGN.md) sets out what the game is trying to be (harsh rules, a soft and honest world) and a
+checklist of principles for new work. Read it before adding anything to the world.
+
 ## Code map
 
 Canvas game. `index.html` holds the markup and loads plain scripts **in order**.
