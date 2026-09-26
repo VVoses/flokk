@@ -937,10 +937,19 @@ function paintField(g, f, kind, season, edge = true) {
     g.fillStyle = 'rgba(122,150,70,.35)';
     for (let i = 0; i < (f.w * f.h) / 300; i++) g.fillRect(rnd(f.x, f.x + f.w), rnd(f.y, f.y + f.h), 2, 2);
   } else if (kind === 'pasture') {
-    g.fillStyle = season === 1 ? '#7DA452' : season === 0 ? '#94B866' : '#8DAE5E';
+    // grazed turf stays greener than the hay meadow round it, but by autumn it has dulled and yellowed too
+    const au = season === 2;
+    g.fillStyle = season === 1 ? '#7DA452' : season === 0 ? '#94B866' : '#8C9A57';
     g.fillRect(f.x, f.y, f.w, f.h);
     for (let i = 0; i < 90; i++) {
-      g.fillStyle = R() < 0.5 ? 'rgba(110,150,70,.4)' : 'rgba(170,190,100,.3)';
+      g.fillStyle =
+        R() < 0.5
+          ? au
+            ? 'rgba(112,128,64,.4)'
+            : 'rgba(110,150,70,.4)'
+          : au
+            ? 'rgba(176,168,96,.3)'
+            : 'rgba(170,190,100,.3)';
       g.beginPath();
       g.arc(rnd(f.x, f.x + f.w), rnd(f.y, f.y + f.h), rnd(8, 36), 0, TAU);
       g.fill();
