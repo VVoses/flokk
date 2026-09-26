@@ -597,8 +597,13 @@ function drawWeatherBand(B) {
     }
     ctx.lineCap = 'round';
     if (r) {
-      ctx.lineWidth = 1.1;
-      ctx.strokeStyle = `rgba(222,232,240,${0.5 + 0.25 * LIGHT.rain})`;
+      // the same soft-halo-over-a-thin-core treatment as the snow, so a drop is a streak of light
+      // rather than a flat, opaque dash cut hard against the rain behind it
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = `rgba(222,232,240,${0.16 + 0.08 * LIGHT.rain})`;
+      ctx.stroke(rain);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(226,236,242,${0.55 + 0.25 * LIGHT.rain})`;
       ctx.stroke(rain);
     }
     const sc = `rgba(250,252,255,${0.9 - 0.3 * nf})`;
