@@ -112,14 +112,16 @@ function drawMist() {
   const k = AIR.mist;
   if (k < 0.02) return;
   const lift = clamp(LIGHT.el / 10, 0, 1); // as the sun rises the mist thins and breaks up
-  for (const b of AIR.banks) {
-    const x = b.x + Math.sin(T * 0.02 * b.sp + b.ph) * 60 + WIND.x * Math.sin(T * 0.011 + b.ph) * 30,
-      rx = b.rx * (1 + 0.12 * Math.sin(T * 0.05 + b.ph)),
-      ry = b.ry * (1 + 0.5 * lift);
-    if (!visG(x, b.y, rx + 20) && !visG(x, b.y + ry, rx + 20)) continue;
-    ctx.globalAlpha = k * b.w * 0.8 * (1 - 0.45 * lift);
-    ctx.drawImage(MIST_SPR, x - rx, b.y - ry, rx * 2, ry * 2);
-  }
+  // drawn inside each copy's own clip (render.js), with the banks from across the seam included
+  for (const b of AIR.banks)
+    for (const ox of [0, -W, W]) {
+      const x = b.x + ox + Math.sin(T * 0.02 * b.sp + b.ph) * 60 + WIND.x * Math.sin(T * 0.011 + b.ph) * 30,
+        rx = b.rx * (1 + 0.12 * Math.sin(T * 0.05 + b.ph)),
+        ry = b.ry * (1 + 0.5 * lift);
+      if (!visG(x, b.y, rx + 20) && !visG(x, b.y + ry, rx + 20)) continue;
+      ctx.globalAlpha = k * b.w * 0.8 * (1 - 0.45 * lift);
+      ctx.drawImage(MIST_SPR, x - rx, b.y - ry, rx * 2, ry * 2);
+    }
   ctx.globalAlpha = 1;
 }
 // ground pass: dew, frost or snow glinting, each point flashing briefly as the light catches it

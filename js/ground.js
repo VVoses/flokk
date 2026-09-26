@@ -783,6 +783,7 @@ function paintGround(season) {
   composeG();
   paintTracks(season);
   R = keepR;
+  G.ver = (G.ver || 0) + 1; // lets the seam strip in render.js know to rebuild
 }
 /* one field painted as a given kind (the kinds a field passes through over the year: snow, plow, sown, grain,
    ripe, stubble, crop, dormant pasture, pasture, sty). Also used by grow.js for the within-season stages. */

@@ -334,7 +334,7 @@ function update(dt) {
   updateTrain(dt);
   updateTraffic(dt);
   coverHint(dt);
-  if (st.settled && Math.random() < dt * Math.min(3, birds.length * 0.12)) chirp(0.018);
+  if (st.settled && Math.random() < dt * Math.min(3, birds.length * 0.12) * chatter()) chirp(0.018);
   const base = clamp(Math.min(vw, vh) / 760, 0.55, 1.15);
   const zt = base * (1 - Math.min(0.32, birds.length / 260));
   cam.z += (zt - cam.z) * Math.min(1, dt * 1.5);

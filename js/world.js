@@ -911,6 +911,7 @@ function genLayout() {
     // grazing handy to the barn, crops further out
     mine.forEach((f, i) => {
       f.t = i < 2 && R() < 0.75 ? 'pasture' : types[(R() * types.length) | 0];
+      f.farm = fm;
       FIELDS.push(f);
     });
     // what runs along each cut is drawn only where a plot is beside it, and never across a road or a yard
@@ -1830,6 +1831,39 @@ function inField(f, x, y, m = 0) {
   if (!inRect(x, y, f, Math.max(0, m) + 1)) return false;
   const inside = pip(f.poly, x, y);
   return m >= 0 ? inside || edgeDist(f.poly, x, y) < m : inside && edgeDist(f.poly, x, y) > -m;
+}
+/* ---- fences ----
+   Pastures and pig sties are fenced. Livestock keep to their own field anyway; wild deer and moose treat
+   the fences as walls: they never aim for a spot inside one or along a line across one, and a fleeing
+   animal turns along a fence rather than through it. */
+const fenced = f => f.t === 'pasture' || f.t === 'sty';
+function inFence(x, y, m = 0) {
+  for (const f of FIELDS) if (fenced(f) && inField(f, x, y, m)) return f;
+  return null;
+}
+const turn3 = (ax, ay, bx, by, cx, cy) => (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+function crossesFence(x0, y0, x1, y1) {
+  for (const f of FIELDS) {
+    if (!fenced(f)) continue;
+    if (Math.max(x0, x1) < f.x - 2 || Math.min(x0, x1) > f.x + f.w + 2) continue;
+    if (Math.max(y0, y1) < f.y - 2 || Math.min(y0, y1) > f.y + f.h + 2) continue;
+    const P = f.poly || [
+      [f.x, f.y],
+      [f.x + f.w, f.y],
+      [f.x + f.w, f.y + f.h],
+      [f.x, f.y + f.h]
+    ];
+    for (let i = 0; i < P.length; i++) {
+      const [ax, ay] = P[i],
+        [bx, by] = P[(i + 1) % P.length];
+      if (
+        turn3(x0, y0, x1, y1, ax, ay) * turn3(x0, y0, x1, y1, bx, by) <= 0 &&
+        turn3(ax, ay, bx, by, x0, y0) * turn3(ax, ay, bx, by, x1, y1) <= 0
+      )
+        return true;
+    }
+  }
+  return false;
 }
 function ptIn(r, m) {
   if (!r.poly) return [rr(r.x + m, r.x + r.w - m), rr(r.y + m, r.y + r.h - m)];
