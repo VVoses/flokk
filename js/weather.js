@@ -559,6 +559,7 @@ function drawWeatherBand(B) {
     sm = WEATHER.storm;
   if (B.fall.length) {
     const rain = new Path2D(),
+      halo = new Path2D(),
       snow = new Path2D(),
       streak = new Path2D();
     let r = 0,
@@ -584,38 +585,40 @@ function drawWeatherBand(B) {
         streak.lineTo(X - (hx / hl) * l, Y - (hy / hl) * l);
         k++;
       } else {
+        // a soft halo around a small bright core, so a flake reads as a mote of light drifting down
+        // rather than a hard-edged sticker sitting over the scene
         const rad = 0.8 + 0.7 * p.s;
-        snow.moveTo(X + rad, Y);
-        snow.arc(X, Y, rad, 0, TAU);
+        halo.moveTo(X + rad * 2.4, Y);
+        halo.arc(X, Y, rad * 2.4, 0, TAU);
+        snow.moveTo(X + rad * 0.6, Y);
+        snow.arc(X, Y, rad * 0.6, 0, TAU);
         f++;
       }
     }
     ctx.lineCap = 'round';
     if (r) {
-      ctx.lineWidth = 1.1;
-      ctx.strokeStyle = `rgba(222,232,240,${0.5 + 0.25 * LIGHT.rain})`;
+      // the same soft-halo-over-a-thin-core treatment as the snow, so a drop is a streak of light
+      // rather than a flat, opaque dash cut hard against the rain behind it
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = `rgba(222,232,240,${0.16 + 0.08 * LIGHT.rain})`;
+      ctx.stroke(rain);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(226,236,242,${0.55 + 0.25 * LIGHT.rain})`;
       ctx.stroke(rain);
     }
     const sc = `rgba(250,252,255,${0.9 - 0.3 * nf})`;
-    // a faint grey edge under each flake, so snow still shows falling against snow
-    const edge = `rgba(96,110,128,${0.28 - 0.14 * nf})`;
     if (f) {
-      ctx.save();
-      ctx.translate(0, 0.9);
-      ctx.fillStyle = edge;
-      ctx.fill(snow);
-      ctx.restore();
+      ctx.fillStyle = `rgba(232,238,244,${0.17 - 0.07 * nf})`;
+      ctx.fill(halo);
       ctx.fillStyle = sc;
       ctx.fill(snow);
     }
     if (k) {
-      ctx.save();
-      ctx.translate(0, 1);
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = edge;
+      // the same soft-halo-over-bright-core treatment, drawn as strokes for the driven streak
+      ctx.lineWidth = 3.4;
+      ctx.strokeStyle = `rgba(236,242,246,${0.14 - 0.06 * nf})`;
       ctx.stroke(streak);
-      ctx.restore();
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.3;
       ctx.strokeStyle = sc;
       ctx.stroke(streak);
     }
