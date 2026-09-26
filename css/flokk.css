@@ -302,6 +302,48 @@ body {
   text-shadow: 0 2px 30px rgba(10, 16, 12, 0.55);
   padding-left: 0.32em;
 }
+/* a first-time-only line taught by the world itself (a hawk's first pass, hunger, the first dark
+   night), never a checklist: it says a thing once, the moment it matters, and never says it again */
+.hint {
+  position: fixed;
+  left: 50%;
+  bottom: 15%;
+  transform: translate(-50%, 0);
+  max-width: 86vw;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  font-size: clamp(13px, 3vw, 16px);
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  color: var(--ink);
+  text-shadow: 0 2px 20px rgba(10, 16, 12, 0.5);
+}
+.hint.show {
+  animation: hintIn 5.5s ease forwards;
+}
+@keyframes hintIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hint.show {
+    animation-duration: 4.5s;
+  }
+}
 .overlay {
   position: fixed;
   inset: 0;
