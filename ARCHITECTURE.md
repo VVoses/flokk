@@ -127,10 +127,17 @@ writes only that animal's own fields plus the shared movement helpers:
 
 | helper | for |
 |---|---|
-| `walkTo(a, dt, sp)` / `groundStep` | anything on foot, routed round buildings via `navPlan` |
+| `steerA(a, tx, ty, sp, dt, brake?, arrive?)` | move toward an explicit point, on foot or not, across the seam if that's shorter; on foot it's routed round buildings via `navPlan`/`groundStep`. `brake` (default 4) sets how early it decelerates on approach, `arrive` (default 2) how close counts as there |
+| `walkTo(a, dt, sp)` | `steerA` toward `a.tx`/`a.ty` instead of an explicit point, with a gentler brake and looser arrive (3, 3) - the shape most on-foot wandering uses; returns whether it's arrived rather than the remaining distance |
 | `flyTo(a, dt, sp, maxZ)` | anything airborne, straight-line with a climb-out |
-| `steerA` | steering with turn/acceleration limits (hawks, geese) |
+| `steerTo(h, dt, x, y, maxTurn, gain)` | steering with a turn-rate and acceleration limit (hawks) - for something that banks and can't snap onto a new heading, not a ground animal |
 | `inRectPt(r, m)` / `pushOut` | a random destination that's never inside a footprint |
+
+`steerA`/`walkTo` used to be two separately-maintained copies of the same body (one in `interact.js`, one in
+`life.js`) with slightly different tuning and, in `walkTo`'s case, a plain subtraction where `steerA` used
+`wdx()` - a latent seam bug that never showed because on-foot targets are always local. `walkTo` is now a
+one-line call into `steerA`. If you're tempted to copy either one for a new kind of movement, add a parameter
+to `steerA` instead.
 
 **The handoff convention**: an animal with `a.busy` is being driven by `interact.js` (mobbing, the cat, the
 dog, herds, ducks) or `people.js`, and `updateAnimals` skips it outright — there's no dual ownership, no need to

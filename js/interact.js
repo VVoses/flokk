@@ -13,18 +13,21 @@
 
 const near2 = (a, b) => wdx(a.x, b.x) ** 2 + (a.y - b.y) ** 2;
 const alive = o => o && !o.dying && ANIMALS.includes(o);
-// move towards (tx,ty) at up to sp, across the seam if that is shorter; returns remaining distance
-function steerA(a, tx, ty, sp, dt) {
+// move towards (tx,ty) at up to sp, across the seam if that is shorter; returns remaining distance.
+// brake sets how early it decelerates on approach (a smaller factor brakes sooner), arrive how close
+// counts as having gotten there; walkTo (life.js) is this with a gentler brake and a looser arrive,
+// reading its target from a.tx/a.ty instead of taking it explicitly
+function steerA(a, tx, ty, sp, dt, brake = 4, arrive = 2) {
   const walk = onFoot(a);
   if (walk && inBuild(tx, ty, NAV_M)) [tx, ty] = pushOut(tx, ty, NAV_M + 2);
   const dx = wdx(tx, a.x),
     dy = ty - a.y,
     d = Math.hypot(dx, dy);
-  if (d < 2) {
+  if (d < arrive) {
     a.vx = a.vy = 0;
     return d;
   }
-  const s = Math.min(sp, d * 4);
+  const s = Math.min(sp, d * brake);
   if (walk) {
     groundStep(a, dx, dy, d, s, dt);
     return d;

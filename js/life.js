@@ -186,26 +186,10 @@ function threatNear(a, r) {
   }
   return null;
 }
+// steerA (interact.js) toward a.tx/a.ty instead of an explicit target, with a gentler brake and a
+// looser arrive - the shape most of this file's wandering uses
 function walkTo(a, dt, sp) {
-  if (onFoot(a) && inBuild(a.tx, a.ty, NAV_M)) [a.tx, a.ty] = pushOut(a.tx, a.ty, NAV_M + 2);
-  const dx = a.tx - a.x,
-    dy = a.ty - a.y,
-    d = Math.hypot(dx, dy);
-  if (d < 3) {
-    a.vx = a.vy = 0;
-    return true;
-  }
-  const s = Math.min(sp, d * 3);
-  if (onFoot(a)) {
-    groundStep(a, dx, dy, d, s, dt);
-    return false;
-  }
-  a.vx = (dx / d) * s;
-  a.vy = (dy / d) * s;
-  a.x += a.vx * dt;
-  a.y += a.vy * dt;
-  if (Math.abs(a.vx) > 1.5) a.f = a.vx > 0 ? 1 : -1;
-  return false;
+  return steerA(a, a.tx, a.ty, sp, dt, 3, 3) < 3;
 }
 function flyTo(a, dt, sp, maxZ) {
   const dx = a.tx - a.x,
