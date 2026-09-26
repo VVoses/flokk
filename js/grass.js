@@ -226,7 +226,8 @@ function drawGrass() {
   GRS.lastT = T;
   GRS.g += (amb_gust() - GRS.g) * Math.min(1, dt * 0.7);
   const g = GRS.g,
-    lean = WIND.x * (0.12 + 0.3 * g),
+    lean = WIND.x * (0.12 + 0.15 * g),
+    gLean = Math.cos(WEATHER.ang) * Math.min(1.4, WEATHER.s) * 0.55,
     stiff = wint ? 0.35 : 1,
     tm = T;
   // blade paths batched by colour: three greens, dry straw, the gust's sheen; seed heads as dots
@@ -242,6 +243,9 @@ function drawGrass() {
   for (let rw = r0; rw <= r1; rw++)
     for (let cl = c0; cl <= c1; cl++) {
       const Bk = GRS.buckets[rw * GRS.nc + cl];
+      if (!Bk.length) continue;
+      // the gust passing over this patch of grass right now (weather.js): you watch it come across the meadow
+      const gl = gustAt((cl + 0.5) * gc, (rw + 0.5) * gc);
       for (let q = 0; q < Bk.length; q += step) {
         const i = Bk[q],
           x = A.x[i],
@@ -268,11 +272,12 @@ function drawGrass() {
         any = true;
         const b = y * TILT,
           ph = A.ph[i];
-        // a gust runs across the grass as a wave: the blades bow further as it passes and catch the light
+        // where a gust is passing the blades bow flat in waves and show their pale undersides
         const wv =
             Math.sin(x * 0.011 + y * 0.004 - tm * 1.9) * 0.6 + Math.sin(x * 0.006 - y * 0.009 - tm * 1.3 + 1.7) * 0.4,
-          bow = (lean * (0.7 + 0.8 * wv * g) + Math.sin(tm * 2.3 + ph) * 0.07) * stiff,
-          lit = !wint && wv * g > 0.38;
+          bow =
+            (lean * (0.7 + 0.8 * wv * g) + gLean * gl * (0.75 + 0.45 * wv) + Math.sin(tm * 2.3 + ph) * 0.07) * stiff,
+          lit = !wint && (wv * g > 0.5 || gl * (0.55 + 0.45 * wv) > 0.42);
         const nb = A.nb[i],
           dn = Math.round(dry * nb + (ph / TAU - 0.5) * 0.9);
         for (let k = 0; k < nb; k++) {

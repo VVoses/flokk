@@ -3,7 +3,10 @@
    patches you can watch come through a stand of trees and silver the grass ahead of them; autumn gales strip
    the leaves and send them tumbling; winter storms drive the snow sideways and lift spindrift off the drifts;
    showers ring the lake; and some days fog rolls in, thick enough that a hawk is on you before you see it.
-   Rain itself (RAIN, drawRain, thunder) lives in light.js; this file sets the wind it falls through.
+   Rain and snow fall through the world, not over the screen: every drop and flake has a place on the ground it
+   is falling to, drawn in its turn with the trees and roofs, so what stands in front hides it. Fog lies in
+   banks the same way. When a shower comes (RAIN, the overcast and thunder live in light.js) is decided there;
+   this file sets the wind it falls through and draws it falling.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 const WEATHER = {
@@ -22,7 +25,12 @@ const WEATHER = {
   leaves: [],
   drift: [],
   drops: [],
+  fall: [], // raindrops and snowflakes in the air
+  dust: [], // dust lifted off dry ground by a gust
+  wet: 0, // how wet the ground still is from the last shower (no dust till it dries)
+  splash: [],
   banks: [],
+  fogCol: '#DCE1E0',
   pin: null // dev.weather() holds the targets still
 };
 const GUST_SEASON = [0.8, 0.55, 1, 0.9], // baseline strength per season: summer stillest, autumn wildest
@@ -34,6 +42,10 @@ function resetWeather() {
   WEATHER.leaves = [];
   WEATHER.drift = [];
   WEATHER.drops = [];
+  WEATHER.fall = [];
+  WEATHER.dust = [];
+  WEATHER.wet = 0;
+  WEATHER.splash = [];
 }
 
 /* ---------- the weather deciding what to do next (only while playing) ---------- */
@@ -76,8 +88,10 @@ function weatherTick(dt) {
   const g0 = L ? gustAt(L.x, L.y) : 0.3;
   W2.g += (clamp(0.08 + 0.32 * W2.s + 0.65 * g0, 0, 1.3) - W2.g) * Math.min(1, dt * 1.5);
   leafTick(dt);
+  dustTick(dt);
+  leeTick();
   driftTick(dt);
-  dropTick(dt);
+  precipTick(dt);
   fogTick(dt);
 }
 // how the fog and a winter storm grey out the light (called from calUpdate after the rain grading)
@@ -156,53 +170,6 @@ function windPush(b) {
   const k = Math.max(0, WEATHER.s - 0.5) * (0.6 + gustAt(b.x, b.y)) * 30;
   return [Math.cos(WEATHER.ang) * k, Math.sin(WEATHER.ang) * k];
 }
-
-/* the wave that runs through grass and standing crops ahead of a gust: soft crests across the wind,
-   wavering a little, tileable along it so they can roll forward inside the patch */
-const GUST_BANDS = (() => {
-  const c = mk(256, 256),
-    q = c.getContext('2d'),
-    r = mulberry32(4242);
-  q.lineCap = 'round';
-  for (let i = 0; i < 7; i++) {
-    const bx = (i / 7) * 256 + r() * 14,
-      amp = 5 + r() * 9,
-      fr = 0.015 + r() * 0.02,
-      ph = r() * TAU;
-    for (const off of [-256, 0, 256])
-      for (const [lw, al] of [
-        [26, 0.2],
-        [14, 0.3],
-        [5, 0.42]
-      ]) {
-        q.strokeStyle = `rgba(255,255,255,${al})`;
-        q.lineWidth = lw;
-        q.beginPath();
-        for (let y = -8; y <= 264; y += 8) {
-          const x = bx + off + Math.sin(y * fr + ph) * amp + Math.sin(y * 0.061 + i) * 3;
-          y < 0 ? q.moveTo(x, y) : q.lineTo(x, y);
-        }
-        q.stroke();
-      }
-  }
-  return c;
-})();
-// the patch's soft outline: longer across the wind than along it, like a gust front
-const GUST_MASK = (() => {
-  const c = mk(256, 256),
-    q = c.getContext('2d');
-  q.translate(128, 128);
-  q.scale(0.62, 1);
-  const gr = q.createRadialGradient(0, 0, 0, 0, 0, 128);
-  gr.addColorStop(0, 'rgba(0,0,0,1)');
-  gr.addColorStop(0.45, 'rgba(0,0,0,.7)');
-  gr.addColorStop(1, 'rgba(0,0,0,0)');
-  q.fillStyle = gr;
-  q.fillRect(-128 / 0.62, -128, 256 / 0.62, 256);
-  return c;
-})();
-const GUST_C = mk(256, 256),
-  gcx = GUST_C.getContext('2d');
 
 /* ---------- leaves torn off and tumbling downwind (late summer, autumn) ---------- */
 const LEAF_COL = ['#C8862E', '#D9A441', '#A4462A', '#8E5A2B', '#E0B84E', '#B86B2C'];
@@ -324,22 +291,144 @@ function driftTick(dt) {
   }
 }
 
-/* ---------- rain on the water: little rings everywhere a drop lands ---------- */
-function dropTick(dt) {
+/* ---------- dust: what a gust lifts off dry ground ----------
+   Roads, farmyards, ploughed soil and stubble give up a little brown dust when a gust comes over them, which
+   blows off downwind low along the ground and settles. Not while there is snow down, nor till the ground has
+   dried after rain. It is the only mark the wind leaves in the air itself. */
+const DUST_COL = { road: [206, 192, 160], soil: [178, 150, 112] };
+function dryGround(x, y) {
+  const wx = wrapX(x);
+  if (roadDist(wx, y) < 11) return 'road';
+  for (const Y of YARDS) if (inYard(Y, wx, y, 6)) return 'road';
+  const f = fieldAt(wx, y);
+  if (!f || f.t === 'pasture' || f.t === 'sty') return null;
+  const i = FIELDS.indexOf(f);
+  // bare soil in spring before it greens; stubble once it's harvested in autumn
+  if (SEASON === 0 && fieldAlpha(i, 0, GROW.p) > 0.5) return 'soil';
+  if (SEASON === 2 && fieldHarvested(i)) return 'soil';
+  return null;
+}
+function dustTick(dt) {
+  const W2 = WEATHER;
+  W2.wet = clamp(W2.wet + (LIGHT.rain > 0.05 ? LIGHT.rain * dt * 0.3 : -dt / 90), 0, 1);
+  const dry = winterW() > 0.3 ? 0 : 1 - W2.wet;
+  if (dry > 0.05 && W2.s > 0.5)
+    for (const g of W2.gusts) {
+      const e = g.k * gustEnv(g) * dry * smooth(0.5, 1.2, W2.s);
+      // a few tries a frame at points inside the gust; where one lands on dry ground a puff lifts
+      for (let i = 0; i < 3; i++) {
+        if (W2.dust.length > 220 || Math.random() > e * dt * 30) continue;
+        const a = rr(0, TAU),
+          d = Math.sqrt(Math.random()) * g.r * 0.7,
+          x = g.x + Math.cos(a) * d,
+          y = g.y + Math.sin(a) * d,
+          kind = dryGround(x, y);
+        if (!kind) continue;
+        for (let j = 0; j < 3; j++)
+          W2.dust.push({
+            x: x + rr(-10, 10),
+            y: y + rr(-6, 6),
+            z: rr(0, 0.15),
+            r: rr(3, 6),
+            t: 0,
+            life: rr(1.6, 3.2),
+            c: DUST_COL[kind],
+            ph: rr(0, TAU)
+          });
+      }
+    }
+  const c = Math.cos(W2.ang),
+    sn = Math.sin(W2.ang);
+  for (const p of W2.dust) {
+    const w = W2.s * (40 + 110 * gustAt(p.x, p.y));
+    p.t += dt;
+    p.x += (c * w + Math.sin(T * 2 + p.ph) * 8) * dt;
+    p.y += sn * w * 0.7 * dt;
+    // lifted a little and rolled along, spreading thin as it goes
+    p.z = Math.max(0, p.z + (0.5 - p.t * 0.2) * dt);
+    p.r += dt * 9;
+  }
+  W2.dust = W2.dust.filter(p => p.t < p.life);
+}
+
+/* ---------- animals feel it: in a hard wind the grazing beasts stand with their backs to it ---------- */
+const LEE_KINDS = { sheep: 1, cow: 1, pig: 1, deer: 1, moose: 1 };
+function leeTick() {
+  for (const a of ANIMALS) {
+    if (!LEE_KINDS[a.k]) continue;
+    const hard = WEATHER.s > 1.1 || windAt(a.x, a.y) > 0.9;
+    if (hard && a.lee === undefined && Math.random() < 0.02) a.lee = WEATHER.ang + rr(-0.35, 0.35);
+    else if (!hard && a.lee !== undefined && Math.random() < 0.01) a.lee = undefined;
+  }
+}
+
+/* ---------- rain and snow falling through the world ----------
+   Each drop or flake has a ground position (x, y) and a height z, like a bird. It is drawn at PY(y, z) in the
+   painter's order by its y, so a tree or a roof standing in front of the spot it will land on hides it, and it
+   ends where it lands: a ring on the water, a splash on the ground, a flake gone into the snow. */
+const FALL_TOP = 7; // how high (in HZ) they come into view
+function fallSpawn(p, v, top) {
+  p.x = v.cx + rr(-1, 1) * (v.hx + 120);
+  // from the top edge of the view down to where something falling from FALL_TOP still shows at the bottom
+  p.y = v.cy + rr(-v.hy - 30, v.hy + (FALL_TOP * HZ) / TILT);
+  p.z = top ? FALL_TOP * rr(0.8, 1) : rr(0, FALL_TOP);
+  p.s = rr(0.7, 1.3);
+  p.ph = rr(0, TAU);
+}
+function precipTick(dt) {
   const W2 = WEATHER,
-    I = SEASON === 3 ? 0 : LIGHT.rain,
-    v = viewSpan();
+    v = viewSpan(),
+    snow = winterW() > 0.5,
+    I = snow ? LIGHT.snow : LIGHT.rain,
+    sm = W2.storm,
+    want = Math.round(I * (snow ? 620 * (0.55 + 0.45 * sm) : 900)),
+    c = Math.cos(W2.ang),
+    sn = Math.sin(W2.ang);
+  while (W2.fall.length < want) {
+    const p = { snow };
+    fallSpawn(p, v, false);
+    W2.fall.push(p);
+  }
+  // a shower tailing off: drops finish falling, no new ones start
+  let n = W2.fall.length - want;
+  for (const p of W2.fall) {
+    const g = gustAt(p.x, p.y);
+    if (p.snow) {
+      // flakes drift and waver; in a storm they are driven almost flat along the wind
+      const drive = W2.s * (18 + (60 + 160 * sm) * (0.4 + g));
+      p.x += (c * drive + Math.sin(T * 1.3 + p.ph) * 10 * (1 - sm)) * dt;
+      p.y += (sn * drive * 0.7 + Math.cos(T * 1.1 + p.ph) * 5 * (1 - sm)) * dt;
+      p.z -= (0.9 + 0.5 * p.s) * (1 + 0.5 * sm) * dt;
+    } else {
+      const drive = W2.s * (25 + 70 * g);
+      p.x += c * drive * dt;
+      p.y += sn * drive * 0.7 * dt;
+      p.z -= (15 + 4 * p.s) * dt;
+    }
+    if (p.z <= 0) {
+      if (!p.snow) {
+        if (inWater(wrapX(p.x), p.y, -6)) {
+          if (W2.drops.length < 160) W2.drops.push({ x: p.x, y: p.y, t: 0, s: rr(0.7, 1.3) });
+        } else if (W2.splash.length < 120) W2.splash.push({ x: p.x, y: p.y, t: 0 });
+      }
+      if (n > 0) {
+        p.dead = true;
+        n--;
+      } else fallSpawn(p, v, true);
+    } else if (Math.abs(p.x - v.cx) > v.hx + 260 || p.y < v.cy - v.hy - 200 || p.y > v.cy + v.hy + 500) {
+      // blown out of the view: come in again from the top
+      if (n > 0) {
+        p.dead = true;
+        n--;
+      } else fallSpawn(p, v, true);
+    }
+    if (p.snow !== snow) p.dead = true;
+  }
+  if (W2.fall.some(p => p.dead)) W2.fall = W2.fall.filter(p => !p.dead);
   for (const d of W2.drops) d.t += dt;
   W2.drops = W2.drops.filter(d => d.t < 0.7);
-  let n = I * 90 * dt;
-  while (n > 0 && W2.drops.length < 120) {
-    if (Math.random() < n) {
-      const x = v.cx + rr(-1, 1) * v.hx,
-        y = v.cy + rr(-1, 1) * v.hy;
-      if (inWater(wrapX(x), y, -6)) W2.drops.push({ x, y, t: 0, s: rr(0.7, 1.3) });
-    }
-    n -= 1;
-  }
+  for (const d of W2.splash) d.t += dt;
+  W2.splash = W2.splash.filter(d => d.t < 0.18);
 }
 
 /* ---------- fog: banks drifting through on the still air, closing the view down round the flock ---------- */
@@ -364,12 +453,15 @@ const FOG_SPR = (() => {
 const FOGC = document.createElement('canvas'),
   fgx = FOGC.getContext('2d');
 function fogTick(dt) {
-  const W2 = WEATHER;
+  const W2 = WEATHER,
+    nf = LIGHT.night;
+  W2.fogCol = mixHex(mixHex('#DCE1E0', LIGHT.skyBot, 0.3), '#6A7580', nf * 0.55);
+  if (W2.storm > W2.fog) W2.fogCol = mixHex(W2.fogCol, '#E8EEF4', 0.5);
   if (W2.fog <= 0 && W2.storm <= 0.02) return;
   const v = viewSpan(),
     sx = v.hx + 700,
     sy = v.hy + 500;
-  while (W2.banks.length < 16)
+  while (W2.banks.length < 12)
     W2.banks.push({ x: v.cx + rr(-sx, sx), y: v.cy + rr(-sy, sy), r: rr(420, 820), ph: rr(0, TAU), v: rr(0.6, 1.4) });
   for (const b of W2.banks) {
     // fog creeps along with what air there is, and rolls slowly on itself
@@ -397,30 +489,17 @@ function drawFog() {
     FOGC.height = h;
   }
   const c = fgx,
-    nf = LIGHT.night;
-  let col = mixHex(mixHex('#DCE1E0', LIGHT.skyBot, 0.3), '#6A7580', nf * 0.55);
-  if (sm > f) col = mixHex(col, '#E8EEF4', 0.5);
+    col = WEATHER.fogCol;
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.globalCompositeOperation = 'source-over';
   c.clearRect(0, 0, w, h);
-  // an even veil, thicker at the top of the screen (further off)
+  // the air between you and the ground: a thin veil, thicker toward the top of the screen (further off).
+  // The banks themselves lie in the world (drawFogSlice), in among the trees.
   const vg = c.createLinearGradient(0, 0, 0, h);
-  vg.addColorStop(0, col + hex2(Math.min(1, k * 0.85)));
-  vg.addColorStop(1, col + hex2(k * 0.42));
+  vg.addColorStop(0, col + hex2(Math.min(1, k * 0.55)));
+  vg.addColorStop(1, col + hex2(k * 0.2));
   c.fillStyle = vg;
   c.fillRect(0, 0, w, h);
-  // banks rolling through it
-  c.globalAlpha = Math.min(1, k * 1.1);
-  const tint = mk2Tint(col);
-  for (const b of WEATHER.banks) {
-    const X = ((b.x - cam.x) * z + vw / 2) * SQ,
-      Y = ((b.y * TILT - cam.py) * z + vh / 2) * SQ,
-      rx = b.r * (1 + 0.1 * Math.sin(T * 0.06 + b.ph)) * z * SQ,
-      ry = rx * 0.42;
-    if (X + rx < 0 || X - rx > w || Y + ry < 0 || Y - ry > h) continue;
-    c.drawImage(tint, X - rx, Y - ry, rx * 2, ry * 2);
-  }
-  c.globalAlpha = 1;
   // a pocket of clearer air round the flock: you can see your own birds, and not much past them
   if (L && birds.length) {
     const X = ((L.x - cam.x) * z + vw / 2) * SQ,
@@ -459,32 +538,7 @@ function mk2Tint(col) {
 /* ---------- drawing on the ground (ground transform, the k=0 copy: everything here is in flock coordinates) ---------- */
 function drawWeatherGround() {
   const W2 = WEATHER,
-    nf = LIGHT.night,
-    snowy = winterW() > 0.5;
-  // gust waves: bright crests rolling through the grass and the crops, a darker ruffle on open water
-  if (!snowy && nf < 0.9 && W2.gusts.length) {
-    ctx.globalCompositeOperation = 'soft-light';
-    for (const g of W2.gusts) {
-      const e = gustEnv(g) * g.k;
-      if (e < 0.03 || !visG(g.x, g.y, g.r)) continue;
-      // crests run forward through the patch a little faster than the patch itself moves
-      const off = (((g.ph + T * (22 + 30 * W2.s)) % 256) + 256) % 256;
-      gcx.globalCompositeOperation = 'source-over';
-      gcx.clearRect(0, 0, 256, 256);
-      gcx.drawImage(GUST_BANDS, off - 256, 0);
-      gcx.drawImage(GUST_BANDS, off, 0);
-      gcx.globalCompositeOperation = 'destination-in';
-      gcx.drawImage(GUST_MASK, 0, 0);
-      ctx.save();
-      ctx.translate(g.x, g.y);
-      ctx.rotate(W2.ang);
-      ctx.globalAlpha = Math.min(1, e * 1.1) * (1 - nf) * (1 - 0.4 * AIR.mist);
-      ctx.drawImage(GUST_C, -g.r, -g.r, g.r * 2, g.r * 2);
-      ctx.restore();
-    }
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
-  }
+    nf = LIGHT.night;
   // spindrift streaming over the snow
   if (W2.drift.length) {
     const c = Math.cos(W2.ang),
@@ -514,14 +568,150 @@ function drawWeatherGround() {
     }
     ctx.globalAlpha = 1;
   }
+  // rain splashing up off the ground
+  if (W2.splash.length) {
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = 'rgba(214,224,232,.5)';
+    ctx.beginPath();
+    for (const d of W2.splash) {
+      if (!visG(d.x, d.y, 6)) continue;
+      const r = 1 + d.t * 14;
+      ctx.moveTo(d.x - r, d.y - r * 0.2);
+      ctx.lineTo(d.x - r * 0.4, d.y);
+      ctx.moveTo(d.x + r, d.y - r * 0.2);
+      ctx.lineTo(d.x + r * 0.4, d.y);
+    }
+    ctx.stroke();
+  }
   // leaves come to rest and lie a moment before they are lost among the others already down
   for (const f of W2.leaves) if (f.z <= 0 && visG(f.x, f.y, 6)) drawLeaf(f, f.y, Math.min(1, (4.5 - f.down) / 1.5));
 }
-// in the air (upright world transform, k=0 copy), over everything on the ground
-function drawWeatherAir() {
-  for (const f of WEATHER.leaves) {
-    if (f.z <= 0 || !visU(f.x, f.y, 10, f.z * HZ + 10)) continue;
+/* ---------- in the air, in the painter's order (upright world transform, the k=0 copy) ----------
+   Drops, flakes and blown leaves are sorted into bands by the ground y they are over, and each band goes into
+   the painter's list with the trees and buildings; fog banks go in as a few slices through their depth. */
+const BAND = 24;
+function weatherItems(items) {
+  const W2 = WEATHER,
+    bands = new Map();
+  const band = y => {
+    const k = Math.floor(y / BAND);
+    let b = bands.get(k);
+    if (!b) bands.set(k, (b = { y: (k + 1) * BAND, fall: [], leaves: [], dust: [] }));
+    return b;
+  };
+  for (const p of W2.fall) if (visU(p.x, p.y, 20, p.z * HZ + 20)) band(p.y).fall.push(p);
+  for (const f of W2.leaves) if (f.z > 0 && visU(f.x, f.y, 10, f.z * HZ + 10)) band(f.y).leaves.push(f);
+  for (const d of W2.dust) if (visU(d.x, d.y, d.r + 10, d.z * HZ + d.r)) band(d.y).dust.push(d);
+  for (const b of bands.values()) items.push([b.y, 14, b, 0]);
+  const k = Math.max(W2.fog, W2.storm * winterW() * 0.7);
+  if (k > 0.01)
+    for (const b of W2.banks)
+      for (let i = 0; i < FOG_SLICES; i++) {
+        const y = b.y + (i / (FOG_SLICES - 1) - 0.5) * b.r * 0.5;
+        if (visU(b.x, y, b.r, FOG_H * HZ)) items.push([y, 15, { b, y, i }, 0]);
+      }
+}
+function drawWeatherBand(B) {
+  const nf = LIGHT.night,
+    c = Math.cos(WEATHER.ang),
+    s = Math.sin(WEATHER.ang),
+    sm = WEATHER.storm;
+  for (const d of B.dust) {
+    const a = Math.sin((Math.PI * d.t) / d.life) * 0.4 * (1 - 0.6 * nf);
+    ctx.fillStyle = `rgba(${d.c[0]},${d.c[1]},${d.c[2]},${a})`;
+    ctx.beginPath();
+    ctx.ellipse(d.x, PY(d.y, d.z) - d.r * 0.4, d.r * 1.4, d.r * 0.8, 0, 0, TAU);
+    ctx.fill();
+  }
+  if (B.fall.length) {
+    const rain = new Path2D(),
+      snow = new Path2D(),
+      streak = new Path2D();
+    let r = 0,
+      f = 0,
+      k = 0;
+    for (const p of B.fall) {
+      const X = p.x,
+        Y = PY(p.y, p.z);
+      if (!p.snow) {
+        // a streak along the way it is falling: mostly down, slanted by the wind
+        const l = 9 * p.s,
+          w = WEATHER.s * 3.5;
+        rain.moveTo(X, Y);
+        rain.lineTo(X - c * w, Y - l - s * w * 0.4);
+        r++;
+      } else if (sm > 0.3) {
+        // along the way it is going: driven along the wind and still falling, so a little downhill
+        const hx = c,
+          hy = s * 0.7 * TILT + 0.22 / (0.4 + sm),
+          hl = Math.hypot(hx, hy),
+          l = (6 + 16 * sm) * p.s;
+        streak.moveTo(X, Y);
+        streak.lineTo(X - (hx / hl) * l, Y - (hy / hl) * l);
+        k++;
+      } else {
+        const rad = 0.8 + 0.7 * p.s;
+        snow.moveTo(X + rad, Y);
+        snow.arc(X, Y, rad, 0, TAU);
+        f++;
+      }
+    }
+    ctx.lineCap = 'round';
+    if (r) {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(214,224,232,${0.45 + 0.2 * LIGHT.rain})`;
+      ctx.stroke(rain);
+    }
+    const sc = `rgba(250,252,255,${0.9 - 0.3 * nf})`;
+    // a faint grey edge under each flake, so snow still shows falling against snow
+    const edge = `rgba(96,110,128,${0.28 - 0.14 * nf})`;
+    if (f) {
+      ctx.save();
+      ctx.translate(0, 0.9);
+      ctx.fillStyle = edge;
+      ctx.fill(snow);
+      ctx.restore();
+      ctx.fillStyle = sc;
+      ctx.fill(snow);
+    }
+    if (k) {
+      ctx.save();
+      ctx.translate(0, 1);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = edge;
+      ctx.stroke(streak);
+      ctx.restore();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = sc;
+      ctx.stroke(streak);
+    }
+  }
+  for (const f of B.leaves) {
+    // its shadow on the ground under it, in sunlight: this is what puts a leaf in the air over a place
+    if (LIGHT.shadowA > 0.05) {
+      ctx.globalAlpha = 0.22 * LIGHT.shadowA;
+      ctx.fillStyle = '#1E2A1A';
+      ctx.beginPath();
+      ctx.ellipse(f.x + SX * f.z * 0.5, (f.y + SY * f.z * 0.5) * TILT, 2.6 * f.s, 1.2 * f.s, 0, 0, TAU);
+      ctx.fill();
+    }
     drawLeaf(f, PY(f.y, f.z), 1);
   }
+  ctx.globalAlpha = 1;
+}
+// one slice through a fog bank: it lies on the ground and rises a few metres, so whatever is behind it
+// (further up the screen) is lost in it, and whatever stands in front is drawn over it. Tree tops and roofs
+// taller than the bank stand up out of it.
+const FOG_SLICES = 4,
+  FOG_H = 3.2;
+function drawFogSlice({ b, y, i }) {
+  const k = Math.max(WEATHER.fog, WEATHER.storm * winterW() * 0.7);
+  const rx = b.r * (1 + 0.1 * Math.sin(T * 0.06 + b.ph + i)),
+    X = b.x + Math.sin(T * 0.03 + b.ph + i * 1.7) * 40,
+    base = y * TILT,
+    top = base - FOG_H * HZ * (0.7 + 0.3 * Math.sin(b.ph + i)),
+    bot = base + b.r * 0.12 * TILT;
+  ctx.globalAlpha = Math.min(1, (k * 2.3) / FOG_SLICES);
+  ctx.drawImage(mk2Tint(WEATHER.fogCol), X - rx, top, rx * 2, bot - top);
   ctx.globalAlpha = 1;
 }
