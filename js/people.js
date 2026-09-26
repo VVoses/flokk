@@ -158,7 +158,7 @@ function farmerLife(a, dt) {
     if (dog && Math.random() < 0.4 && a.plan.some(s => s.go) && !a.hide) {
       dog.follow = a;
       dog.followT = rr(15, 30);
-      callAt('whistle', a.x, a.y, 1);
+      callAt('whistle', a.x, a.y, 1, a);
     }
   }
   const s = a.plan[0];
