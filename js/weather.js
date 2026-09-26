@@ -26,8 +26,6 @@ const WEATHER = {
   drift: [],
   drops: [],
   fall: [], // raindrops and snowflakes in the air
-  dust: [], // dust lifted off dry ground by a gust
-  wet: 0, // how wet the ground still is from the last shower (no dust till it dries)
   splash: [],
   banks: [],
   fogCol: '#DCE1E0',
@@ -43,8 +41,6 @@ function resetWeather() {
   WEATHER.drift = [];
   WEATHER.drops = [];
   WEATHER.fall = [];
-  WEATHER.dust = [];
-  WEATHER.wet = 0;
   WEATHER.splash = [];
 }
 
@@ -88,7 +84,6 @@ function weatherTick(dt) {
   const g0 = L ? gustAt(L.x, L.y) : 0.3;
   W2.g += (clamp(0.08 + 0.32 * W2.s + 0.65 * g0, 0, 1.3) - W2.g) * Math.min(1, dt * 1.5);
   leafTick(dt);
-  dustTick(dt);
   leeTick();
   driftTick(dt);
   precipTick(dt);
@@ -289,66 +284,6 @@ function driftTick(dt) {
       p.a = 0;
     }
   }
-}
-
-/* ---------- dust: what a gust lifts off dry ground ----------
-   Roads, farmyards, ploughed soil and stubble give up a little brown dust when a gust comes over them, which
-   blows off downwind low along the ground and settles. Not while there is snow down, nor till the ground has
-   dried after rain. It is the only mark the wind leaves in the air itself. */
-const DUST_COL = { road: [206, 192, 160], soil: [178, 150, 112] };
-function dryGround(x, y) {
-  const wx = wrapX(x);
-  if (roadDist(wx, y) < 11) return 'road';
-  for (const Y of YARDS) if (inYard(Y, wx, y, 6)) return 'road';
-  const f = fieldAt(wx, y);
-  if (!f || f.t === 'pasture' || f.t === 'sty') return null;
-  const i = FIELDS.indexOf(f);
-  // bare soil in spring before it greens; stubble once it's harvested in autumn
-  if (SEASON === 0 && fieldAlpha(i, 0, GROW.p) > 0.5) return 'soil';
-  if (SEASON === 2 && fieldHarvested(i)) return 'soil';
-  return null;
-}
-function dustTick(dt) {
-  const W2 = WEATHER;
-  W2.wet = clamp(W2.wet + (LIGHT.rain > 0.05 ? LIGHT.rain * dt * 0.3 : -dt / 90), 0, 1);
-  const dry = winterW() > 0.3 ? 0 : 1 - W2.wet;
-  if (dry > 0.05 && W2.s > 0.5)
-    for (const g of W2.gusts) {
-      const e = g.k * gustEnv(g) * dry * smooth(0.5, 1.2, W2.s);
-      // a few tries a frame at points inside the gust; where one lands on dry ground a puff lifts
-      for (let i = 0; i < 3; i++) {
-        if (W2.dust.length > 220 || Math.random() > e * dt * 30) continue;
-        const a = rr(0, TAU),
-          d = Math.sqrt(Math.random()) * g.r * 0.7,
-          x = g.x + Math.cos(a) * d,
-          y = g.y + Math.sin(a) * d,
-          kind = dryGround(x, y);
-        if (!kind) continue;
-        for (let j = 0; j < 3; j++)
-          W2.dust.push({
-            x: x + rr(-10, 10),
-            y: y + rr(-6, 6),
-            z: rr(0, 0.15),
-            r: rr(3, 6),
-            t: 0,
-            life: rr(1.6, 3.2),
-            c: DUST_COL[kind],
-            ph: rr(0, TAU)
-          });
-      }
-    }
-  const c = Math.cos(W2.ang),
-    sn = Math.sin(W2.ang);
-  for (const p of W2.dust) {
-    const w = W2.s * (40 + 110 * gustAt(p.x, p.y));
-    p.t += dt;
-    p.x += (c * w + Math.sin(T * 2 + p.ph) * 8) * dt;
-    p.y += sn * w * 0.7 * dt;
-    // lifted a little and rolled along, spreading thin as it goes
-    p.z = Math.max(0, p.z + (0.5 - p.t * 0.2) * dt);
-    p.r += dt * 9;
-  }
-  W2.dust = W2.dust.filter(p => p.t < p.life);
 }
 
 /* ---------- animals feel it: in a hard wind the grazing beasts stand with their backs to it ---------- */
@@ -596,12 +531,11 @@ function weatherItems(items) {
   const band = y => {
     const k = Math.floor(y / BAND);
     let b = bands.get(k);
-    if (!b) bands.set(k, (b = { y: (k + 1) * BAND, fall: [], leaves: [], dust: [] }));
+    if (!b) bands.set(k, (b = { y: (k + 1) * BAND, fall: [], leaves: [] }));
     return b;
   };
   for (const p of W2.fall) if (visU(p.x, p.y, 20, p.z * HZ + 20)) band(p.y).fall.push(p);
   for (const f of W2.leaves) if (f.z > 0 && visU(f.x, f.y, 10, f.z * HZ + 10)) band(f.y).leaves.push(f);
-  for (const d of W2.dust) if (visU(d.x, d.y, d.r + 10, d.z * HZ + d.r)) band(d.y).dust.push(d);
   for (const b of bands.values()) items.push([b.y, 16, b, 0]);
   const k = Math.max(W2.fog, W2.storm * winterW() * 0.7);
   if (k > 0.01)
@@ -616,13 +550,6 @@ function drawWeatherBand(B) {
     c = Math.cos(WEATHER.ang),
     s = Math.sin(WEATHER.ang),
     sm = WEATHER.storm;
-  for (const d of B.dust) {
-    const a = Math.sin((Math.PI * d.t) / d.life) * 0.4 * (1 - 0.6 * nf);
-    ctx.fillStyle = `rgba(${d.c[0]},${d.c[1]},${d.c[2]},${a})`;
-    ctx.beginPath();
-    ctx.ellipse(d.x, PY(d.y, d.z) - d.r * 0.4, d.r * 1.4, d.r * 0.8, 0, 0, TAU);
-    ctx.fill();
-  }
   if (B.fall.length) {
     const rain = new Path2D(),
       snow = new Path2D(),
