@@ -1695,7 +1695,8 @@ function render() {
     else if (kind === 12) drawProp(o);
     else if (kind === 14) drawXSign(o);
     else if (kind === 7) drawAnimal(o);
-    else if (kind === 14) drawWeatherBand(o);
+    else if (kind === 16)
+      drawWeatherBand(o); // 15 and 16 belong to weather.js (weatherItems)
     else if (kind === 15) drawFogSlice(o);
     else drawPerched(o, o.perch && o.perch.cover ? 0.7 : 1);
   }
