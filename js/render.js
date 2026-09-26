@@ -412,8 +412,10 @@ function treeSway(t) {
   const stiff = t.type === 'spruce' ? 0.55 : t.type === 'birch' ? 1.25 : 0.95;
   const ph = t.x * 0.013 + t.y * 0.021;
   const flutter = Math.sin(T * 1.7 + ph) * 0.65 + Math.sin(T * 0.6 + ph * 1.7) * 0.35;
-  const lean = WIND.x * amb_gust() * 0.5;
-  return (flutter * 0.04 + lean * 0.035) * stiff;
+  // the gust passing over this tree (weather.js), so you can watch a gust come through a stand tree by tree
+  const g = gustAt(t.x, t.y),
+    lean = Math.cos(WEATHER.ang) * WEATHER.s * (0.25 + g);
+  return (flutter * 0.04 * (0.5 + 0.5 * WEATHER.s + 0.8 * g) + lean * 0.03) * stiff;
 }
 function drawTree(t) {
   const spr = SPR[t.type][t.v],
@@ -1301,6 +1303,23 @@ function renderShadows(tx, ty, KS, inK) {
     c.strokeStyle = SHADE;
   }
 }
+// the ground's last SEAM_U units and first SEAM_U units side by side, rebuilt when the ground canvas changes
+const SEAM_U = 10, // 6 whole pixels of the ground canvas each side
+  SEAMC = new WeakMap();
+function seamStrip(img) {
+  let c = SEAMC.get(img);
+  if (!c || c.ver !== img.ver) {
+    if (!c) SEAMC.set(img, (c = document.createElement('canvas')));
+    const u = Math.round(SEAM_U * S);
+    c.width = 2 * u;
+    c.height = img.height;
+    const x = c.getContext('2d');
+    x.drawImage(img, img.width - u, 0, u, img.height, 0, 0, u, img.height);
+    x.drawImage(img, 0, 0, u, img.height, u, 0, u, img.height);
+    c.ver = img.ver;
+  }
+  return c;
+}
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
@@ -1352,11 +1371,15 @@ function render() {
         ex = Math.min(W, V.x1),
         ey = Math.min(H, gy1);
       if (!(ex > sx && ey > sy)) continue;
-      // at the seam, overlap each copy by a few units of its neighbour so antialiased edges never leave a hairline
+      // where this copy meets its eastern neighbour, lay one strip of ground straddling the seam (the land's
+      // last few units and its first few, side by side) so neither copy's antialiased edge ends on bare
+      // background. Only this copy draws it: the neighbour only paints its own ground from the seam east
       const blit = (img, sy, ey) => {
         ctx.drawImage(img, sx * S, sy * S, (ex - sx) * S, (ey - sy) * S, sx, sy, ex - sx, ey - sy);
-        if (ex >= W) ctx.drawImage(img, 0, sy * S, 4 * S, (ey - sy) * S, W, sy, 4, ey - sy);
-        if (sx <= 0) ctx.drawImage(img, (W - 4) * S, sy * S, 4 * S, (ey - sy) * S, -4, sy, 4, ey - sy);
+        if (ex >= W) {
+          const q = seamStrip(img);
+          ctx.drawImage(q, 0, sy * S, q.width, (ey - sy) * S, W - SEAM_U, sy, 2 * SEAM_U, ey - sy);
+        }
       };
       const paint = (sy, ey) => {
         if (pass) return growGround(sx, sy, ex, ey);
@@ -1465,13 +1488,29 @@ function render() {
       ctx.fillRect(8, -5, 3, 10);
       ctx.restore();
     }
-    for (const c of CLOUDSH) {
-      if (c.x + c.s < V.x0 || c.x - c.s > V.x1 || c.y + c.s < gy0 || c.y - c.s > gy1) continue;
-      ctx.globalAlpha = 0.38 * LIGHT.shadowA;
-      ctx.drawImage(SHADOW_SPR, c.x - c.s, c.y - c.s, c.s * 2, c.s * 2);
+    // each copy shades only its own stretch of land (cut on whole device pixels, like the snow), with the
+    // cloud shadows and mist that reach it from across the seam included, so one crossing the seam stays whole
+    ctx.save();
+    {
+      const m = ctx.getTransform(),
+        snap = x => (Math.round(m.a * x + m.e) - m.e) / m.a,
+        x0 = snap(0);
+      ctx.beginPath();
+      ctx.rect(x0, gy0 - 10, snap(W) - x0, gy1 - gy0 + 20);
+      ctx.clip();
     }
+    ctx.globalAlpha = 0.38 * LIGHT.shadowA;
+    for (const c of CLOUDSH)
+      for (const ox of [0, -W, W]) {
+        const x = c.x + ox;
+        if (x + c.s < Math.max(0, V.x0) || x - c.s > Math.min(W, V.x1) || c.y + c.s < gy0 || c.y - c.s > gy1) continue;
+        ctx.drawImage(SHADOW_SPR, x - c.s, c.y - c.s, c.s * 2, c.s * 2);
+      }
     ctx.globalAlpha = 1;
-    drawMist();
+    drawMist(); // the mist banks likewise
+    ctx.restore();
+    // gusts, spindrift, rain rings and fallen leaves are in flock coordinates, so they draw once, unclipped, in the k=0 copy
+    if (k === 0) drawWeatherGround();
   }
   V = V0;
   if (LIGHT.shadowA > 0.02) {
@@ -1505,6 +1544,7 @@ function render() {
       ctx.quadraticCurveTo(r.x + r.l * 0.3, b - r.h * 0.6, r.x + r.l, b - r.h);
     }
     ctx.stroke();
+    drawGrass(); // standing grass over the meadows and pastures (grass.js)
     for (const t of TREES) if (visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) items.push([t.y, 0, t, k]);
     for (const b of BUILDS) if (visU(b.cx, b.cy, b.len, b.rh + b.len * 0.6)) items.push([b.cy, 1, b, k]);
     for (const line of LINES)
@@ -1738,6 +1778,7 @@ function render() {
   }
   V = V0;
   setK(0);
+  drawWeatherAir();
   if (pointer.down && st.mode === 'play') {
     const w = screenToWorld(pointer.x, pointer.y, L.z);
     ctx.strokeStyle = 'rgba(242,201,76,.65)';
@@ -1756,6 +1797,7 @@ function render() {
       setK(k);
       drawSkyAnimal(a);
     }
+  drawFog();
   applyLight(tx, ty, KS, inK);
   V = V0;
   drawSkyBehind(tx, ty);
@@ -1783,7 +1825,8 @@ function render() {
       sy2 = (PY(h.y, h.z) - cam.py) * z + vh / 2;
     if (sx2 > -20 && sx2 < vw + 20 && sy2 > -20 && sy2 < vh + 20) continue;
     const dist = Math.hypot(h.x - L.x, h.y - L.y);
-    if (dist > 1600 || h.state === 'carry' || h.state === 'leave') continue;
+    // in fog or a blizzard you get far less warning
+    if (dist > 1600 * seeK() || h.state === 'carry' || h.state === 'leave') continue;
     const a = Math.atan2(sy2 - vh / 2, sx2 - vw / 2);
     const m = 34;
     const ex2 = clamp(vw / 2 + Math.cos(a) * vw, m, vw - m),
@@ -1791,7 +1834,7 @@ function render() {
     ctx.save();
     ctx.translate(ex2, ey2);
     ctx.rotate(a);
-    ctx.globalAlpha = clamp(1.3 - dist / 1600, 0.3, 1);
+    ctx.globalAlpha = clamp(1.3 - dist / (1600 * seeK()), 0.3, 1);
     ctx.fillStyle = h.state === 'patrol' ? '#E0A33F' : '#E5573F';
     ctx.beginPath();
     ctx.moveTo(12, 0);

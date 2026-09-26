@@ -143,7 +143,8 @@ const LIVERY = [
 function spawnTrain() {
   const dir = Math.random() < 0.5 ? 1 : -1,
     freight = Math.random() < 0.45,
-    lv = LIVERY[(Math.random() * LIVERY.length) | 0];
+    li = (Math.random() * LIVERY.length) | 0,
+    lv = LIVERY[li];
   const cars = [
     freight
       ? { k: 'loco', len: 42, h: 0.66, col: '#3E4A52', stripe: '#E0B03A', top: '#5A5E62' }
@@ -172,7 +173,20 @@ function spawnTrain() {
   let tot = 0;
   for (const c of cars) tot += c.len + 5;
   const sx = L ? wrapX(L.x + W / 2 + rr(-400, 400)) : rr(0, W);
-  TRAIN = { dir, cars, tot, v: rr(150, 200), vmax: rr(210, 260), s: railSAtX(sx), dist: 0, honked: false, scareT: 0 };
+  TRAIN = {
+    dir,
+    cars,
+    tot,
+    v: rr(150, 200),
+    vmax: rr(210, 260),
+    s: railSAtX(sx),
+    dist: 0,
+    honked: false,
+    scareT: 0,
+    // each kind of train has its own horn (a livery always sounds the same), and each engine is tuned a hair apart
+    horn: freight ? 'freight' : HORN_OF_LIVERY[li],
+    hornP: rr(0.97, 1.03)
+  };
 }
 function updateTrain(dt) {
   if (!RAIL) return;
@@ -545,30 +559,68 @@ function clack(v) {
     s.stop(t + d + 0.06);
   }
 }
-function horn(v) {
+// train horns: chord notes (Hz), how bright the reeds are, and the blasts [start, length, pitch bend]
+const HORNS = {
+  // the red regional: the familiar two-tone, long then longer
+  regional: {
+    f: [311, 392],
+    cut: 1150,
+    wave: 'sawtooth',
+    blasts: [
+      [0, 0.7, 1],
+      [0.95, 1.1, 1]
+    ]
+  },
+  // the silver express: a brighter three-note chord, a short tap then a long call
+  express: {
+    f: [440, 554, 659],
+    cut: 1700,
+    wave: 'sawtooth',
+    blasts: [
+      [0, 0.3, 1],
+      [0.45, 1.3, 1]
+    ]
+  },
+  // the old green line: a soft, hollow whistle whose one long note sags as it fades
+  old: { f: [392, 523], cut: 1400, wave: 'triangle', blasts: [[0, 1.5, 0.93]] },
+  // freight: a deep, heavy minor third, one long bellow and a short grunt after it
+  freight: {
+    f: [175, 208],
+    cut: 800,
+    wave: 'sawtooth',
+    blasts: [
+      [0, 1.4, 0.98],
+      [1.65, 0.45, 1]
+    ]
+  }
+};
+const HORN_OF_LIVERY = ['regional', 'express', 'old'];
+function horn(v, tr = {}, pan = 0) {
   if (!ac || muted) return;
-  const t = ac.currentTime + 0.05;
-  for (const [t0, d] of [
-    [0, 0.7],
-    [0.95, 1.1]
-  ]) {
+  const t = ac.currentTime + 0.05,
+    H = HORNS[tr.horn] || HORNS.regional,
+    hp = tr.hornP || 1;
+  for (const [t0, d, bend] of H.blasts) {
     const out = ac.createGain(),
       lp = ac.createBiquadFilter();
     lp.type = 'lowpass';
-    // a lower cutoff shaves off the buzzy top edge of the sawtooth chord, and a slower fade in/out
-    // eases the blast in and out instead of snapping on like an alarm - softer, less jarring honk
-    lp.frequency.value = 1150;
+    // a lowpass shaves off the buzzy top edge of the chord, and a slow fade in/out
+    // eases the blast in and out instead of snapping on like an alarm
+    lp.frequency.value = H.cut;
     out.gain.setValueAtTime(0, t + t0);
-    out.gain.linearRampToValueAtTime(v, t + t0 + 0.14);
-    out.gain.setValueAtTime(v, t + t0 + d - 0.18);
+    out.gain.linearRampToValueAtTime(v * (H.g || 1), t + t0 + 0.14);
+    out.gain.setValueAtTime(v * (H.g || 1), t + t0 + d - 0.18);
     out.gain.linearRampToValueAtTime(0, t + t0 + d);
     lp.connect(out);
-    out.connect(master);
-    out.connect(verb);
-    for (const f of [311, 392]) {
+    const p = panned(out, pan);
+    p.connect(master);
+    p.connect(verb);
+    for (const f of H.f) {
       const o = ac.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = f;
+      o.type = H.wave;
+      // the reeds of one horn are never quite in tune with each other: a slow beating
+      o.frequency.setValueAtTime(f * hp * (1 + (Math.random() - 0.5) * 0.006), t + t0);
+      o.frequency.linearRampToValueAtTime(f * hp * bend, t + t0 + d);
       o.connect(lp);
       o.start(t + t0);
       o.stop(t + t0 + d + 0.05);

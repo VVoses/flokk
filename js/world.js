@@ -911,6 +911,7 @@ function genLayout() {
     // grazing handy to the barn, crops further out
     mine.forEach((f, i) => {
       f.t = i < 2 && R() < 0.75 ? 'pasture' : types[(R() * types.length) | 0];
+      f.farm = fm;
       FIELDS.push(f);
     });
     // what runs along each cut is drawn only where a plot is beside it, and never across a road or a yard

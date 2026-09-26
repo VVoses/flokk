@@ -11,6 +11,7 @@ function update(dt) {
     CAL.t += dt;
     updateWeather(dt);
   }
+  weatherTick(dt);
   calUpdate();
   if (TRANS.t < 1) {
     TRANS.t = Math.min(1, TRANS.t + dt / 10);
@@ -36,6 +37,8 @@ function update(dt) {
       roost = st.settled && L.state === 'perch' && coveredNow(L);
     let drain = 0.0062 * [1, 0.8, 1.1, 1.6][SEASON];
     if (nightNow) drain *= roost ? 0.55 : 1.35;
+    // a winter storm cuts through anything but the thickest cover
+    if (!roost) drain *= 1 + 0.45 * WEATHER.storm;
     st.energy = clamp(st.energy - drain * dt, 0, 1);
     if (st.energy <= 0) {
       st.starveT -= dt;
@@ -119,8 +122,10 @@ function update(dt) {
       L.vx *= f;
       L.vy *= f;
     }
-    L.x += L.vx * dt;
-    L.y += L.vy * dt;
+    // a gale pushes the flock along with it: easy downwind, hard work flying into it
+    const [wx, wy] = windPush(L);
+    L.x += (L.vx + wx) * dt;
+    L.y += (L.vy + wy) * dt;
     {
       const sy = shoreY(L.x) + 30;
       if (L.y > sy) {
@@ -329,9 +334,12 @@ function update(dt) {
   updateTrain(dt);
   updateTraffic(dt);
   coverHint(dt);
-  if (st.settled && Math.random() < dt * Math.min(3, birds.length * 0.12)) chirp(0.018);
-  const base = clamp(Math.min(vw, vh) / 760, 0.55, 1.15);
-  const zt = base * (1 - Math.min(0.32, birds.length / 260));
+  if (st.settled && Math.random() < dt * Math.min(3, birds.length * 0.12) * chatter()) chirp(0.018);
+  const base = clamp(Math.min(vw, vh) / 760, 0.72, 1.15);
+  // the camera pulls back as the flock grows; eased so a mid-sized flock stays close and only a
+  // big one gets the full wide view (0.32 at 83+ birds, as before)
+  const grow = Math.min(1, birds.length / 83);
+  const zt = base * (1 - 0.32 * Math.pow(grow, 1.8));
   cam.z += (zt - cam.z) * Math.min(1, dt * 1.5);
   if (DEV && DEV.zoom) cam.z = DEV.zoom;
   const lx = L.x + L.vx * 0.35,
