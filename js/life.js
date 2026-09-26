@@ -240,11 +240,26 @@ function tractorMove(a) {
   a.row = Math.round((y - f.y - 28) / 30);
   a.dirn = west ? 1 : -1;
 }
+// the tractor's heading (drawTractor) eases round toward where it is driving; a half turn at the end
+// of a row swings through facing down-field, toward the next row, rather than flipping on the spot
+function tractorTurn(a, aim, dt) {
+  a.ang ??= aim;
+  let d = angDiff(aim, a.ang);
+  if (Math.abs(d) > 2.8) d = (Math.cos(a.ang) > 0 ? 1 : -1) * Math.abs(d);
+  a.ang += d * Math.min(1, dt * 2.5);
+}
 function tractorDust(a, dt) {
   a.dust = (a.dust || 0) - dt;
   if (a.dust <= 0 && inView(a.x, a.y, 200)) {
     a.dust = 0.14;
-    parts.push({ k: 'd', x: a.x - a.f * 14 + rr(-3, 3), y: a.y + rr(-2, 2), z: 0.05, life: 1.4, max: 1.4 });
+    parts.push({
+      k: 'd',
+      x: a.x - Math.cos(a.ang ?? 0) * 26 + rr(-3, 3),
+      y: a.y + rr(-2, 2),
+      z: 0.05,
+      life: 1.4,
+      max: 1.4
+    });
   }
 }
 // a random spot in a field or yard that is not inside a building
@@ -547,6 +562,7 @@ function updateAnimals(dt) {
             a.x = wrapX(a.x + a.vx * dt);
             a.y += (dy / d) * 55 * dt;
             if (Math.abs(dx) > 2) a.f = a.vx > 0 ? 1 : -1;
+            tractorTurn(a, Math.atan2(dy, dx), dt);
           }
           tractorDust(a, dt);
           break;
@@ -577,6 +593,7 @@ function updateAnimals(dt) {
           a.x += a.vx * dt;
           a.f = a.vx > 0 ? 1 : -1;
         }
+        tractorTurn(a, a.f > 0 ? 0 : Math.PI, dt);
         tractorDust(a, dt);
         break;
       }

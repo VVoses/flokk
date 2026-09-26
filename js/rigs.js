@@ -944,39 +944,92 @@ function drawAnimal(a) {
   }
   ctx.restore();
 }
+// the field tractor is built from the same projected boxes as the road traffic (traffic.js): a cab
+// over the back axle, a bonnet out front, big rear and small front wheels and a harrow dragged behind.
+// It turns round at the end of each row instead of flipping, and the wheels roll as it drives.
 function drawTractor(a) {
   ctx.save();
   ctx.globalAlpha = clamp(a.fade ?? 1, 0, 1);
-  ctx.translate(a.x, PY(a.y, 0));
-  ctx.scale(a.f, 1);
-  const rot = a.anim * 3 * (LIGHT.night > 0.4 ? 0 : 1);
-  ell(-7, -8, 8, 8, '#1E1E1E');
-  ctx.strokeStyle = '#C9B24A';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  for (let i = 0; i < 4; i++) {
-    const an = rot + (i * Math.PI) / 2;
-    ctx.moveTo(-7, -8);
-    ctx.lineTo(-7 + Math.cos(an) * 5, -8 + Math.sin(an) * 5);
+  const still = LIGHT.night > 0.4,
+    o = { x: a.x, y: a.y, ang: a.ang ?? (a.f > 0 ? 0 : Math.PI) },
+    cs = Math.cos(o.ang),
+    sn = Math.sin(o.ang),
+    near = cs >= 0 ? 1 : -1, // which side of the tractor faces the camera
+    rot = still ? 0 : a.anim * 3,
+    col = '#B5301F';
+  // harrow first: it sits behind and below everything else
+  const hb = { x: a.x - cs * 22, y: a.y - sn * 22, ang: o.ang };
+  vBox(hb, -5, 5, 9, 0, 0.07, '#5E4A34');
+  const PH = vBox(hb, -1, 1, 9, 0.07, 0.11, '#4A3A28');
+  for (let i = -3; i <= 3; i++) {
+    const t = PH(0, i * 2.8, 0.07),
+      b2 = PH(-1.5, i * 2.8, 0);
+    ctx.strokeStyle = '#2E2820';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(t[0], t[1]);
+    ctx.lineTo(b2[0], b2[1]);
+    ctx.stroke();
   }
+  const P0 = (lx, ly, h) => [o.x + lx * cs - ly * sn, (o.y + lx * sn + ly * cs) * TILT - h * HZ];
+  const hitch = [P0(-12, 0, 0.12), P0(-17, 0, 0.1)];
+  ctx.strokeStyle = '#2A2826';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(hitch[0][0], hitch[0][1]);
+  ctx.lineTo(hitch[1][0], hitch[1][1]);
   ctx.stroke();
-  ell(11, -5, 5, 5, '#1E1E1E');
-  ell(11, -5, 2, 2, '#C9B24A');
-  const vib = LIGHT.night > 0.4 ? 0 : Math.sin(T * 40) * 0.3;
-  ctx.translate(0, vib);
-  ctx.fillStyle = '#B5301F';
-  ctx.fillRect(-1, -15, 17, 8);
-  ctx.fillStyle = '#8E2416';
-  ctx.fillRect(-1, -9, 17, 2);
-  ctx.fillStyle = '#B5301F';
-  ctx.fillRect(-13, -28, 13, 17);
-  ctx.fillStyle = '#A9CBD8';
-  ctx.fillRect(-11, -26, 9, 9);
-  ctx.fillStyle = '#222';
-  ctx.fillRect(-14, -29.5, 15, 2.5);
-  ctx.fillRect(8, -22, 1.8, 8);
-  ctx.fillStyle = '#5E4A34';
-  ctx.fillRect(-26, -6, 10, 4);
+  // wheels: a tyre is a disc in the tractor's side plane, so it narrows as the tractor turns toward you
+  const tyre = (lx, ly, r, w) => {
+    const sq = Math.max(0.18, Math.abs(cs)),
+      c1 = P0(lx, ly, r / HZ),
+      c2 = P0(lx, ly + Math.sign(ly) * w, r / HZ),
+      front = ly * near > 0; // the outer face is the one nearer the camera
+    const [cb, c] = front ? [c1, c2] : [c2, c1];
+    for (const [q, f] of [
+      [cb, '#141210'],
+      [c, '#1C1A18']
+    ]) {
+      ctx.fillStyle = f;
+      ctx.beginPath();
+      ctx.ellipse(q[0], q[1], r * sq, r, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#C9B24A';
+    ctx.beginPath();
+    ctx.ellipse(c[0], c[1], r * 0.45 * sq, r * 0.45, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#8A7A30';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const an = rot * (8 / r) + (i * Math.PI) / 2;
+      ctx.moveTo(c[0], c[1]);
+      ctx.lineTo(c[0] + Math.cos(an) * r * 0.45 * sq * near, c[1] + Math.sin(an) * r * 0.45);
+    }
+    ctx.stroke();
+  };
+  tyre(-6, -near * 8, 8, 3);
+  tyre(11, -near * 6, 5, 2);
+  // the body shakes with the engine
+  if (!still) ctx.translate(0, Math.sin(T * 40) * 0.3);
+  vBox(o, -12, 17, 5, 0.1, 0.18, '#3A3430'); // chassis
+  vBox(o, -1, 17, 4, 0.18, 0.36, col); // bonnet
+  vBox(o, 16, 17.5, 4.2, 0.2, 0.34, '#2A2826'); // grille
+  vBox(o, -13, -1, 6, 0.18, 0.4, col); // cab body
+  vBox(o, -12.5, -1.5, 5.8, 0.4, 0.66, col, true); // cab glass
+  vBox(o, -14, 0, 6.8, 0.66, 0.72, '#3A3632'); // roof
+  vBox(o, -8, -4, 8.5, 0.28, 0.32, '#8E2416'); // mudguards
+  const eb = P0(9, -near * 2, 0.36),
+    ex = P0(9, -near * 2, 0.56);
+  ctx.strokeStyle = '#2A2826';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(eb[0], eb[1]);
+  ctx.lineTo(ex[0], ex[1]);
+  ctx.stroke();
+  tyre(-6, near * 8, 8, 3);
+  tyre(11, near * 6, 5, 2);
   ctx.restore();
 }
 /* per-frame animation state for every animal: gait phase from distance walked, facing turns,
