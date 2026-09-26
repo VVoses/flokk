@@ -431,6 +431,20 @@ const HALO = (() => {
   g.fillRect(0, 0, 64, 64);
   return c;
 })();
+// the same aura, warmed to gold, so the leader the camera follows reads as sunlit rather than
+// picked out by a UI ring
+const HALO_GOLD = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d'),
+    gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,224,140,1)');
+  gr.addColorStop(0.45, 'rgba(255,224,140,.5)');
+  gr.addColorStop(1, 'rgba(255,224,140,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  return c;
+})();
 function drawFlyer(b) {
   const K = b.s * (0.95 + 0.04 * b.z),
     X = b.x,
@@ -439,11 +453,9 @@ function drawFlyer(b) {
   ctx.drawImage(HALO, X - K * 2.3, Y - K * 2.3, K * 4.6, K * 4.6);
   ctx.globalAlpha = 1;
   if (b === L) {
-    ctx.beginPath();
-    ctx.ellipse(X, Y, K * 1.7, K * 1.25, 0, 0, TAU);
-    ctx.strokeStyle = 'rgba(242,201,76,.9)';
-    ctx.lineWidth = 1.3;
-    ctx.stroke();
+    ctx.globalAlpha = 0.34 + 0.1 * Math.sin(T * 2);
+    ctx.drawImage(HALO_GOLD, X - K * 2.1, Y - K * 2.1, K * 4.2, K * 4.2);
+    ctx.globalAlpha = 1;
   }
   const look = LOOK.sparrow;
   look.top = b.c1;

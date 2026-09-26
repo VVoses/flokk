@@ -637,13 +637,18 @@ function updateAnimals(dt) {
         a.work = (a.work ?? rr(60, 140)) - dt;
         const dx = a.tx - a.x,
           dy = a.ty - a.y;
+        let aim = a.f > 0 ? 0 : Math.PI;
         if (Math.abs(dy) > 1.5) {
-          // swinging round at the headland onto the next row, at a crawl rather than sliding sideways
+          // swinging round at the headland onto the next row, at a crawl rather than sliding sideways:
+          // face the way it is actually travelling, not the row heading it just left, or it looks like
+          // it is crabbing sideways until it snaps round once the new row starts
           const step = Math.min(Math.abs(dy), TRACTOR_WORK * 0.7 * dt);
           a.y += Math.sign(dy) * step;
           if (Math.abs(dx) > 3) a.x += Math.sign(dx) * Math.min(Math.abs(dx), TRACTOR_WORK * 0.4 * dt);
+          aim = Math.atan2(dy, dx);
         } else if (Math.abs(dx) < 3) {
           a.dirn *= -1;
+          a.f = a.dirn;
           a.row += a.rdir;
           // enough done here: at the headland, set off for another field
           if (a.work <= 0) tractorMove(a);
@@ -653,7 +658,7 @@ function updateAnimals(dt) {
           a.x += a.vx * dt;
           a.f = a.vx > 0 ? 1 : -1;
         }
-        tractorTurn(a, a.f > 0 ? 0 : Math.PI, dt);
+        tractorTurn(a, aim, dt);
         tractorDust(a, dt);
         break;
       }
