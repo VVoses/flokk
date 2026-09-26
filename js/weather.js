@@ -127,6 +127,7 @@ function gustTick(dt) {
       x: v.cx - c * reach - s * side,
       y: v.cy - s * reach + c * side,
       r,
+      ang: W2.ang, // kept with the gust, so it stays a streak along the way it was blowing even if the wind veers
       k: rr(0.55, 1) * Math.min(1.25, 0.4 + W2.s * 0.7),
       t: 0,
       life: (reach * 2) / speed,
@@ -145,13 +146,19 @@ function gustTick(dt) {
 }
 // swells in as it arrives, dies away as it goes
 const gustEnv = g => Math.min(1, g.t / 2.5, (g.life - g.t) / 2.5);
-// the extra wind at a point from the gusts passing over it (0 in their lee, ~1 in the heart of one)
+// the extra wind at a point from the gusts passing over it (0 in their lee, ~1 in the heart of one).
+// A gust is a streak, not a puff: long the way it's travelling, narrow across it, so it reads as a
+// band running through the grass rather than a ring spreading out from a point.
 function gustAt(x, y) {
   let a = 0;
   for (const g of WEATHER.gusts) {
     const dx = wdx(x, g.x),
       dy = y - g.y,
-      q = (dx * dx + dy * dy) / (g.r * g.r);
+      c = Math.cos(g.ang),
+      s = Math.sin(g.ang),
+      along = dx * c + dy * s,
+      across = -dx * s + dy * c,
+      q = (along * along) / (g.r * g.r * 2.5) + (across * across) / (g.r * g.r * 0.4);
     if (q >= 1) continue;
     const f = 1 - q;
     a += g.k * f * f * gustEnv(g);
