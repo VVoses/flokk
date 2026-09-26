@@ -421,7 +421,7 @@ function updateAnimals(dt) {
             [a.tx, a.ty] = inRectPt(a.rect, 10);
             a.st = 'fly';
             a.z = 0.05;
-            if (a.k === 'crow') callAt('crow', a.x, a.y, 1);
+            if (a.k === 'crow') callAt('crow', a.x, a.y, 1, a);
             break;
           }
         }

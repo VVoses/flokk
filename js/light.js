@@ -155,6 +155,7 @@ function buildLights() {
       });
     }
   }
+  if (CHURCH) placeGraves(CHURCH);
   for (const fm of FARMS) {
     const house = fm.house;
     if (!house) continue;
@@ -351,7 +352,12 @@ function applySeason(s, smooth) {
   if (smooth && s !== SEASON) {
     TRANS.prevG = mk(G.width, G.height);
     TRANS.prevG.getContext('2d').drawImage(G, 0, 0);
-    TRANS.prevSPR = { spruce: SPR.spruce.slice(), birch: SPR.birch.slice(), decid: SPR.decid.slice() };
+    TRANS.prevSPR = {
+      spruce: SPR.spruce.slice(),
+      birch: SPR.birch.slice(),
+      decid: SPR.decid.slice(),
+      bush: BSPR.cur.slice()
+    };
     TRANS.prevSeason = SEASON;
     TRANS.t = 0;
   } else {
@@ -470,7 +476,14 @@ function drawSkyBehind(tx, ty) {
         gcol = LIGHT.eve ? '#F2A084' : '#F4BCAE';
       const gr = ctx.createLinearGradient(0, L2.by - L2.mx, 0, L2.by);
       const top = mixHex(snowAll && !L2.trees ? mixHex(L2.top, '#E8EDF1', 0.55) : L2.top, gcol, glowK),
-        bot = snowAll ? mixHex(L2.bot, '#DCE3E8', L2.trees ? 0.35 : 0.5) : L2.bot;
+        // the nearest band sits right on the land's northern edge: while snow lies there (winter, and spring
+        // until it melts) its foot is snowy forest floor like the ground in front of it, or the snow would
+        // end in a straight line against a dark band
+        bot = L2.p
+          ? snowAll
+            ? mixHex(L2.bot, '#DCE3E8', L2.trees ? 0.35 : 0.5)
+            : L2.bot
+          : mixHex(L2.bot, '#DCE3E8', 0.8 * (snowAll ? 1 : GROW.maskOn ? GROW.northSnow : 0));
       gr.addColorStop(0, tintHex(top));
       gr.addColorStop(1, tintHex(bot));
       ctx.fillStyle = gr;

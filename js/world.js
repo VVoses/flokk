@@ -13,6 +13,7 @@ let LAKE,
   YARDS = [],
   FARMS = [],
   BUILDS,
+  CHURCH = null, // {b, yard, px, py}: the parish church, its churchyard and the road point by its gate
   NAUST,
   JET,
   BOAT,
@@ -43,16 +44,7 @@ function roadDist(x, y) {
   return polyDist(x, y, ROAD);
 }
 function inBuild(x, y, m = 0) {
-  for (const b of BUILDS) {
-    const dx = x - b.cx,
-      dy = y - b.cy,
-      c = Math.cos(-b.ang),
-      s = Math.sin(-b.ang);
-    const lx = dx * c - dy * s,
-      ly = dx * s + dy * c;
-    if (Math.abs(lx) < b.len / 2 + m && Math.abs(ly) < b.dep / 2 + m) return true;
-  }
-  return false;
+  return buildAt(x, y, m) !== null;
 }
 /* ---- farmyards: rectangles turned to fit the land ----
    A yard is lw x lh in its own frame (u along ang, v across), centred on cx,cy; x,y,w,h is its bounding box
@@ -90,6 +82,7 @@ function inYard(Y, x, y, m = 0) {
   const [u, v] = yardLocal(Y, x, y);
   return Math.abs(u) < Y.lw / 2 + m && Math.abs(v) < Y.lh / 2 + m;
 }
+const inChurchyard = (x, y, m = 0) => !!CHURCH && inYard(CHURCH.yard, x, y, m);
 // the point at fractions a (along) and b (across) of yard Y
 const yardAt = (Y, a, b) => yardWorld(Y, (a - 0.5) * Y.lw, (b - 0.5) * Y.lh);
 // the nearest point to x,y at least m inside yard Y
@@ -105,12 +98,15 @@ function roadAng(x, span = 250) {
   return Math.atan2(b[1] - a[1], b[0] - a[0]);
 }
 /* ---- walking around buildings ----
-   Anything on foot uses groundStep(): it looks a little ahead, and if a building is in the way it turns
-   (keeping to one side until clear) so it walks round the corner instead of across the roof. */
+   Anything on foot uses groundStep(). While the straight line to where it is going is clear it just
+   walks; when a building is in the way it plans a route round the corners of the buildings (a small
+   visibility graph over each footprint's corners, grown a little) and follows it, cutting straight to
+   the next corner as soon as that is in plain view. Steering by feel alone used to get caught in the
+   middle of a long wall, turning back and forth with the goal straight through it. */
 const NAV_M = 9; // how close to a wall anything walks
 function buildAt(x, y, m = 0) {
   for (const b of BUILDS) {
-    const dx = x - b.cx,
+    const dx = wdx(x, b.cx),
       dy = y - b.cy,
       c = Math.cos(b.ang),
       s = Math.sin(b.ang);
@@ -125,53 +121,158 @@ function pushOut(x, y, m) {
     if (!b) break;
     const c = Math.cos(b.ang),
       s = Math.sin(b.ang),
-      dx = x - b.cx,
+      dx = wdx(x, b.cx),
       dy = y - b.cy;
     let lx = dx * c + dy * s,
       ly = -dx * s + dy * c;
     if (b.len / 2 + m - Math.abs(lx) < b.dep / 2 + m - Math.abs(ly)) lx = Math.sign(lx || 1) * (b.len / 2 + m + 0.5);
     else ly = Math.sign(ly || 1) * (b.dep / 2 + m + 0.5);
-    x = b.cx + lx * c - ly * s;
+    x = x - dx + lx * c - ly * s;
     y = b.cy + lx * s + ly * c;
   }
   return [x, y];
 }
-// one step of s units/second towards direction (dx,dy), steering round buildings
-function groundStep(a, dx, dy, d, s, dt) {
-  let ang = Math.atan2(dy, dx);
-  // no headway for a couple of seconds (wedged between two buildings): go round the other way
-  a.navT = (a.navT || 0) + dt;
-  if (a.navT > 2) {
-    if (a.navD !== undefined && a.navD - d < 6 && a.avoid) {
-      a.avoid = -a.avoid;
-      a.avoidT = 2.5;
+// does the segment (x0,y0)-(x1,y1) pass through building b grown by m? (slab test in the building's frame)
+function segHits(b, x0, y0, x1, y1, m) {
+  const c = Math.cos(b.ang),
+    s = Math.sin(b.ang),
+    ox = wdx(x0, b.cx),
+    oy = y0 - b.cy,
+    ex = x1 - x0,
+    ey = y1 - y0;
+  const p = [ox * c + oy * s, -ox * s + oy * c],
+    d = [ex * c + ey * s, -ex * s + ey * c],
+    h = [b.len / 2 + m, b.dep / 2 + m];
+  let t0 = 0,
+    t1 = 1;
+  for (let k = 0; k < 2; k++) {
+    if (Math.abs(d[k]) < 1e-9) {
+      if (Math.abs(p[k]) >= h[k]) return false;
+      continue;
     }
-    a.navT = 0;
-    a.navD = d;
+    let ta = (-h[k] - p[k]) / d[k],
+      tb = (h[k] - p[k]) / d[k];
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 >= t1) return false;
   }
-  // look no further than the destination, so a doorway right by a wall is still reachable
-  const look = Math.min(d, 20),
-    blocked = t => inBuild(a.x + Math.cos(t) * look, a.y + Math.sin(t) * look, NAV_M - 3);
-  if (blocked(ang)) {
-    const side = a.avoid || (Math.random() < 0.5 ? 1 : -1);
-    let ok = false;
-    for (let k = 1; k <= 7 && !ok; k++)
-      for (const sg of [side, -side]) {
-        const t = ang + sg * k * 0.4;
-        if (!blocked(t)) {
-          ang = t;
-          a.avoid = sg;
-          ok = true;
-          break;
-        }
+  return true;
+}
+const NAV_SEG = NAV_M - 4; // clearance a straight leg needs; corners sit further out, at NAV_M + 3
+function segClear(x0, y0, x1, y1) {
+  const L = Math.hypot(x1 - x0, y1 - y0);
+  for (const b of BUILDS) {
+    // quick reject: the building's bounding circle is nowhere near the segment's
+    const r = Math.hypot(b.len, b.dep) / 2 + NAV_SEG,
+      mx = wdx((x0 + x1) / 2, b.cx),
+      my = (y0 + y1) / 2 - b.cy;
+    if (mx * mx + my * my > (r + L / 2) ** 2) continue;
+    if (segHits(b, x0, y0, x1, y1, NAV_SEG)) return false;
+  }
+  return true;
+}
+// corners of every footprint (grown so a route clears the walls) and which pairs see each other
+let NAVG = null;
+function navGraph() {
+  if (NAVG && NAVG.src === BUILDS && NAVG.n === BUILDS.length) return NAVG;
+  const pts = [];
+  for (const b of BUILDS) {
+    const c = Math.cos(b.ang),
+      s = Math.sin(b.ang),
+      hl = b.len / 2 + NAV_M + 3,
+      hd = b.dep / 2 + NAV_M + 3;
+    for (const [lx, ly] of [
+      [-hl, -hd],
+      [hl, -hd],
+      [hl, hd],
+      [-hl, hd]
+    ]) {
+      const x = b.cx + lx * c - ly * s,
+        y = b.cy + lx * s + ly * c;
+      if (!inBuild(x, y, NAV_M) && !inWater(x, y)) pts.push([x, y]);
+    }
+  }
+  const nb = pts.map(() => []);
+  for (let i = 0; i < pts.length; i++)
+    for (let j = i + 1; j < pts.length; j++) {
+      const [ax, ay] = pts[i],
+        bx = ax + wdx(pts[j][0], ax),
+        by = pts[j][1],
+        d = Math.hypot(bx - ax, by - ay);
+      if (d < 700 && segClear(ax, ay, bx, by)) {
+        nb[i].push([j, d]);
+        nb[j].push([i, d]);
       }
-    a.avoidT = 0.8;
-  } else if ((a.avoidT = (a.avoidT || 0) - dt) <= 0) a.avoid = 0;
-  let nx = a.x + Math.cos(ang) * s * dt,
-    ny = a.y + Math.sin(ang) * s * dt;
+    }
+  NAVG = { src: BUILDS, n: BUILDS.length, pts, nb };
+  return NAVG;
+}
+// shortest route from (x0,y0) to (x1,y1) through footprint corners; waypoints in the walker's own
+// x-frame (so a route across the seam just continues past it). null if there is none.
+function navPlan(x0, y0, x1, y1) {
+  const G = navGraph(),
+    n = G.pts.length,
+    P = G.pts.map(([x, y]) => [x0 + wdx(x, x0), y]);
+  const dist = new Float64Array(n + 1).fill(Infinity),
+    prev = new Int32Array(n + 1).fill(-1),
+    done = new Uint8Array(n + 1),
+    reach = [];
+  for (let i = 0; i < n; i++) {
+    const [px, py] = P[i];
+    if (Math.hypot(px - x0, py - y0) < 700 && segClear(x0, y0, px, py)) dist[i] = Math.hypot(px - x0, py - y0);
+    reach.push(Math.hypot(px - x1, py - y1) < 700 && segClear(px, py, x1, y1));
+  }
+  // node n is the goal
+  for (;;) {
+    let u = -1;
+    for (let i = 0; i <= n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    if (u < 0) return null;
+    if (u === n) break;
+    done[u] = 1;
+    if (reach[u]) {
+      const d = dist[u] + Math.hypot(P[u][0] - x1, P[u][1] - y1);
+      if (d < dist[n]) ((dist[n] = d), (prev[n] = u));
+    }
+    for (const [v, w] of G.nb[u])
+      if (!done[v] && dist[u] + w < dist[v]) {
+        dist[v] = dist[u] + w;
+        prev[v] = u;
+      }
+  }
+  const route = [[x1, y1]];
+  for (let u = prev[n]; u >= 0; u = prev[u]) route.unshift(P[u]);
+  return route;
+}
+// one step of s units/second towards (a.x+dx, a.y+dy), going round any building in the way
+function groundStep(a, dx, dy, d, s, dt) {
+  const gx = a.x + dx,
+    gy = a.y + dy;
+  let ux = dx,
+    uy = dy;
+  if (!segClear(a.x, a.y, gx, gy)) {
+    let n = a.nav;
+    n = a.nav =
+      n && Math.hypot(wdx(n.gx, gx), n.gy - gy) < 12 && (n.age += dt) < 3
+        ? n
+        : { gx, gy, age: 0, i: 0, pts: navPlan(...pushOut(a.x, a.y, NAV_SEG + 1), gx, gy) };
+    if (n.pts) {
+      // re-anchor to this frame's x (the walker may have been shifted across the seam)
+      const at = i => [a.x + wdx(n.pts[i][0], a.x), n.pts[i][1]];
+      let w = at(n.i);
+      while (n.i < n.pts.length - 1 && (Math.hypot(w[0] - a.x, w[1] - a.y) < 5 || segClear(a.x, a.y, ...at(n.i + 1))))
+        w = at(++n.i);
+      ux = w[0] - a.x;
+      uy = w[1] - a.y;
+    }
+  } else a.nav = null;
+  const ul = Math.hypot(ux, uy) || 1;
+  let nx = a.x + (ux / ul) * s * dt,
+    ny = a.y + (uy / ul) * s * dt;
+  // never onto a roof: slide along the wall instead (also the fallback when no route exists)
   if (inBuild(nx, ny, NAV_M - 4)) [nx, ny] = pushOut(nx, ny, NAV_M - 3);
-  a.vx = Math.cos(ang) * s;
-  a.vy = Math.sin(ang) * s;
+  a.vx = (nx - a.x) / dt;
+  a.vy = (ny - a.y) / dt;
   a.x = nx;
   a.y = ny;
   if (Math.abs(a.vx) > 1.5) a.f = a.vx > 0 ? 1 : -1;
@@ -333,6 +434,7 @@ function blocked(x, y, r) {
   if (inWater(x, y, r * 0.6 + 6)) return true;
   for (const f of FIELDS) if (inField(f, x, y, r * 0.5)) return true;
   for (const Y of YARDS) if (inYard(Y, x, y, r * 0.4)) return true;
+  if (inChurchyard(x, y, r * 0.4)) return true;
   if (inBuild(x, y, r * 0.6 + 12)) return true;
   if (roadDist(x, y) < 52 + r * 0.85) return true;
   if (railDist(x, y) < 34 + r * 0.85) return true;
@@ -449,6 +551,7 @@ function genLayout() {
   // farmsteads beside the road: a main farm and a second, differently laid-out one further along
   LANES = [];
   BUILDS = [];
+  CHURCH = null;
   FIELDS = [];
   DIVIDES = [];
   YARDS = [];
@@ -655,7 +758,7 @@ function genLayout() {
   };
   const fieldOK = r => {
     if (r.w < 210 || r.h < 210 || r.y < NORTH) return false;
-    for (const o of YARDS)
+    for (const o of CHURCH ? YARDS.concat(CHURCH.yard) : YARDS)
       if (r.x < o.x + o.w + 40 && r.x + r.w > o.x - 40 && r.y < o.y + o.h + 40 && r.y + r.h > o.y - 40) return false;
     for (const o of FIELDS)
       if (r.x < o.x + o.w + 6 && r.x + r.w > o.x - 6 && r.y < o.y + o.h + 6 && r.y + r.h > o.y - 6) return false;
@@ -678,6 +781,7 @@ function genLayout() {
     const bad = (x, y) => {
       if (inWater(x, y, 40) || roadDist(x, y) < 42 || railDist(x, y) < 48 || inBuild(x, y, 24)) return true;
       for (const Y of YARDS) if (inYard(Y, x, y, 40)) return true;
+      if (inChurchyard(x, y, 40)) return true;
       for (const o of FIELDS) if (!own.has(o) && inField(o, x, y, 24)) return true;
       return false;
     };
@@ -831,6 +935,7 @@ function genLayout() {
           railDist(x, y) > 40 &&
           !inWater(x, y, 20) &&
           !YARDS.some(Y => inYard(Y, x, y, 30)) &&
+          !inChurchyard(x, y, 30) &&
           !inBuild(x, y, 20);
         if (ok) run.push([x, y]);
         else flush();
@@ -909,6 +1014,134 @@ function genLayout() {
       return;
     }
   };
+  /* the parish church: a white wooden long church by the road, well away from the farms, with its tower
+     and spire at the end facing the road, a lower chancel at the far end, and a walled churchyard round it.
+     The church is one building for walking and shadows (b.len spans all three parts); b.parts are drawn. */
+  const placeChurch = () => {
+    CHURCH = null;
+    for (let i = 0; i < 1500; i++) {
+      const p = ROAD[(R() * ROAD.length) | 0];
+      if (p[0] < 480 || p[0] > W - 480) continue;
+      if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < (i < 400 ? 900 : i < 900 ? 640 : 380))) continue;
+      const side = R() < 0.5 ? 1 : -1,
+        ang = roadAng(p[0]) + rnd(-0.08, 0.08),
+        Ax = -Math.sin(ang) * side,
+        Ay = Math.cos(ang) * side,
+        lw = rnd(300, 360),
+        lh = rnd(250, 290),
+        back = i < 300 ? 70 : rnd(70, 360), // right by the road if there's room, else up a lane of its own
+        cx = p[0] + Ax * (lh / 2 + back),
+        cy = p[1] + Ay * (lh / 2 + back),
+        yard = mkYard(cx, cy, ang, lw, lh);
+      if (yard.y < NORTH || yard.y + yard.h > H - 440 || !yardFree(yard, 160)) continue;
+      let bad = false;
+      for (let gx = yard.x - 60; gx <= yard.x + yard.w + 60 && !bad; gx += 40)
+        for (let gy = yard.y - 60; gy <= yard.y + yard.h + 60 && !bad; gy += 40)
+          if (inWater(gx, gy, 20) || railDist(gx, gy) < 60 || (inYard(yard, gx, gy) && roadDist(gx, gy) < 50))
+            bad = true;
+      if (bad) continue;
+      // the church stands with its long axis running away from the road, its door end first. Three kinds:
+      // a white-painted wooden church with a tall spire; an old grey fieldstone church with a squat tower
+      // and a short spire; or a stave church, tarred black, its steep shingled roofs stacked in tiers over
+      // a low gallery, dragon heads on the gables and a little turret astride the ridge
+      const kind = pick(['white', 'stone', 'stave']),
+        stone = kind === 'stone',
+        ba = ang + (Math.PI / 2) * side + rnd(-0.04, 0.04),
+        c = Math.cos(ba),
+        s = Math.sin(ba),
+        off = rnd(8, 20),
+        bx = cx + c * off,
+        by = cy + s * off,
+        wall =
+          kind === 'white'
+            ? '#F0EDE6'
+            : kind === 'stave'
+              ? '#3B2A1F'
+              : pick(['#9A958A', '#A39C8C', '#8C897F', '#D8D2C4']), // grey fieldstone, or lime-washed
+        roof = kind === 'stave' ? 'dark' : stone ? pick(['slate', 'slate', 'dark']) : pick(['slate', 'slate', 'dark']),
+        at = u => [bx + c * u, by + s * u],
+        mk = (u, o) => Object.assign({ cx: at(u)[0], cy: at(u)[1], ang: ba, wall, roof }, o);
+      let len, u0, parts, top;
+      if (kind === 'stave') {
+        const gl = rnd(84, 96), // the gallery round the nave
+          cl = 30;
+        len = gl + cl - 4;
+        u0 = -len / 2;
+        const mid = u0 + gl / 2;
+        top = 152;
+        parts = [
+          mk(mid, { len: gl, dep: 78, wh: 12, rh: 36, portal: true }),
+          mk(mid, { len: gl - 18, dep: 46, wh: 42, rh: 82, z: 20, dragons: true }),
+          mk(u0 + gl - 4 + cl / 2, { len: cl, dep: 36, wh: 22, rh: 46 }),
+          mk(mid, { len: 16, dep: 16, wh: 16, rh: 152 - 92, z: 92, spire: true, kind: 'turret' })
+        ];
+      } else {
+        const tw = stone ? 36 : 30,
+          nl = rnd(104, 118),
+          cl = 34,
+          th = stone ? 76 : 64, // tower walls
+          sp = stone ? 50 : 94; // and the spire on top
+        len = tw + nl + cl - 4;
+        u0 = -len / 2;
+        top = th + sp;
+        parts = [
+          mk(u0 + tw / 2, { len: tw, dep: tw, wh: th, rh: th + sp, spire: true, portal: true, kind: 'tower', stone }),
+          mk(u0 + tw - 2 + nl / 2, { len: nl, dep: 54, wh: 34, rh: 66, windows: true, tall: true, stone }),
+          mk(u0 + tw + nl - 4 + cl / 2, { len: cl, dep: 38, wh: 30, rh: 54, windows: true, tall: true, stone })
+        ];
+      }
+      const b = {
+        cx: bx,
+        cy: by,
+        ang: ba,
+        len,
+        dep: kind === 'stave' ? 78 : 54,
+        wh: 34,
+        rh: top,
+        wall,
+        roof,
+        windows: kind !== 'stave', // the stave church has hardly a window; it stands dark at night
+        kind: 'church',
+        look: kind,
+        parts
+      };
+      // the gate in the wall facing the road, and a short gravel lane to it
+      const gx = cx - Ax * (lh / 2),
+        gy = cy - Ay * (lh / 2);
+      yard.gate = [gx + Ax * 20, gy + Ay * 20];
+      yard.door = at(u0 - 12);
+      yard.side = side;
+      BUILDS.push(b);
+      CHURCH = { b, yard, px: p[0], py: p[1] };
+      if (kind === 'stave') {
+        // a stave church keeps its bells in a free-standing tarred bell tower, off to one side of the gate
+        const [bu, bv] = [rnd(0.26, 0.34) * yard.lw * (R() < 0.5 ? 1 : -1), -side * (lh / 2 - 44)],
+          [tx, ty] = yardWorld(yard, bu, bv);
+        if (!buildAt(tx, ty, 30))
+          BUILDS.push({
+            cx: tx,
+            cy: ty,
+            ang: ba + rnd(-0.05, 0.05),
+            len: 20,
+            dep: 20,
+            wh: 34,
+            rh: 66,
+            wall,
+            roof: 'dark',
+            spire: true,
+            kind: 'belfry'
+          });
+      }
+      LANES.push(
+        catmull([
+          [p[0], p[1]],
+          [lerp(p[0], gx, 0.5), lerp(p[1], gy, 0.5)],
+          [gx + Ax * 16, gy + Ay * 16]
+        ])
+      );
+      return;
+    }
+  };
   let main = placeFarm(true);
   if (!main) {
     const p = ROAD.find(q => q[0] > W * 0.4) || ROAD[(ROAD.length / 2) | 0];
@@ -933,6 +1166,7 @@ function genLayout() {
     buildFarm(second);
     if (R() < 0.5) placeSty(second);
   }
+  placeChurch();
   YARD = main.yard;
   START = { x: main.px + 160 * (R() < 0.5 ? 1 : -1), y: main.py + main.side * 40 };
   // each farm's land runs back from the road behind its yard, and for a bigger farm across the road too
@@ -952,6 +1186,7 @@ function genLayout() {
     const x = rnd(350, W - 650),
       y = rnd(NORTH, H - 550);
     if (FARMS.some(fm => Math.hypot(wdx(x, fm.cx), y - fm.cy) < 1100)) continue;
+    if (CHURCH && Math.hypot(wdx(x, CHURCH.yard.cx), y - CHURCH.yard.cy) < 700) continue;
     if (Math.hypot(x - LAKE.x, y - LAKE.y) < LAKE.r + 450) continue;
     const f = { x, y, w: rnd(260, 380), h: rnd(220, 320), t: 'pasture', dir: 0 };
     if (!fieldOK(f)) continue;
@@ -991,6 +1226,7 @@ function genLayout() {
       roadDist(c.cx, c.cy) > 90 &&
       railDist(c.cx, c.cy) > 110 &&
       !YARDS.some(Y => inYard(Y, c.cx, c.cy, 80)) &&
+      !inChurchyard(c.cx, c.cy, 80) &&
       !FIELDS.some(f => inRect(c.cx, c.cy, f, 60))
     )
       BUILDS.push(c);
@@ -1051,6 +1287,7 @@ function genLayout() {
       const x = rnd(0, W),
         y = rnd(NORTH, H);
       if (FARMS.some(fm => Math.hypot(wdx(x, fm.cx), y - fm.cy) < 700)) continue;
+      if (CHURCH && Math.hypot(wdx(x, CHURCH.yard.cx), y - CHURCH.yard.cy) < 600) continue;
       ZONES.push([x, y, rnd(380, 950), rnd(0.22, 0.46)]);
       break;
     }
@@ -1180,6 +1417,28 @@ function genWorld(seed) {
       if (!blocked(x, y, r)) addTree(x, y, R() < 0.65 ? 'birch' : 'decid', r);
     }
   }
+  // old birches and ashes along the churchyard wall, gaps left by the gate
+  if (CHURCH) {
+    const Y = CHURCH.yard,
+      per = 2 * (Y.lw + Y.lh);
+    for (let t = rnd(0, 40); t < per; t += rnd(38, 64)) {
+      let u, v;
+      if (t < Y.lw) ((u = t - Y.lw / 2), (v = -Y.lh / 2));
+      else if (t < Y.lw + Y.lh) ((u = Y.lw / 2), (v = t - Y.lw - Y.lh / 2));
+      else if (t < 2 * Y.lw + Y.lh) ((u = Y.lw * 1.5 + Y.lh - t), (v = Y.lh / 2));
+      else ((u = -Y.lw / 2), (v = per - t - Y.lh / 2));
+      if (v * Y.side < -Y.lh / 2 + 5 && Math.abs(u) < 70) continue; // keep the gate and the view of the tower open
+      const out = 30 + rnd(0, 10),
+        [x, y] = yardWorld(
+          Y,
+          u + Math.sign(u) * (Math.abs(u) >= Y.lw / 2 - 1 ? out : 0),
+          v + Math.sign(v) * (Math.abs(v) >= Y.lh / 2 - 1 ? out : 0)
+        ),
+        r = rnd(18, 26);
+      if (R() < 0.2 || blocked(x, y, r)) continue;
+      addTree(x, y, R() < 0.6 ? 'birch' : 'decid', r);
+    }
+  }
   // bales on stubble, fences round pastures
   for (const f of FIELDS) {
     if (f.t === 'stubble') {
@@ -1214,12 +1473,21 @@ function genWorld(seed) {
   wireUp(polesPeriodic(RAIL, 150, 17));
   addPerch(BOAT.x + Math.cos(BOAT.ang) * 8, BOAT.y + Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang);
   addPerch(BOAT.x - Math.cos(BOAT.ang) * 8, BOAT.y - Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang + Math.PI);
-  for (const b of BUILDS) {
-    const c = Math.cos(b.ang),
-      s = Math.sin(b.ang);
-    for (let lx = -b.len / 2 + 8; lx <= b.len / 2 - 8; lx += 11)
-      addPerch(b.cx + c * lx, b.cy + s * lx, b.rh / HZ, 'roof', false, b.ang, b.cy + 1);
-  }
+  for (const b0 of BUILDS)
+    for (const b of b0.parts || [b0]) {
+      const c = Math.cos(b.ang),
+        s = Math.sin(b.ang);
+      // one bird can sit on the arm of the cross at the top of the spire
+      const z = b.z || 0;
+      if (b.spire) addPerch(b.cx, b.cy, (b.rh + z + 9) / HZ, 'roof', false, b.ang, b0.cy + 1);
+      else if (b0.parts && b0.parts.some(o => o !== b && o.z && !o.spire && o.cx === b.cx && o.cy === b.cy))
+        continue; // the stave church's gallery: its ridge is inside the nave
+      else
+        for (let lx = -b.len / 2 + 8; lx <= b.len / 2 - 8; lx += 11) {
+          if (b.z && Math.abs(lx) < 14) continue; // where the turret stands astride the ridge
+          addPerch(b.cx + c * lx, b.cy + s * lx, (b.rh + z) / HZ, 'roof', false, b.ang, b0.cy + 1);
+        }
+    }
   genSky();
   genBorderBits();
   buildLights();
@@ -1389,6 +1657,7 @@ function fieldFree(f, x, y) {
   if (x < 30 || x > W - 30 || y < NORTH - 60 || y > H - 400) return false;
   if (inWater(x, y, 26) || roadDist(x, y) < VERGE || railDist(x, y) < VERGE) return false;
   for (const Y of YARDS) if (inYard(Y, x, y, 22)) return false;
+  if (inChurchyard(x, y, 22)) return false;
   if (inBuild(x, y, 18)) return false;
   for (const P of LANES) if (polyDist(x, y, P) < 20) return false;
   for (const o of FIELDS) if (o !== f && (o.poly ? inField(o, x, y, 14) : inRect(x, y, o, 4))) return false;

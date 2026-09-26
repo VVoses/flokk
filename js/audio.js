@@ -460,10 +460,41 @@ function owlHoot(v) {
     o.stop(t0 + d + 0.05);
     l.stop(t0 + d + 0.05);
   };
-  hoot(t, 0.55, 420);
-  hoot(t + 1.1, 0.18, 440);
-  hoot(t + 1.35, 0.18, 440);
-  hoot(t + 1.6, 0.7, 430);
+  // the same pair of tawny owls lives here all year: he hoots, she answers 'ke-wick'
+  const ov = amb.owlV || (amb.owlV = { p: rr(0.92, 1.08), r: rr(0.9, 1.1) }),
+    f = 420 * ov.p * wob(0.015),
+    r = ov.r * wob(0.05);
+  if (Math.random() < 0.3) {
+    for (let i = 0, n = Math.random() < 0.6 ? 1 : 2; i < n; i++) {
+      const t0 = t + i * rr(0.9, 1.4),
+        o = ac.createOscillator(),
+        g2 = ac.createGain(),
+        bp = ac.createBiquadFilter();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(f * 3, t0);
+      o.frequency.linearRampToValueAtTime(f * 3.9, t0 + 0.06);
+      o.frequency.linearRampToValueAtTime(f * 2.6, t0 + 0.3);
+      bp.type = 'bandpass';
+      bp.frequency.value = f * 3.4;
+      bp.Q.value = 4;
+      g2.gain.setValueAtTime(0, t0);
+      g2.gain.linearRampToValueAtTime(0.7, t0 + 0.02);
+      g2.gain.setValueAtTime(0.7, t0 + 0.08);
+      g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.32);
+      o.connect(bp).connect(g2).connect(out);
+      o.start(t0);
+      o.stop(t0 + 0.34);
+    }
+    return;
+  }
+  hoot(t, 0.55 * r, f);
+  // the long quavering tail doesn't always follow the first note
+  if (Math.random() < 0.75) {
+    const t1 = t + 1.1 * r * wob(0.08);
+    hoot(t1, 0.18 * r, f * 1.05);
+    hoot(t1 + 0.25 * r, 0.18 * r, f * 1.05);
+    hoot(t1 + 0.5 * r * wob(0.08), 0.7 * r * wob(0.1), f * 1.02);
+  }
 }
 function frog() {
   if (!ac || muted) return;
@@ -503,25 +534,111 @@ const AMB_REST = {
   goose: [30, 60],
   moose: [70, 150]
 };
+// how likely another of the same kind nearby answers an ambient call, a moment later, in its own voice
+const AMB_ANSWER = { cow: 0.3, goose: 0.4, crow: 0.35, duck: 0.25, magpie: 0.15 };
 // reactive calls (alarms, scolding, a skein passing): shortest gap before that kind is heard again
 const CALL_GAP = { crow: 2.5, magpie: 2.5, duck: 3, dog: 0.6 };
-function animalCall(k, vol, pn) {
+// reactive calls that are not alarms: an ewe answering her lamb, the farmer whistling, wings
+const CALM_CALL = { sheep: 1, lamb: 1, whistle: 1, whirr: 1 };
+
+/* ---------- animal voices ---------- */
+// every animal (and every wild flock) keeps its own voice: how high it pitches, how big its throat is
+// (formants) and how quickly it runs through a call. Two cows in one field can be told apart, and the
+// same cow sounds like itself all year. A call from nobody in particular gets a passing stranger's voice.
+const VOICES = new WeakMap();
+function voiceOf(a) {
+  const mk = () => ({ p: rr(0.9, 1.12), f: rr(0.92, 1.08), r: rr(0.88, 1.12) });
+  if (!a || typeof a !== 'object') return mk();
+  let v = VOICES.get(a);
+  if (!v) VOICES.set(a, (v = mk()));
+  return v;
+}
+// the voice of the call being built right now: the caller's own voice, nudged a little every time
+// (no call comes out twice alike), pitched up and hurried when the animal is alarmed (x)
+let VOX = { p: 1, f: 1, r: 1, x: 0 };
+const wob = (s = 0.03) => 1 + (Math.random() * 2 - 1) * s;
+// a gap in a run of notes, in the caller's tempo, breathing a little rather than ticking like a clock
+const vgap = (s, sp = 0.12) => s * VOX.r * wob(sp);
+const vpick = w => {
+  // weighted choice over [[weight, value], ...]
+  let r = Math.random() * w.reduce((s, e) => s + e[0], 0);
+  for (const e of w) if ((r -= e[0]) <= 0) return e[1];
+  return w[w.length - 1][1];
+};
+// a buzzy vocal source like a sawtooth, but with its harmonics rolled off and roughened a little
+// differently every call, so the same throat still gives a slightly different grain of voice
+function reedWave(bright = 1) {
+  const n = 32,
+    re = new Float32Array(n),
+    im = new Float32Array(n),
+    tilt = rr(0.85, 1.2) / bright;
+  let e = 0,
+    es = 0;
+  for (let h = 1; h < n; h++) {
+    im[h] = (h % 2 ? 1 : -1) * Math.pow(h, -tilt) * rr(0.7, 1.3);
+    e += im[h] * im[h];
+    es += 1 / (h * h);
+  }
+  // scaled to carry the same energy as a plain sawtooth, so a darker grain isn't also a louder one
+  const k = (2 / Math.PI) * Math.sqrt(es / e);
+  for (let h = 1; h < n; h++) im[h] *= k;
+  return ac.createPeriodicWave(re, im, { disableNormalization: true });
+}
+function reedOsc(bright = 1, w = reedWave(bright)) {
+  const o = ac.createOscillator();
+  o.setPeriodicWave(w);
+  return o;
+}
+// who is calling from (x, y): the nearest animal of that kind, or the nearest wild flock of that species
+function callerAt(k, x, y) {
+  let best = null,
+    bd = 90 * 90;
+  for (const a of ANIMALS) {
+    if (a.k !== k && !(k === 'lamb' && a.k === 'sheep')) continue;
+    const d = wdx(a.x, x) ** 2 + (a.y - y) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = a;
+    }
+  }
+  if (!best && typeof WILD !== 'undefined')
+    for (const F of WILD.flocks) if (F.sp === k && wdx(F.x, x) ** 2 + (F.y - y) ** 2 < 200 * 200) return F;
+  return best;
+}
+// o: who (the caller, for its voice), d (0 near .. 1 at the edge of hearing), x (alarm, 0..1)
+function animalCall(k, vol, pn, o = {}) {
   if (!ac || muted) return;
   const t = ac.currentTime + 0.02,
     out = ac.createGain();
   out.gain.value = vol;
-  const p = panned(out, pn);
-  p.connect(master);
+  const v = voiceOf(o.who),
+    x = o.x || 0,
+    d = clamp(o.d || 0, 0, 1);
+  VOX = { p: v.p * wob(0.03) * (1 + 0.07 * x), f: v.f * wob(0.02), r: v.r * wob(0.06) * (1 - 0.18 * x), x };
+  // distance: a far call loses its top to the air and reaches you more as echo off the land than direct
+  const air = ac.createBiquadFilter();
+  air.type = 'highshelf';
+  air.frequency.value = 2500;
+  air.gain.value = -14 * d;
+  const dry = ac.createGain();
+  dry.gain.value = 1 - 0.45 * d;
+  out.connect(air);
+  const p = panned(air, pn);
+  p.connect(dry).connect(master);
   p.connect(verb);
   const sw = (f0, f1, dur, t0, q, bpf, type = 'sawtooth', vib = 0) => {
-    const o = ac.createOscillator();
-    o.type = type;
+    const pj = VOX.p * wob(0.025);
+    f0 *= pj;
+    f1 *= pj * wob(0.02);
+    dur *= VOX.r * wob(0.07);
+    const o = type === 'sawtooth' ? reedOsc() : ac.createOscillator();
+    if (type !== 'sawtooth') o.type = type;
     o.frequency.setValueAtTime(f0, t0);
     o.frequency.linearRampToValueAtTime(f1, t0 + dur);
     if (vib) {
       const l = ac.createOscillator(),
         lg = ac.createGain();
-      l.frequency.value = vib;
+      l.frequency.value = vib * wob(0.1);
       lg.gain.value = f0 * 0.05;
       l.connect(lg).connect(o.frequency);
       l.start(t0);
@@ -529,7 +646,7 @@ function animalCall(k, vol, pn) {
     }
     const bp = ac.createBiquadFilter();
     bp.type = 'bandpass';
-    bp.frequency.value = bpf;
+    bp.frequency.value = bpf * VOX.f * wob(0.04);
     bp.Q.value = q;
     const g = ac.createGain();
     g.gain.setValueAtTime(0, t0);
@@ -539,6 +656,7 @@ function animalCall(k, vol, pn) {
     o.connect(bp).connect(g).connect(out);
     o.start(t0);
     o.stop(t0 + dur + 0.05);
+    return dur;
   };
   if (k === 'cow') {
     moo(out, t);
@@ -550,84 +668,247 @@ function animalCall(k, vol, pn) {
     out.gain.value = vol * 0.65;
     baa(out, t, k === 'lamb');
   } else if (k === 'whistle') {
-    // two quick notes to call the dog
-    for (const [dt, f0, f1] of [
-      [0, 1900, 2500],
-      [0.28, 2500, 2000]
-    ]) {
+    // the farmer calling the dog: two quick notes, a long rising one, or three
+    const b = rr(1800, 2100) * VOX.p,
+      notes = vpick([
+        [
+          5,
+          [
+            [0, 1, 1.3, 0.2],
+            [0.28, 1.3, 1.05, 0.2]
+          ]
+        ],
+        [2, [[0, 0.95, 1.45, 0.45]]],
+        [
+          2,
+          [
+            [0, 1, 1.3, 0.16],
+            [0.22, 1.3, 1.05, 0.16],
+            [0.44, 1.05, 1.35, 0.22]
+          ]
+        ]
+      ]);
+    for (const [dt, a0, a1, dur] of notes) {
       const o = ac.createOscillator(),
         g = ac.createGain(),
-        t0 = t + dt;
-      o.frequency.setValueAtTime(f0, t0);
-      o.frequency.exponentialRampToValueAtTime(f1, t0 + 0.2);
+        t0 = t + dt * wob(0.1);
+      o.frequency.setValueAtTime(b * a0 * wob(0.02), t0);
+      o.frequency.exponentialRampToValueAtTime(b * a1 * wob(0.02), t0 + dur);
       g.gain.setValueAtTime(0, t0);
       g.gain.linearRampToValueAtTime(0.5, t0 + 0.03);
-      g.gain.linearRampToValueAtTime(0, t0 + 0.22);
+      g.gain.linearRampToValueAtTime(0, t0 + dur + 0.02);
       o.connect(g).connect(out);
       o.start(t0);
-      o.stop(t0 + 0.25);
+      o.stop(t0 + dur + 0.05);
     }
   } else if (k === 'dog') {
     bark(out, t);
   } else if (k === 'duck') {
     duckCall(out, t);
   } else if (k === 'crow') {
-    const n = rr(2, 4) | 0;
-    for (let i = 0; i < n; i++) sw(760, 520, 0.26, t + i * 0.4, 3, 1150);
+    const kind = x
+      ? vpick([
+          [6, 'caws'],
+          [2, 'long'],
+          [1, 'rattle']
+        ])
+      : vpick([
+          [5, 'caws'],
+          [2, 'long'],
+          [1.5, 'rattle'],
+          [2, 'soft']
+        ]);
+    if (kind === 'caws') {
+      // a run of caws, each a touch different, often falling away towards the end
+      const n = rr(2, x ? 6 : 5) | 0,
+        fall = rr(0.94, 1.01);
+      let tt = t;
+      for (let i = 0; i < n; i++) {
+        const f = 760 * Math.pow(fall, i);
+        sw(f, f * rr(0.66, 0.72), rr(0.2, 0.3), tt, 3, 1150);
+        tt += vgap(0.4, 0.15);
+      }
+    } else if (kind === 'long') {
+      // one drawn-out, grating caw
+      sw(700, 470, 0.46, t, 4, 1100, 'sawtooth', 24);
+      if (Math.random() < 0.5) sw(690, 500, 0.24, t + vgap(0.62), 3, 1150);
+    } else if (kind === 'rattle') {
+      // the knocking rattle crows make among themselves
+      const n = rr(6, 11) | 0;
+      for (let i = 0; i < n; i++) sw(950, 820, 0.025, t + i * vgap(0.045, 0.08), 3, 1400, 'square');
+    } else {
+      // a low, quiet conversational caw-caw
+      out.gain.value = vol * 0.6;
+      sw(600, 460, 0.16, t, 3, 900);
+      sw(590, 450, 0.18, t + vgap(0.28), 3, 900);
+    }
   } else if (k === 'magpie') {
-    for (let i = 0; i < 6; i++) sw(2000, 1650, 0.05, t + i * 0.075, 2, 3200, 'square');
+    // the chattering rattle, longer when scolding; now and then a slower 'chack chack'
+    if (!x && Math.random() < 0.25) {
+      for (let i = 0; i < 2; i++) sw(1800, 1500, 0.08, t + i * vgap(0.2), 2, 2900, 'square');
+    } else {
+      const n = rr(x ? 6 : 4, x ? 11 : 8) | 0,
+        drift = rr(0.985, 1.005);
+      let tt = t;
+      for (let i = 0; i < n; i++) {
+        const f = 2000 * Math.pow(drift, i);
+        sw(f, f * 0.82, 0.05, tt, 2, 3200, 'square');
+        tt += vgap(0.075, 0.1);
+      }
+    }
   } else if (k === 'fox') {
-    // a short, sharp bark-yip - a night sound, not a threat by itself, but worth pricking ears at
-    sw(1500, 640, 0.16, t, 5, 1900, 'sawtooth');
-    sw(1250, 560, 0.13, t + 0.19, 5, 1700, 'sawtooth');
+    if (SEASON === 3 && LIGHT.night > 0.5 && Math.random() < 0.35) {
+      // a vixen's scream in the winter dark: long, hoarse, wavering, and nothing like a bird
+      const dur = rr(0.9, 1.3) * VOX.r,
+        o = reedOsc(1.3),
+        f = rr(1000, 1200) * VOX.p;
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.linearRampToValueAtTime(f * 1.45, t + dur * 0.25);
+      o.frequency.linearRampToValueAtTime(f * 1.2, t + dur * 0.7);
+      o.frequency.linearRampToValueAtTime(f * 0.6, t + dur);
+      const l = ac.createOscillator(),
+        lg = ac.createGain();
+      l.type = 'triangle';
+      l.frequency.value = rr(9, 14);
+      lg.gain.value = f * 0.06;
+      l.connect(lg).connect(o.frequency);
+      const env = ac.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(0.6, t + 0.06);
+      env.gain.setValueAtTime(0.55, t + dur * 0.65);
+      env.gain.linearRampToValueAtTime(0, t + dur);
+      for (const [fq, q, a] of [
+        [1600, 3, 1.4],
+        [2900, 4, 0.8]
+      ]) {
+        const bp = ac.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = fq * VOX.f;
+        bp.Q.value = q;
+        const g = ac.createGain();
+        g.gain.value = a;
+        o.connect(bp).connect(g).connect(env);
+      }
+      const s = ac.createBufferSource();
+      s.buffer = amb.noise;
+      const nb = ac.createBiquadFilter();
+      nb.type = 'bandpass';
+      nb.frequency.value = 2200;
+      nb.Q.value = 1;
+      const ng = ac.createGain();
+      ng.gain.value = 0.25;
+      s.connect(nb).connect(ng).connect(env);
+      env.connect(out);
+      o.start(t);
+      l.start(t);
+      s.start(t, Math.random() * 3);
+      o.stop(t + dur + 0.05);
+      l.stop(t + dur + 0.05);
+      s.stop(t + dur + 0.05);
+    } else {
+      // a short, sharp bark-yip - a night sound, not a threat by itself, but worth pricking ears at;
+      // sometimes a third, lower 'wow' follows
+      sw(1500, 640, 0.16, t, 5, 1900);
+      sw(1250, 560, 0.13, t + vgap(0.19), 5, 1700);
+      if (Math.random() < 0.3) sw(1050, 480, 0.14, t + vgap(0.4), 5, 1500);
+    }
   } else if (k === 'moose') {
-    sw(170, 110, 1.2, t, 1.4, 360);
+    const kind = vpick([
+      [5, 'grunt'],
+      [3, 'double'],
+      [2, 'moan']
+    ]);
+    if (kind === 'grunt') sw(170, 110, 1.2, t, 1.4, 360);
+    else if (kind === 'double') {
+      sw(160, 115, 0.4, t, 1.4, 340);
+      sw(150, 105, 0.45, t + vgap(0.7), 1.4, 330);
+    } else {
+      // the long, hollow moan of a cow moose: rising, held, falling away
+      const d2 = sw(150, 210, 1.1, t, 1.6, 420, 'sawtooth', 4);
+      sw(205, 120, 1.1, t + d2 * 0.95, 1.6, 400, 'sawtooth', 4);
+    }
   } else if (k === 'goose') {
-    sw(540, 450, 0.17, t, 3, 1100);
-    sw(540, 450, 0.14, t + 0.24, 3, 1100);
+    // honks, often the two-toned 'a-honk' of a greylag, each goose a little higher or lower
+    const n = x
+      ? rr(2, 5) | 0
+      : vpick([
+          [3, 1],
+          [5, 2],
+          [2, 3],
+          [1, 4]
+        ]);
+    let tt = t;
+    for (let i = 0; i < n; i++) {
+      const f = 540 * wob(0.05);
+      if (Math.random() < 0.35) {
+        sw(f * 0.8, f * 0.75, 0.07, tt, 3, 1000);
+        tt += 0.08;
+      }
+      sw(f, f * 0.83, rr(0.13, 0.18), tt, 3, 1100);
+      tt += vgap(0.24);
+    }
   } else if (k === 'starling') {
-    // a wheezy rising whistle, a rattle of clicks, a falling whistle
-    sw(2700, 3500, 0.16, t, 6, 3100, 'sine');
-    for (let i = 0; i < 4; i++) sw(4300, 3900, 0.025, t + 0.2 + i * 0.05, 4, 4100, 'square');
-    sw(3500, 2300, 0.24, t + 0.46, 5, 2900, 'sine', 32);
+    // a jumble: rising and falling wheezes, clicks, a rattle, a squeak, strung in a different order each time
+    const bits = [
+      tt => sw(2700, 3500, 0.16, tt, 6, 3100, 'sine'),
+      tt => {
+        const n = rr(3, 6) | 0;
+        for (let i = 0; i < n; i++) sw(4300, 3900, 0.025, tt + i * vgap(0.05), 4, 4100, 'square');
+        return n * 0.05;
+      },
+      tt => sw(3500, 2300, 0.24, tt, 5, 2900, 'sine', 32),
+      tt => {
+        for (let i = 0; i < 6; i++) sw(3000 + (i % 2) * 600, 3200, 0.03, tt + i * 0.035, 5, 3300, 'triangle');
+        return 0.21;
+      },
+      tt => sw(5200, 6000, 0.07, tt, 6, 5500, 'sine')
+    ].sort(() => Math.random() - 0.5);
+    let tt = t;
+    for (const b of bits.slice(0, rr(2, 5) | 0)) tt += (b(tt) || 0.1) + vgap(0.06, 0.4);
   } else if (k === 'linnet') {
     // a light, bouncing twitter
-    for (let i = 0; i < 5; i++) {
+    const n = rr(4, 8) | 0;
+    let tt = t;
+    for (let i = 0; i < n; i++) {
       const f = rr(2600, 3400);
-      sw(f, f * 1.15, 0.05, t + i * 0.08 + rr(0, 0.02), 5, 3000, 'triangle');
+      sw(f, f * rr(1.08, 1.22), 0.05, tt, 5, 3000, 'triangle');
+      tt += vgap(0.08, 0.25);
     }
   } else if (k === 'fieldfare') {
     // the harsh chattering "chack-chack"
-    const n = rr(2, 4) | 0;
-    for (let i = 0; i < n; i++) sw(1950, 1500, 0.07, t + i * 0.12, 2, 2400);
+    const n = rr(2, 5) | 0;
+    for (let i = 0; i < n; i++) sw(1950, 1500, 0.07, t + i * vgap(0.12, 0.18), 2, 2400);
   } else if (k === 'bunting') {
     // a soft rippling trill
-    for (let i = 0; i < 8; i++) sw(2500 + (i % 2) * 450, 2700 + (i % 2) * 300, 0.04, t + i * 0.05, 5, 2900, 'sine');
+    const n = rr(6, 11) | 0,
+      a = rr(380, 520);
+    for (let i = 0; i < n; i++)
+      sw(2500 + (i % 2) * a, 2700 + (i % 2) * a * 0.66, 0.04, t + i * vgap(0.05, 0.08), 5, 2900, 'sine');
   } else if (k === 'whirr') {
     // many small wings taking off at once
     const s = ac.createBufferSource();
     s.buffer = amb.noise;
     const f = ac.createBiquadFilter();
     f.type = 'bandpass';
-    f.frequency.value = 900;
+    f.frequency.value = rr(750, 1100);
     f.Q.value = 0.7;
-    const g = ac.createGain();
+    const g = ac.createGain(),
+      dur = rr(0.55, 0.85);
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(1.2, t + 0.05);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     s.connect(f).connect(g).connect(out);
     s.start(t, Math.random() * 3);
-    s.stop(t + 0.72);
+    s.stop(t + dur + 0.02);
   }
 }
 /* ---------- voices: duck and cow ---------- */
-function quack(t0, out, f0, v) {
+function quack(t0, out, f0, v, len = 1) {
   // nasal, rasping, falling: a buzzy source through two narrow formants, roughened by fast AM
-  const o = ac.createOscillator();
-  o.type = 'sawtooth';
+  const o = reedOsc();
   o.frequency.setValueAtTime(f0 * 1.12, t0);
-  o.frequency.exponentialRampToValueAtTime(f0, t0 + 0.035);
-  o.frequency.exponentialRampToValueAtTime(f0 * 0.82, t0 + 0.2);
+  o.frequency.exponentialRampToValueAtTime(f0, t0 + 0.035 * len);
+  o.frequency.exponentialRampToValueAtTime(f0 * 0.82, t0 + 0.2 * len);
   const am = ac.createOscillator(),
     amg = ac.createGain(),
     rough = ac.createGain();
@@ -639,18 +920,18 @@ function quack(t0, out, f0, v) {
   const env = ac.createGain();
   env.gain.setValueAtTime(0, t0);
   env.gain.linearRampToValueAtTime(v, t0 + 0.012);
-  env.gain.setValueAtTime(v * 0.9, t0 + 0.1);
-  env.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.22);
+  env.gain.setValueAtTime(v * 0.9, t0 + 0.1 * len);
+  env.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.22 * len);
   o.connect(rough);
   for (const [f, q, a] of [
-    [rr(950, 1100), 5, 1],
-    [rr(2100, 2400), 6, 0.6],
+    [rr(950, 1100) * VOX.f, 5, 1],
+    [rr(2100, 2400) * VOX.f, 6, 0.6],
     [520, 2, 0.25]
   ]) {
     const bp = ac.createBiquadFilter();
     bp.type = 'bandpass';
     bp.frequency.setValueAtTime(f * 1.08, t0);
-    bp.frequency.linearRampToValueAtTime(f * 0.94, t0 + 0.2);
+    bp.frequency.linearRampToValueAtTime(f * 0.94, t0 + 0.2 * len);
     bp.Q.value = q;
     const g = ac.createGain();
     g.gain.value = a * 3.4;
@@ -659,54 +940,83 @@ function quack(t0, out, f0, v) {
   env.connect(out);
   o.start(t0);
   am.start(t0);
-  o.stop(t0 + 0.25);
-  am.stop(t0 + 0.25);
+  o.stop(t0 + 0.25 * len);
+  am.stop(t0 + 0.25 * len);
 }
 function duckCall(out, t) {
-  // a mallard hen's decrescendo: loud first, each quack a little lower and quieter
-  const n = rr(2, 6) | 0,
-    f = rr(235, 290);
+  const f = rr(235, 290) * VOX.p,
+    kind = VOX.x
+      ? vpick([
+          [3, 'run'],
+          [2, 'loud']
+        ])
+      : vpick([
+          [5, 'run'],
+          [2, 'loud'],
+          [3, 'chat']
+        ]);
   let tt = t,
     v = 1;
-  for (let i = 0; i < n; i++) {
-    quack(tt, out, f * Math.pow(0.97, i), v);
-    tt += rr(0.2, 0.26) + i * 0.012;
-    v *= 0.8;
+  if (kind === 'run') {
+    // a mallard hen's decrescendo: loud first, each quack a little lower and quieter
+    const n = rr(2, 6) | 0;
+    for (let i = 0; i < n; i++) {
+      quack(tt, out, f * Math.pow(0.97, i) * wob(0.015), v);
+      tt += vgap(0.23, 0.12) + i * 0.012;
+      v *= rr(0.74, 0.86);
+    }
+  } else if (kind === 'loud') {
+    // one or two flat, loud quacks
+    const n = Math.random() < 0.5 ? 1 : 2;
+    for (let i = 0; i < n; i++) {
+      quack(tt, out, f * 0.96 * wob(0.02), 1, 1.25);
+      tt += vgap(0.34);
+    }
+  } else {
+    // quiet muttering among themselves: short, higher, soft 'kweg's
+    const n = rr(3, 7) | 0;
+    for (let i = 0; i < n; i++) {
+      quack(tt, out, f * rr(1.1, 1.3), rr(0.3, 0.5), rr(0.4, 0.6));
+      tt += vgap(0.13, 0.35);
+    }
   }
 }
 function baa(out, t, forceLamb) {
-  // a bleat: tremulous voice, lips opening on the 'b', a nasal 'aaa' held with a shaky wobble, sliding down at the end
+  // a bleat: tremulous voice, lips opening on the 'b', a nasal 'aaa' held with a shaky wobble, sliding down at the end.
+  // Now and then an ewe only mutters: a short, low, near-closed 'mmh' to the flock.
   const lamb = forceLamb || Math.random() < 0.3,
-    f = lamb ? rr(360, 440) : rr(190, 250),
-    d = lamb ? rr(0.45, 0.7) : rr(0.6, 1.05),
-    n = Math.random() < 0.2 ? 2 : 1;
+    mut = !lamb && Math.random() < 0.18,
+    f = (lamb ? rr(360, 440) : rr(190, 250) * (mut ? 0.85 : 1)) * VOX.p,
+    d = (mut ? rr(0.25, 0.4) : lamb ? rr(0.45, 0.7) : rr(0.6, 1.05)) * VOX.r,
+    open = mut ? rr(900, 1300) : 3600 * wob(0.12),
+    n = !mut && Math.random() < 0.2 ? 2 : 1;
+  if (mut) out.gain.value *= 0.7;
   for (let k = 0; k < n; k++) {
-    const t0 = t + k * (d + rr(0.25, 0.5)),
+    const t0 = t + k * (d + vgap(0.37, 0.3)),
       ff = f * (k ? rr(0.94, 1.02) : 1);
-    const o = ac.createOscillator();
-    o.type = 'sawtooth';
+    const o = reedOsc();
     const p = o.frequency;
     p.setValueAtTime(ff * 0.86, t0);
-    p.linearRampToValueAtTime(ff * 1.04, t0 + 0.09);
+    p.linearRampToValueAtTime(ff * rr(1.02, 1.07), t0 + 0.09);
     p.linearRampToValueAtTime(ff, t0 + d * 0.6);
-    p.linearRampToValueAtTime(ff * 0.84, t0 + d);
+    p.linearRampToValueAtTime(ff * rr(0.8, 0.88), t0 + d);
     const rate = rr(7, 10),
       vib = ac.createOscillator(),
       vg = ac.createGain();
     vib.frequency.value = rate;
-    vg.gain.value = ff * 0.035;
+    vg.gain.value = ff * rr(0.025, 0.045);
     vib.connect(vg).connect(p);
     const trem = ac.createGain();
     trem.gain.value = 0.55;
     const tg = ac.createGain();
-    tg.gain.value = 0.32;
+    tg.gain.value = rr(0.25, 0.38);
     vib.connect(tg).connect(trem.gain);
     const lip = ac.createBiquadFilter();
     lip.type = 'lowpass';
     lip.frequency.setValueAtTime(350, t0);
-    lip.frequency.exponentialRampToValueAtTime(3600, t0 + 0.07);
-    lip.frequency.setValueAtTime(3600, t0 + d * 0.75);
-    lip.frequency.exponentialRampToValueAtTime(900, t0 + d);
+    lip.frequency.exponentialRampToValueAtTime(open, t0 + 0.07);
+    lip.frequency.setValueAtTime(open, t0 + d * 0.75);
+    lip.frequency.exponentialRampToValueAtTime(Math.min(900, open * 0.8), t0 + d);
     const env = ac.createGain();
     env.gain.setValueAtTime(0, t0);
     env.gain.linearRampToValueAtTime(1, t0 + 0.035);
@@ -721,7 +1031,7 @@ function baa(out, t, forceLamb) {
     ]) {
       const bp = ac.createBiquadFilter();
       bp.type = 'bandpass';
-      bp.frequency.value = fq;
+      bp.frequency.value = fq * VOX.f;
       bp.Q.value = q;
       const g = ac.createGain();
       g.gain.value = a * 2.4;
@@ -745,66 +1055,108 @@ function baa(out, t, forceLamb) {
     s.stop(t0 + d + 0.05);
   }
 }
+// one bark: a rough voice through the dog's mouth formants (fm scales them: lower for a deep 'woof')
+function woof(out, t0, f, len, fm, v = 1) {
+  const o = reedOsc();
+  o.frequency.setValueAtTime(f * 1.3, t0);
+  o.frequency.exponentialRampToValueAtTime(f * 0.72, t0 + len * 0.87);
+  const env = ac.createGain();
+  env.gain.setValueAtTime(0, t0);
+  env.gain.linearRampToValueAtTime(v, t0 + 0.008);
+  env.gain.exponentialRampToValueAtTime(0.001, t0 + len);
+  for (const [fq, q, g0] of [
+    [850, 2, 1.6],
+    [1700, 3, 0.9],
+    [380, 1.5, 0.6]
+  ]) {
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = fq * fm;
+    bp.Q.value = q;
+    const g = ac.createGain();
+    g.gain.value = g0;
+    o.connect(bp).connect(g).connect(env);
+  }
+  const s = ac.createBufferSource();
+  s.buffer = amb.noise;
+  const nb = ac.createBiquadFilter();
+  nb.type = 'bandpass';
+  nb.frequency.value = 1300 * fm;
+  nb.Q.value = 0.9;
+  const ng = ac.createGain();
+  ng.gain.value = 0.35;
+  s.connect(nb).connect(ng).connect(env);
+  env.connect(out);
+  o.start(t0);
+  s.start(t0, Math.random() * 3);
+  o.stop(t0 + len + 0.02);
+  s.stop(t0 + len + 0.02);
+}
 function bark(out, t) {
-  // a farm dog: two or three short, rough barks falling in pitch
-  const n = Math.random() < 0.5 ? 2 : 3;
-  for (let i = 0; i < n; i++) {
-    const t0 = t + i * rr(0.16, 0.24),
-      f = rr(300, 390);
-    const o = ac.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.setValueAtTime(f * 1.3, t0);
-    o.frequency.exponentialRampToValueAtTime(f * 0.72, t0 + 0.13);
-    const env = ac.createGain();
-    env.gain.setValueAtTime(0, t0);
-    env.gain.linearRampToValueAtTime(1, t0 + 0.008);
-    env.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
-    for (const [fq, q, g0] of [
-      [850, 2, 1.6],
-      [1700, 3, 0.9],
-      [380, 1.5, 0.6]
-    ]) {
-      const bp = ac.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.value = fq;
-      bp.Q.value = q;
-      const g = ac.createGain();
-      g.gain.value = g0;
-      o.connect(bp).connect(g).connect(env);
+  // a farm dog: mostly a few short, rough barks falling in pitch; sometimes one deep 'woof',
+  // sometimes a string of high, excited yips
+  const kind = vpick([
+      [6, 'barks'],
+      [2, 'woof'],
+      [2, 'yips']
+    ]),
+    fm = VOX.f;
+  if (kind === 'barks') {
+    const n = vpick([
+      [1, 1],
+      [5, 2],
+      [4, 3],
+      [1, 4]
+    ]);
+    let tt = t;
+    for (let i = 0; i < n; i++) {
+      woof(out, tt, rr(300, 390) * VOX.p, 0.15 * wob(0.15), fm * wob(0.03), i ? rr(0.75, 1) : 1);
+      tt += vgap(0.2, 0.2);
     }
-    const s = ac.createBufferSource();
-    s.buffer = amb.noise;
-    const nb = ac.createBiquadFilter();
-    nb.type = 'bandpass';
-    nb.frequency.value = 1300;
-    nb.Q.value = 0.9;
-    const ng = ac.createGain();
-    ng.gain.value = 0.35;
-    s.connect(nb).connect(ng).connect(env);
-    env.connect(out);
-    o.start(t0);
-    s.start(t0, Math.random() * 3);
-    o.stop(t0 + 0.17);
-    s.stop(t0 + 0.17);
+  } else if (kind === 'woof') {
+    woof(out, t, rr(230, 280) * VOX.p, 0.22 * wob(0.1), fm * 0.85, 1.1);
+  } else {
+    const n = rr(3, 6) | 0;
+    let tt = t;
+    for (let i = 0; i < n; i++) {
+      woof(out, tt, rr(520, 640) * VOX.p, 0.07 * wob(0.2), fm * 1.2, rr(0.5, 0.8));
+      tt += vgap(0.13, 0.25);
+    }
   }
 }
 function moo(out, t) {
-  // closed 'mm' opening into 'ooo' and closing again: a resonant lowpass sweeps over a low buzzy voice
-  const d = rr(1.3, 1.9),
-    f = rr(98, 122);
-  const src = ac.createGain();
+  // closed 'mm' opening into 'ooo' and closing again: a resonant lowpass sweeps over a low buzzy voice.
+  // Mostly a plain moo; sometimes only a soft, short lowing with the mouth barely open; sometimes a long bellow
+  // that climbs higher and opens wide - and then, as often as not, trails off with a second, shorter moo
+  const kind = vpick([
+      [5, 'moo'],
+      [3, 'low'],
+      [2, 'bellow']
+    ]),
+    s =
+      kind === 'low'
+        ? { d: rr(0.55, 0.85), rise: 1.08, open: 0.5, a: 0.6 }
+        : kind === 'bellow'
+          ? { d: rr(1.9, 2.5), rise: rr(1.3, 1.4), open: 1.2, a: 0.7 }
+          : { d: rr(1.3, 1.9), rise: rr(1.15, 1.25), open: wob(0.12), a: 0.9 };
+  mooOne(out, t, rr(98, 122) * VOX.p, s.d * VOX.r, s.rise, s.open, s.a);
+  if (kind === 'bellow' && Math.random() < 0.5)
+    mooOne(out, t + s.d * VOX.r + vgap(0.35, 0.3), rr(92, 110) * VOX.p, rr(0.8, 1.1) * VOX.r, 1.12, 0.8, 0.7);
+}
+function mooOne(out, t, f, d, rise, open, a) {
+  const src = ac.createGain(),
+    w = reedWave();
   for (const det of [-5, 4]) {
-    const o = ac.createOscillator();
-    o.type = 'sawtooth';
+    const o = reedOsc(1, w);
     o.detune.value = det;
     const p = o.frequency;
     p.setValueAtTime(f * 0.88, t);
-    p.linearRampToValueAtTime(f * 1.2, t + d * 0.22);
-    p.linearRampToValueAtTime(f * 1.1, t + d * 0.65);
+    p.linearRampToValueAtTime(f * rise, t + d * 0.22);
+    p.linearRampToValueAtTime(f * (rise - 0.1), t + d * 0.65);
     p.linearRampToValueAtTime(f * 0.78, t + d);
     const l = ac.createOscillator(),
       lg = ac.createGain();
-    l.frequency.value = 5;
+    l.frequency.value = rr(4, 6);
     lg.gain.value = f * 0.018;
     l.connect(lg).connect(p);
     o.connect(src);
@@ -813,26 +1165,27 @@ function moo(out, t) {
     o.stop(t + d + 0.1);
     l.stop(t + d + 0.1);
   }
+  const fm = VOX.f;
   const lp = ac.createBiquadFilter();
   lp.type = 'lowpass';
   lp.Q.value = 5;
   const c = lp.frequency;
-  c.setValueAtTime(240, t);
-  c.linearRampToValueAtTime(900, t + d * 0.3);
-  c.linearRampToValueAtTime(620, t + d * 0.7);
-  c.linearRampToValueAtTime(280, t + d);
+  c.setValueAtTime(240 * fm, t);
+  c.linearRampToValueAtTime(900 * open * fm, t + d * 0.3);
+  c.linearRampToValueAtTime(620 * open * fm, t + d * 0.7);
+  c.linearRampToValueAtTime(280 * fm, t + d);
   const lp2 = ac.createBiquadFilter();
   lp2.type = 'lowpass';
   lp2.Q.value = 1.2;
   const c2 = lp2.frequency;
-  c2.setValueAtTime(380, t);
-  c2.linearRampToValueAtTime(1300, t + d * 0.3);
-  c2.linearRampToValueAtTime(900, t + d * 0.7);
-  c2.linearRampToValueAtTime(420, t + d);
+  c2.setValueAtTime(380 * fm, t);
+  c2.linearRampToValueAtTime(1300 * open * fm, t + d * 0.3);
+  c2.linearRampToValueAtTime(900 * open * fm, t + d * 0.7);
+  c2.linearRampToValueAtTime(420 * fm, t + d);
   const env = ac.createGain();
   env.gain.setValueAtTime(0, t);
-  env.gain.linearRampToValueAtTime(0.9, t + 0.18);
-  env.gain.setValueAtTime(0.9, t + d * 0.72);
+  env.gain.linearRampToValueAtTime(a, t + Math.min(0.18, d * 0.2));
+  env.gain.setValueAtTime(a, t + d * 0.72);
   env.gain.linearRampToValueAtTime(0, t + d);
   src.connect(lp).connect(lp2).connect(env).connect(out);
   // breath
@@ -840,11 +1193,11 @@ function moo(out, t) {
   s.buffer = amb.noise;
   const nb = ac.createBiquadFilter();
   nb.type = 'bandpass';
-  nb.frequency.value = 700;
+  nb.frequency.value = 700 * fm;
   nb.Q.value = 0.8;
   const ng = ac.createGain();
   ng.gain.setValueAtTime(0, t);
-  ng.gain.linearRampToValueAtTime(0.05, t + 0.2);
+  ng.gain.linearRampToValueAtTime(0.05 * a, t + Math.min(0.2, d * 0.25));
   ng.gain.linearRampToValueAtTime(0, t + d);
   s.connect(nb).connect(ng).connect(out);
   s.start(t, Math.random() * 3);
@@ -878,6 +1231,40 @@ function cuckoo() {
       o.connect(g).connect(out);
       o.start(t0);
       o.stop(t0 + d + 0.02);
+    }
+  }
+}
+// the church bell, rung slowly: a heavy bronze strike with the hum a minor third and an octave under the
+// strike note, inharmonic partials above it, and a long ringing tail carried far over the land
+function churchBell(v, pan, n = 9) {
+  const t0 = ac.currentTime + 0.1,
+    out = ac.createGain();
+  out.gain.value = v;
+  const p = panned(out, pan);
+  p.connect(master);
+  p.connect(verb);
+  const f = rr(196, 212);
+  for (let i = 0; i < n; i++) {
+    const t = t0 + i * rr(2.3, 2.6),
+      hit = i === n - 1 ? 0.8 : 1;
+    for (const [r, a, d] of [
+      [0.5, 0.5, 9],
+      [1, 0.8, 7],
+      [1.19, 0.4, 5],
+      [1.5, 0.22, 4],
+      [2, 0.34, 3.5],
+      [2.52, 0.12, 2.2],
+      [3.01, 0.08, 1.6]
+    ]) {
+      const o = ac.createOscillator(),
+        g = ac.createGain();
+      o.frequency.value = f * r * (1 + (Math.random() - 0.5) * 0.002);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(a * hit, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(t + d + 0.05);
     }
   }
 }
@@ -1310,6 +1697,13 @@ function audioTick(dt) {
       amb.frogT = rr(1.5, 5);
     }
     const calm = !hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover');
+    // the church bell rings once in the middle of each season, a little after nine in the morning
+    if (CHURCH && L && CAL.day % DAYS_PER_SEASON === 1 && hr > 9.2 && hr < 10 && amb.bellDay !== CAL.day) {
+      amb.bellDay = CAL.day;
+      const dx = wdx(CHURCH.b.cx, L.x),
+        d = Math.hypot(dx, CHURCH.b.cy - L.y);
+      churchBell(0.035 * Math.max(0, 1 - d / 4000) + 0.006, clamp(dx / 1200, -0.9, 0.9));
+    }
     musicTick();
     amb.seaT = (amb.seaT || rr(8, 16)) - dt;
     if (amb.seaT <= 0) {
@@ -1344,8 +1738,21 @@ function audioTick(dt) {
       if (near.length) {
         const a = near[(Math.random() * near.length) | 0];
         rest[a.k] = now + rr(...AMB_REST[a.k]);
-        const d = Math.hypot(wdx(a.x, L.x), a.y - L.y);
-        animalCall(a.k, 0.06 * (1 - d / 950) + 0.007, wdx(a.x, L.x) / 700);
+        const say = b => {
+          const d = Math.hypot(wdx(b.x, L.x), b.y - L.y);
+          if (d < 950) animalCall(b.k, 0.06 * (1 - d / 950) + 0.007, wdx(b.x, L.x) / 700, { who: b, d: d / 950 });
+        };
+        say(a);
+        // and sometimes another of its kind close by answers it, in its own voice
+        if (Math.random() < (AMB_ANSWER[a.k] || 0)) {
+          const mates = ANIMALS.filter(
+            b => b !== a && b.k === a.k && !b.dying && Math.hypot(wdx(b.x, a.x), b.y - a.y) < 500
+          );
+          if (mates.length) {
+            const b = mates[(Math.random() * mates.length) | 0];
+            setTimeout(() => L && say(b), rr(1200, 3500));
+          }
+        }
       }
     }
     if (LIFE.calls && LIFE.calls.length)
@@ -1357,9 +1764,16 @@ function audioTick(dt) {
         if (now < (heard[c.k] || 0)) continue;
         heard[c.k] = now + (CALL_GAP[c.k] || 0);
         if (d < 1600) {
-          const v = 0.05 * (1 - d / 1600) + 0.012;
+          const v = 0.05 * (1 - d / 1600) + 0.012,
+            who = c.who || callerAt(c.k, c.x, c.y),
+            x = CALM_CALL[c.k] ? 0 : 0.7;
+          // a crowd (crows mobbing, a skein of geese) is several birds, each in its own voice
+          const many = c.k === 'crow' || c.k === 'goose';
           for (let i = 0; i < (c.n || 1); i++)
-            setTimeout(() => animalCall(c.k, v, wdx(c.x, L.x) / 800), i * rr(250, 500));
+            setTimeout(
+              () => animalCall(c.k, v, wdx(c.x, L.x) / 800, { who: i && many ? null : who, d: d / 1600, x }),
+              i * rr(250, 500)
+            );
         }
       }
   }

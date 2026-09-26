@@ -80,11 +80,11 @@ with sync_playwright() as p:
                   js += Math.abs(a[(y * 2 + 1) * 4 + k] - b[y * 4 + k]); jn += Math.abs(a[(y * 2 + 1) * 4 + k] - a[y * 2 * 4 + k]); }
                 return [js / h, jn / h]; };
               const r = { G: wrap(G) };
-              if (GROW.maskOn && GROW.MC && typeof GPAD !== 'undefined') {
-                // the mask carries GPAD wrapped cells each side: compare the real last column with the first
+              if (GROW.maskOn && GROW.MC && typeof GP !== 'undefined') {
+                // the mask carries GP wrapped cells each side: compare the real last column with the first
                 const c = GROW.MC.getContext('2d'), w = GROW.MC.width, h = GROW.MC.height,
-                  a = c.getImageData(w - 1 - GPAD, 0, 1, h).data, b = c.getImageData(w - GPAD, 0, 1, h).data,
-                  f = c.getImageData(GPAD, 0, 1, h).data;
+                  a = c.getImageData(w - 1 - GP, 0, 1, h).data, b = c.getImageData(w - GP, 0, 1, h).data,
+                  f = c.getImageData(GP, 0, 1, h).data;
                 let bad = 0; for (let i = 0; i < a.length; i++) bad += Math.abs(b[i] - f[i]);
                 r.mask = bad;
               }

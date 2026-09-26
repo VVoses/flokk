@@ -31,11 +31,12 @@ const GROW = {
   mT: 0,
   mKey: '',
   leaf: null, // the extra tree sprites for leafing out / leaf fall: {bare:{birch,decid}, bud:{birch,decid}}
-  leafSeason: -1
+  leafSeason: -1,
+  northSnow: 0
 };
 const GQ = 12, // world units per mask cell
   GUP = 3, // and the smooth upscale it is drawn from
-  GPAD = 2; // cells of the mask repeated past each end of the land, so it wraps across the seam unbroken
+  GP = 2; // cells of padding round the mask: wrapped east-west, the edge row repeated north and south
 
 /* ---------- fields ---------- */
 // the look a field has before (or after) the season's own ground look takes over, or null if it keeps one look
@@ -116,17 +117,15 @@ function buildCells() {
       nz[o] = n2;
     }
   GROW.cells = { nw, nh, th, gt, kind, sf, nz };
-  GROW.MC = mk(nw + 2 * GPAD, nh);
-  GROW.MC2 = mk((nw + 2 * GPAD) * GUP, nh * GUP);
+  GROW.MC = mk(nw + 2 * GP, nh + 2 * GP);
+  GROW.MC2 = mk((nw + 2 * GP) * GUP, (nh + 2 * GP) * GUP);
   GROW.mKey = '';
 }
 // recompute the mask for season s at progress p; k fades the whole of it (a transition out of that season)
 function paintMask(s, p, k) {
   const { nw, nh, th, gt, kind, sf, nz } = GROW.cells,
     c = GROW.MC.getContext('2d'),
-    pw = nw + 2 * GPAD,
-    id = c.createImageData(pw, nh),
-    d = id.data,
+    d = new Uint8ClampedArray(nw * nh * 4),
     ease = tEase();
   for (let o = 0; o < nw * nh; o++) {
     const kd = kind[o];
@@ -164,19 +163,37 @@ function paintMask(s, p, k) {
     }
     a *= k;
     if (a < 0.004) continue;
-    // written at its own column, and again past the far end when it is within GPAD of one
-    const j = (o / nw) | 0,
-      i = o - j * nw;
-    for (const pi of [i + GPAD, i + GPAD + nw, i + GPAD - nw]) {
-      if (pi < 0 || pi >= pw) continue;
-      const i4 = (j * pw + pi) * 4;
-      d[i4] = r;
-      d[i4 + 1] = gg;
-      d[i4 + 2] = b;
-      d[i4 + 3] = a * 255;
+    const i4 = o * 4;
+    d[i4] = r;
+    d[i4 + 1] = gg;
+    d[i4 + 2] = b;
+    d[i4 + 3] = a * 255;
+  }
+  // padded, so the smooth upscale below has real neighbours at the edges instead of fading them out:
+  // otherwise the snow thins to a visible line where the land wraps round east-west
+  const pw = nw + 2 * GP,
+    ph = nh + 2 * GP,
+    id = c.createImageData(pw, ph),
+    pd = id.data;
+  for (let j = 0; j < ph; j++) {
+    const sj = clamp(j - GP, 0, nh - 1);
+    for (let i = 0; i < pw; i++) {
+      const si = (i - GP + nw) % nw,
+        a4 = (sj * nw + si) * 4,
+        b4 = (j * pw + i) * 4;
+      pd[b4] = d[a4];
+      pd[b4 + 1] = d[a4 + 1];
+      pd[b4 + 2] = d[a4 + 2];
+      pd[b4 + 3] = d[a4 + 3];
     }
   }
   c.putImageData(id, 0, 0);
+  // how much of the land's northern edge still lies under snow: the nearest ridge's foot follows it (light.js)
+  {
+    let sum = 0;
+    for (let o = 0; o < nw * 2; o++) sum += d[o * 4 + 3] / 255;
+    GROW.northSnow = s === 0 ? sum / (nw * 2) : 0;
+  }
   // stretched straight onto the ground, bilinear filtering shows the cell grid as soft steps; a smooth
   // 4x upscale first turns them into rounded, organic edges
   const c2 = GROW.MC2.getContext('2d');
@@ -309,14 +326,22 @@ function growGround(sx, sy, ex, ey) {
   });
   ctx.globalAlpha = 1;
   if (GROW.maskOn) {
-    // each copy of the land draws its own stretch of the mask; where two copies meet, both end on the
-    // same whole device pixel, so the seam is neither left uncovered nor covered twice
     const q = GUP / GQ,
+      M = GROW.MC2,
       m = ctx.getTransform(),
-      snap = x => (Math.round(m.a * x + m.e) - m.e) / m.a,
-      x0 = sx <= 0 ? snap(0) : sx,
-      x1 = ex >= W ? snap(W) : ex;
+      X = x => Math.round(m.a * x + m.e);
+    // at the east-west seam two copies of the mask meet; if each drew up to the seam with soft edges, the
+    // two half-covered pixels would let the green under the snow show through as a thin line. So clip each
+    // copy to whole device pixels and let it run a little past its own edge, into the wrapped padding
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.beginPath();
+    ctx.rect(X(sx), 0, X(ex) - X(sx), ctx.canvas.height);
+    ctx.clip();
+    ctx.setTransform(m);
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(GROW.MC2, (x0 + GPAD * GQ) * q, sy * q, (x1 - x0) * q, (ey - sy) * q, x0, sy, x1 - x0, ey - sy);
+    const o = GP * GUP;
+    ctx.drawImage(M, (sx - 4) * q + o, sy * q + o, (ex - sx + 8) * q, (ey - sy) * q, sx - 4, sy, ex - sx + 8, ey - sy);
+    ctx.restore();
   }
 }

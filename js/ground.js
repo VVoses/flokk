@@ -64,6 +64,84 @@ function yardPath(c, Y, grow) {
   }
   c.closePath();
 }
+/* the churchyard: close-cut grass inside a low dry-stone wall, a gravel path from the gate to the tower door */
+function paintChurchyard(C, winter, season, edgeOffs) {
+  const Y = C.yard,
+    lw = Y.lw,
+    lh = Y.lh;
+  for (const ox of edgeOffs(Y.x, Y.x + Y.w)) {
+    g.save();
+    g.translate(ox + Y.cx, Y.cy);
+    g.rotate(Y.ang);
+    // kept grass, a little greener and smoother than the meadow round it
+    g.fillStyle = winter ? 'rgba(236,240,244,.5)' : season === 2 ? 'rgba(128,138,74,.35)' : 'rgba(96,140,64,.3)';
+    g.beginPath();
+    g.roundRect(-lw / 2, -lh / 2, lw, lh, 20);
+    g.fill();
+    // the path, from the gate in the road-side wall to the tower door
+    const [du, dv] = yardLocal(Y, ...Y.door),
+      gv = (-lh / 2) * Y.side;
+    g.lineCap = 'round';
+    g.strokeStyle = winter ? 'rgba(200,208,218,.55)' : 'rgba(176,164,132,.9)';
+    g.lineWidth = 15;
+    g.beginPath();
+    g.moveTo(du * 0.3, gv);
+    g.quadraticCurveTo(du * 0.4, (gv + dv) / 2, du, dv);
+    g.stroke();
+    g.fillStyle = winter ? 'rgba(150,160,175,.3)' : 'rgba(110,98,74,.35)';
+    for (let i = 0; i < 160; i++) {
+      const t = R(),
+        u = lerp(du * 0.3, du, t) + rnd(-6, 6),
+        v = lerp(gv, dv, t) + rnd(-3, 3);
+      g.fillRect(u, v, 1.6, 1.6);
+    }
+    // the wall: grey fieldstone, a darker foot where it stands up out of the grass, lichen on the top
+    const wall = () => {
+      g.beginPath();
+      g.roundRect(-lw / 2, -lh / 2, lw, lh, 20);
+    };
+    g.lineJoin = 'round';
+    g.strokeStyle = winter ? 'rgba(90,98,112,.35)' : 'rgba(40,36,28,.35)';
+    g.lineWidth = 13;
+    g.save();
+    g.translate(0, 3);
+    wall();
+    g.stroke();
+    g.restore();
+    g.strokeStyle = winter ? '#C9CFD6' : '#8E8A80';
+    g.lineWidth = 9;
+    wall();
+    g.stroke();
+    const per = 2 * (lw + lh);
+    for (let t = 0; t < per; t += rnd(4, 7)) {
+      let u, v;
+      if (t < lw) ((u = t - lw / 2), (v = -lh / 2));
+      else if (t < lw + lh) ((u = lw / 2), (v = t - lw - lh / 2));
+      else if (t < 2 * lw + lh) ((u = lw * 1.5 + lh - t), (v = lh / 2));
+      else ((u = -lw / 2), (v = per - t - lh / 2));
+      if (Math.abs(u) > lw / 2 - 16 && Math.abs(v) > lh / 2 - 16) continue; // leave the rounded corners plain
+      const k = R();
+      g.fillStyle = winter
+        ? k < 0.5
+          ? '#F4F6F8'
+          : '#B4BCC6'
+        : k < 0.3
+          ? '#A7A398'
+          : k < 0.6
+            ? '#76726A'
+            : k < 0.8
+              ? '#9A9684'
+              : '#A8A46C';
+      g.fillRect(u + rnd(-3, 1), v + rnd(-3, 1), rnd(3, 6), rnd(3, 5));
+    }
+    // the gateway: a gap in the wall with a stone post each side
+    g.fillStyle = winter ? 'rgba(236,240,244,.95)' : '#9C9068';
+    g.fillRect(du * 0.3 - 12, gv - 7, 24, 14);
+    g.fillStyle = winter ? '#B4BCC6' : '#6E6A62';
+    for (const sg of [-1, 1]) g.fillRect(du * 0.3 + sg * 14 - 3, gv - 5, 6, 10);
+    g.restore();
+  }
+}
 function seaGrad(c) {
   const gr = c.createLinearGradient(0, H - 330, 0, H + 40);
   const w = SEASON === 3;
@@ -480,6 +558,7 @@ function paintGround(season) {
       }
       g.restore();
     }
+  if (CHURCH) paintChurchyard(CHURCH, winter, season, edgeOffs);
   const R0 = R;
   FIELDS.forEach((f, fi) => {
     for (const ox of edgeOffs(f.x, f.x + f.w)) {

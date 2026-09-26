@@ -215,6 +215,15 @@ function update(dt) {
     s.vy = clamp(s.vy, -14, 14);
     s.x = wrapX(s.x + s.vx * dt);
     s.y += s.vy * dt;
+    // drift back from the edges of the reachable land rather than out over the fjord
+    const ym = insectMaxY(s.x);
+    if (s.y > ym) {
+      s.y = ym;
+      s.vy = -Math.abs(s.vy);
+    } else if (s.y < 60) {
+      s.y = 60;
+      s.vy = Math.abs(s.vy);
+    }
   }
   for (const f of dflies) {
     f.t -= dt;
