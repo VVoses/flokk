@@ -488,6 +488,29 @@ function setBest(v) {
     /* storage unavailable: best score just isn't kept */
   }
 }
+/* ---------- learning by doing: a first-time-only line, taught by the world at the moment
+   a mechanic first matters (a hawk's first pass, hunger, the first dark night), never up front
+   and never twice. No separate tutorial: the same short lowercase banner the seasons use. */
+let LEARN = {};
+try {
+  LEARN = JSON.parse(localStorage.getItem('flokk-learn') || '{}');
+} catch (e) {
+  LEARN = {};
+}
+function teach(key, text) {
+  if (LEARN[key]) return;
+  LEARN[key] = 1;
+  try {
+    localStorage.setItem('flokk-learn', JSON.stringify(LEARN));
+  } catch (e) {
+    /* storage unavailable: the hint just runs every time */
+  }
+  const el = $('hintEl');
+  el.textContent = text;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
 function statsHTML() {
   return `<div><b>${birds.length}</b><span>birds</span></div><div><b>${CAL.day + 1}</b><span>day</span></div>`;
 }
@@ -576,6 +599,9 @@ function startGame() {
   pauseIcon(false);
   dashBtn.hidden = !coarse;
   seasonBanner();
+  setTimeout(() => {
+    if (st.mode === 'play') teach('goal', 'bring the flock safely through to spring');
+  }, 4000);
 }
 function yearWon() {
   hideBanner();

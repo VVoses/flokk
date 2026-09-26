@@ -40,6 +40,7 @@ function update(dt) {
     // a winter storm cuts through anything but the thickest cover
     if (!roost) drain *= 1 + 0.45 * WEATHER.storm;
     st.energy = clamp(st.energy - drain * dt, 0, 1);
+    if (st.energy < 0.45) teach('hunger', 'eat insects to keep the flock fed');
     if (st.energy <= 0) {
       st.starveT -= dt;
       if (st.starveT <= 0) {
@@ -207,6 +208,12 @@ function update(dt) {
       if (active < want && st.hawkT <= 0 && birds.some(exposed)) {
         spawnHawk(kind);
         st.hawkT = rr(7, 13);
+        teach(
+          kind,
+          kind === 'owl'
+            ? 'an owl hunts by ear in the dark — keep still and hidden'
+            : 'a hawk — fly into the trees to hide'
+        );
       }
     }
   }
