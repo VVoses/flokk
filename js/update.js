@@ -319,7 +319,7 @@ function update(dt) {
   updateTraffic(dt);
   coverHint(dt);
   if (st.settled && Math.random() < dt * Math.min(3, birds.length * 0.12)) chirp(0.018);
-  const base = clamp(Math.min(vw, vh) / 760, 0.55, 1.15);
+  const base = clamp(Math.min(vw, vh) / 760, 0.72, 1.15);
   // the camera pulls back as the flock grows; eased so a mid-sized flock stays close and only a
   // big one gets the full wide view (0.32 at 83+ birds, as before)
   const grow = Math.min(1, birds.length / 83);
