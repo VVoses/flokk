@@ -322,7 +322,9 @@ body.no-hud .hud {
   letter-spacing: 0.05em;
   text-transform: lowercase;
   color: var(--ink);
-  text-shadow: 0 2px 20px rgba(10, 16, 12, 0.5);
+  text-shadow:
+    0 1px 3px rgba(10, 16, 12, 0.85),
+    0 2px 20px rgba(10, 16, 12, 0.5);
 }
 .hint.show {
   animation: hintIn 5.5s ease forwards;
@@ -391,11 +393,19 @@ body.no-hud .hud {
   color: var(--ink2);
   margin: 0;
   letter-spacing: 0.02em;
+  /* the card's own soft glow reads thin over a busy background (bare branches, birds); a tight dark
+     edge under it keeps the smaller, dimmer lines legible without a boxy scrim */
+  text-shadow:
+    0 1px 3px rgba(10, 16, 12, 0.85),
+    0 2px 24px rgba(10, 16, 12, 0.5);
 }
 .keys {
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: lowercase;
+  text-shadow:
+    0 1px 3px rgba(10, 16, 12, 0.85),
+    0 2px 24px rgba(10, 16, 12, 0.5);
   color: var(--ink2);
 }
 .actions {

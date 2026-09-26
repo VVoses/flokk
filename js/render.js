@@ -1988,17 +1988,18 @@ function render() {
         if (!visU(t.x, t.y, 40, t.z * HZ + 40)) continue;
         const X = t.x + t.hx,
           Y = PY(t.y + t.hy, t.z) - (t.state === 'fly' || t.state === 'land' ? 0 : 6);
-        ctx.save();
-        ctx.translate(X, Y);
-        ctx.scale(1, 0.8);
-        ctx.rotate(T * 3);
-        ctx.strokeStyle = h.state === 'dive' ? 'rgba(229,87,63,.95)' : 'rgba(229,87,63,.5)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
+        // a warm pulse of light on the marked bird, not a UI reticle drawn over it
+        const pulse = 0.6 + 0.4 * Math.sin(T * 6),
+          k = (h.state === 'dive' ? 1 : 0.55) * pulse,
+          r = 16 + Math.sin(T * 6) * 2,
+          gr = ctx.createRadialGradient(X, Y, 0, X, Y, r);
+        gr.addColorStop(0, `rgba(229,87,63,${0.5 * k})`);
+        gr.addColorStop(0.6, `rgba(229,87,63,${0.22 * k})`);
+        gr.addColorStop(1, 'rgba(229,87,63,0)');
+        ctx.fillStyle = gr;
         ctx.beginPath();
-        ctx.arc(0, 0, 18 + Math.sin(T * 12) * 2, 0, TAU);
-        ctx.stroke();
-        ctx.restore();
+        ctx.arc(X, Y, r, 0, TAU);
+        ctx.fill();
       }
     }
   }
