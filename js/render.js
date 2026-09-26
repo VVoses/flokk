@@ -711,6 +711,19 @@ function drawBuilding(b) {
           const u = (i + 0.5) / n,
             w = 4.5 / L;
           arch(Q, u - w, u + w, wh * 0.22, wh * 0.82, winCol(), '#F4F0E6');
+          // small panes behind white glazing bars
+          const m0 = Q(u, wh * 0.22),
+            m1 = Q(u, wh * 0.8),
+            h0 = Q(u - w, wh * 0.52),
+            h1 = Q(u + w, wh * 0.52);
+          ctx.strokeStyle = 'rgba(244,240,230,.85)';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(m0[0], m0[1]);
+          ctx.lineTo(m1[0], m1[1]);
+          ctx.moveTo(h0[0], h0[1]);
+          ctx.lineTo(h1[0], h1[1]);
+          ctx.stroke();
         }
       }
     } else if (b.windows) {

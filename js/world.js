@@ -953,8 +953,13 @@ function genLayout() {
         off = rnd(8, 20),
         bx = cx + c * off,
         by = cy + s * off,
-        wall = kind === 'white' ? '#F0EDE6' : kind === 'stave' ? '#3B2A1F' : pick(['#9A958A', '#A39C8C', '#8C897F']),
-        roof = kind === 'stave' ? 'dark' : stone ? pick(['tile', 'slate', 'dark']) : pick(['slate', 'slate', 'dark']),
+        wall =
+          kind === 'white'
+            ? '#F0EDE6'
+            : kind === 'stave'
+              ? '#3B2A1F'
+              : pick(['#9A958A', '#A39C8C', '#8C897F', '#D8D2C4']), // grey fieldstone, or lime-washed
+        roof = kind === 'stave' ? 'dark' : stone ? pick(['slate', 'slate', 'dark']) : pick(['slate', 'slate', 'dark']),
         at = u => [bx + c * u, by + s * u],
         mk = (u, o) => Object.assign({ cx: at(u)[0], cy: at(u)[1], ang: ba, wall, roof }, o);
       let len, u0, parts, top;
@@ -1009,6 +1014,25 @@ function genLayout() {
       yard.side = side;
       BUILDS.push(b);
       CHURCH = { b, yard, px: p[0], py: p[1] };
+      if (kind === 'stave') {
+        // a stave church keeps its bells in a free-standing tarred bell tower, off to one side of the gate
+        const [bu, bv] = [rnd(0.26, 0.34) * yard.lw * (R() < 0.5 ? 1 : -1), -side * (lh / 2 - 44)],
+          [tx, ty] = yardWorld(yard, bu, bv);
+        if (!buildAt(tx, ty, 30))
+          BUILDS.push({
+            cx: tx,
+            cy: ty,
+            ang: ba + rnd(-0.05, 0.05),
+            len: 20,
+            dep: 20,
+            wh: 34,
+            rh: 66,
+            wall,
+            roof: 'dark',
+            spire: true,
+            kind: 'belfry'
+          });
+      }
       LANES.push(
         catmull([
           [p[0], p[1]],
