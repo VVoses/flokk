@@ -321,24 +321,33 @@ function thud(kind = 'hawk', power = 1, last = false) {
     gk = 0.85 + 0.3 * power,
     dur = (0.4 + 0.08 * power) * tail;
   if (kind !== 'fox') {
-    // a cry that gives out rather than being cut off - weightier and a touch more strangled than a
-    // clean whimper, so it reads as defeat and not just a startled peep
+    // the bird's own voice, crying out as it's taken - this is the part meant to be felt, so it's
+    // the loudest thing here. A slow, uneven vibrato (the same warble hawkCry uses, but shakier)
+    // makes the pitch quaver as it falls rather than gliding cleanly down, the way a frightened
+    // whimper breaks rather than sliding smoothly
     const base = kind === 'owl' ? rr(980, 1080) : rr(1780, 1950);
     const co = ac.createOscillator(),
       co2 = ac.createOscillator(),
       cg = ac.createGain(),
-      cf = ac.createBiquadFilter();
+      cf = ac.createBiquadFilter(),
+      lfo = ac.createOscillator(),
+      lg = ac.createGain();
     co.type = 'sine';
     co.frequency.setValueAtTime(base, t);
-    co.frequency.exponentialRampToValueAtTime(base * 0.56, t + dur * 0.85);
+    co.frequency.exponentialRampToValueAtTime(base * 0.52, t + dur * 0.88);
     co2.type = 'sine';
     co2.frequency.setValueAtTime(base * 0.94, t + 0.01);
-    co2.frequency.exponentialRampToValueAtTime(base * 0.5, t + dur * 0.85);
+    co2.frequency.exponentialRampToValueAtTime(base * 0.46, t + dur * 0.88);
+    lfo.frequency.value = rr(11, 15);
+    lg.gain.value = base * 0.05;
+    lfo.connect(lg);
+    lg.connect(co.frequency);
+    lg.connect(co2.frequency);
     cf.type = 'bandpass';
     cf.frequency.value = base * 0.85;
     cf.Q.value = 1;
     cg.gain.setValueAtTime(0, t);
-    cg.gain.linearRampToValueAtTime(0.042 * gk, t + 0.045);
+    cg.gain.linearRampToValueAtTime(0.05 * gk, t + 0.05);
     cg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     co.connect(cf);
     co2.connect(cf).connect(cg).connect(master);
@@ -346,21 +355,23 @@ function thud(kind = 'hawk', power = 1, last = false) {
     co.stop(t + dur + 0.02);
     co2.start(t + 0.01);
     co2.stop(t + dur + 0.02);
+    lfo.start(t);
+    lfo.stop(t + dur + 0.02);
   }
-  // the moment of contact: brief, low and soft-edged, not a crack - enough attack that it reads as
-  // a hit landing rather than only its aftermath
+  // the moment of contact: soft and dull, well under the cry above it - a felt weight rather than a
+  // crack, and never the loudest layer; support for the whimper, not competition with it
   const hs = ac.createBufferSource();
   hs.buffer = amb.noise;
   const hf = ac.createBiquadFilter();
   hf.type = 'lowpass';
-  hf.frequency.value = kind === 'fox' ? 260 : 340;
+  hf.frequency.value = kind === 'fox' ? 220 : 260;
   const hg = ac.createGain();
   hg.gain.setValueAtTime(0, t);
-  hg.gain.linearRampToValueAtTime(0.078 * gk, t + rr(0.01, 0.016));
-  hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+  hg.gain.linearRampToValueAtTime(0.038 * gk, t + rr(0.025, 0.035));
+  hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
   hs.connect(hf).connect(hg).connect(master);
   hs.start(t, Math.random() * 3);
-  hs.stop(t + 0.13);
+  hs.stop(t + 0.19);
   // feathers settling, not a strike - a soft hush with the edge filtered off, no percussive bite
   const s = ac.createBufferSource();
   s.buffer = amb.noise;

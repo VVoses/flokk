@@ -534,15 +534,34 @@ const tEase = () => {
   return t * t * (3 - 2 * t);
 };
 const winterW = () => lerp(TRANS.prevSeason === 3 ? 1 : 0, SEASON === 3 ? 1 : 0, tEase());
+// growUnder/drawBush blend a tree or bush's baked sprite with a bare overlay live, by how far
+// through spring's leafing-out or autumn's leaf-fall the season actually is - so by the end of
+// autumn a tree is mostly bare on screen even though its baked sprite is still the full green one
+// underneath. A season-change snapshot that just grabs the baked sprite forgets that overlay
+// entirely, so the outgoing tree flashes back to full leaf for the whole crossfade right as the
+// new (often bare) season fades in. This bakes the same end-of-season blend into the snapshot
+// once, so the crossfade starts from what was actually on screen a moment before. Only autumn
+// needs it: spring's own blend already reaches full leaf (matching the baked sprite) by its end.
+function leafFallSnap(spr, bare, fallEnd) {
+  const c = mk(spr.width, spr.height),
+    g = c.getContext('2d');
+  g.drawImage(bare, 0, 0);
+  g.globalAlpha = 1 - fallEnd;
+  g.drawImage(spr, 0, 0);
+  return c;
+}
 function applySeason(s, smooth) {
   if (smooth && s !== SEASON) {
     TRANS.prevG = mk(G.width, G.height);
     TRANS.prevG.getContext('2d').drawImage(G, 0, 0);
+    const autumnFall = SEASON === 2 && GROW.leaf && GROW.leafSeason === SEASON;
     TRANS.prevSPR = {
       spruce: SPR.spruce.slice(),
-      birch: SPR.birch.slice(),
-      decid: SPR.decid.slice(),
-      bush: BSPR.cur.slice()
+      birch: SPR.birch.map((spr, v) => (autumnFall ? leafFallSnap(spr, GROW.leaf.bare.birch[v], 0.85) : spr)),
+      decid: SPR.decid.map((spr, v) => (autumnFall ? leafFallSnap(spr, GROW.leaf.bare.decid[v], 0.7) : spr)),
+      bush: BSPR.cur.map((spr, v) =>
+        autumnFall && v < 9 && BSPR.bare[v] ? leafFallSnap(spr, BSPR.bare[v], 0.85) : spr
+      )
     };
     TRANS.prevSeason = SEASON;
     TRANS.t = 0;
