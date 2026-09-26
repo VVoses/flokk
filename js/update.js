@@ -213,7 +213,7 @@ function update(dt) {
           kind,
           kind === 'owl'
             ? 'an owl hunts by ear in the dark — keep still and hidden'
-            : 'a hawk — fly into the trees to hide'
+            : 'a hawk — land in the trees to hide'
         );
       }
     }
