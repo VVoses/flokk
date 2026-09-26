@@ -221,6 +221,11 @@ function drawHawk(h) {
     if (top) {
       line(mix3(pts[0], pts[13], 0.4), mix3(pts[2], pts[11], 0.35), shade('#A07F58', lit), K * 0.09);
       line(mix3(pts[1], pts[12], 0.5), mix3(pts[2], pts[11], 0.55), shade('#8A6A48', lit), K * 0.06);
+      // the splayed primaries of a soaring hawk, each one visible rather than one flat blade of wing
+      if (!owl) {
+        const wrist = mix3(pts[1], pts[2], 0.4);
+        for (const k of [3, 5, 7, 9]) line(wrist, pts[k], 'rgba(28,17,9,.4)', K * 0.03);
+      }
     } else {
       const c = P(mix3(pts[2], pts[11], 0.25));
       ctx.fillStyle = 'rgba(45,30,20,.75)';
@@ -249,6 +254,10 @@ function drawHawk(h) {
       const w = 0.12 + (0.28 * h.fan * (-f - 0.3)) / 0.6;
       line(g.T3(f, -w, 0.03), g.T3(f, w, 0.03), 'rgba(40,26,16,.55)', K * 0.05);
     }
+    // individual feather shafts fanning from the base - a tail of feathers, not one solid blade
+    const tw = 0.12 + (0.28 * h.fan * 0.9) / 0.6;
+    for (const s of [-0.85, -0.35, 0.35, 0.85])
+      line(g.T3(-0.3, 0, 0.032), g.T3(-0.88, s * tw, 0.03), 'rgba(120,88,56,.3)', K * 0.016);
   };
   const drawBody = () => {
     const nose = P(g.T3(0.46, 0, 0.04)),
@@ -265,6 +274,19 @@ function drawHawk(h) {
     ctx.beginPath();
     ctx.ellipse(mx - K * 0.03, my - K * 0.05, Math.max(len / 2, K * 0.2) * 0.75, K * 0.1, ang, 0, TAU);
     ctx.fill();
+    if (h.kind !== 'owl') {
+      // fine barring on the breast, the way a real hawk's underside is streaked, not one flat patch
+      ctx.strokeStyle = 'rgba(60,38,20,.35)';
+      ctx.lineWidth = K * 0.02;
+      for (const q of [-0.3, -0.05, 0.2]) {
+        const bx = mx - K * 0.03 + Math.cos(ang) * len * 0.18 * q,
+          by = my - K * 0.05 + Math.sin(ang) * len * 0.18 * q;
+        ctx.beginPath();
+        ctx.moveTo(bx - Math.sin(ang) * K * 0.06, by + Math.cos(ang) * K * 0.06);
+        ctx.lineTo(bx + Math.sin(ang) * K * 0.06, by - Math.cos(ang) * K * 0.06);
+        ctx.stroke();
+      }
+    }
     if (h.prey) {
       const p = P(g.T3(-0.02, 0, -0.35));
       ctx.fillStyle = h.prey.c2;
