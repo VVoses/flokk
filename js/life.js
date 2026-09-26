@@ -772,38 +772,46 @@ function updateAnimals(dt) {
     }
   }
   // chimney smoke drifting with the wind
-  // loose puffs, not a tube: each chimney breathes at its own pace, more in the cold months
+  // a steady trickle of soft wisps that merge into one plume, so it flows instead of stepping from blob to blob;
+  // each chimney still breathes at its own slow pace, and draws harder in the cold months
   const cold = SEASON === 3 ? 1 : SEASON === 2 ? 0.75 : SEASON === 0 ? 0.5 : 0.2;
   for (const b of BUILDS) {
     if (!b.chimney) continue;
-    b.smk = (b.smk === undefined ? Math.random() : b.smk) - dt;
-    if (b.smk > 0) continue;
-    b.smk = rr(0.5, 1.1) / cold;
+    if (b.smk === undefined) {
+      b.smk = Math.random();
+      b.smkPh = rr(0, TAU);
+    }
+    b.smkPh += dt * 0.5;
+    b.smk += dt * 9 * cold * (0.6 + 0.4 * Math.sin(b.smkPh));
+    if (b.smk < 1) continue;
     const c = Math.cos(b.ang),
       s = Math.sin(b.ang);
     const lx = (b.len / 2) * 0.45,
       ly = (-b.dep / 2) * 0.35;
     const x = b.cx + lx * c - ly * s,
       y = b.cy + lx * s + ly * c;
-    const hz = (b.wh + (b.rh - b.wh) * 0.65 + 18) / HZ;
-    if (inView(x, y, 500)) {
-      const max = rr(4, 6.5);
+    const hz = (b.wh + (b.rh - b.wh) * 0.65 + 16) / HZ,
+      see = inView(x, y, 500);
+    for (; b.smk >= 1; b.smk--) {
+      if (!see) continue;
+      const max = rr(4.5, 6.5);
       SMOKE.push({
-        x: x + rr(-1, 1),
+        x: x + rr(-0.6, 0.6),
         y,
         z: hz,
-        r: rr(2.5, 4),
+        r: rr(2.5, 3.5),
         life: max,
         max,
-        a: rr(0.22, 0.34) * (0.5 + 0.5 * cold),
-        ph: rr(0, TAU)
+        a: rr(0.09, 0.13) * (0.5 + 0.5 * cold),
+        ph: rr(0, TAU),
+        sp: rr(-1, 1) // how far this wisp strays sideways from the plume as it spreads
       });
     }
   }
   for (const p of SMOKE) {
     p.life -= dt;
     const age = p.max - p.life;
-    p.x += (WIND.x * (8 + amb_gust() * 22) + Math.sin(age * 1.3 + p.ph) * 2.5) * dt;
+    p.x += (WIND.x * (8 + amb_gust() * 22) + Math.sin(age * 1.3 + p.ph) * 2.5 + p.sp * age * 0.8) * dt;
     p.y += WIND.y * 10 * dt;
     p.z += dt * (0.7 - age * 0.06);
     p.r += dt * (4.2 - age * 0.35);
