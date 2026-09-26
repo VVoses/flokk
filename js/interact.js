@@ -330,7 +330,7 @@ function mobHawks(dt) {
     h.mobCool = (h.mobCool ?? rr(4, 10)) - dt;
     if (h.mobCool > 0 || (h.state !== 'patrol' && h.state !== 'stalk')) continue;
     const cand = ANIMALS.filter(
-      a => a.k === 'crow' && !a.busy && !a.dying && a.st !== 'fly' && near2(a, h) < 700 * 700
+      a => a.k === 'crow' && !a.busy && !a.dying && !a.hide && a.st !== 'fly' && near2(a, h) < 700 * 700
     ).sort((p, q) => near2(p, h) - near2(q, h));
     h.mobCool = rr(22, 40);
     if (!cand.length) continue;
@@ -407,7 +407,7 @@ function catLife(a, dt) {
     let best = null,
       bd = 1e9;
     for (const o of ANIMALS)
-      if (o.k === 'magpie' && o.st !== 'fly' && !o.busy && !o.dying) {
+      if (o.k === 'magpie' && o.st !== 'fly' && !o.busy && !o.dying && !o.hide) {
         const d = near2(o, a);
         if (d < 180 * 180 && d < bd) {
           bd = d;
@@ -602,7 +602,7 @@ function dogLife(a, dt) {
     bd = 1e9;
   for (const o of ANIMALS) {
     if (o.dying || (o.busy && o.k !== 'cat')) continue;
-    if ((o.k === 'crow' || o.k === 'magpie') && o.st !== 'fly') {
+    if ((o.k === 'crow' || o.k === 'magpie') && o.st !== 'fly' && !o.hide) {
       const d = near2(o, a);
       if (d < 250 * 250 && d < bd) {
         bd = d;

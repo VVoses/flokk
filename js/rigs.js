@@ -1087,7 +1087,9 @@ const isSky = a =>
   a.k === 'rook' ||
   a.k === 'butterfly' ||
   (a.wild && a.st === 'fly') ||
-  ((a.k === 'heron' || a.k === 'crow' || a.k === 'magpie') && (a.st === 'fly' || a.st === 'mob' || a.st === 'mobret'));
+  ((a.k === 'heron' || a.k === 'crow' || a.k === 'magpie') &&
+    (a.st === 'fly' || a.st === 'mob' || a.st === 'mobret')) ||
+  ((a.k === 'crow' || a.k === 'magpie') && a.st === 'roost' && !a.hide);
 // states in which a ground animal is moving, and the fast ones drawn with a bounding gait
 const MOVES = new Set(['walk', 'flee', 'stalk', 'pounce', 'chase']),
   BOUNDS = new Set(['flee', 'pounce', 'chase']);
