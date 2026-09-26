@@ -705,8 +705,18 @@ function buildBushSprites(s) {
   }
 }
 const NV = 12;
-function buildSprites(s) {
-  for (const t of ['spruce', 'birch', 'decid']) for (let i = 0; i < NV; i++) SPR[t][i] = makeSprite(t, i, s);
+// same work as buildSprites, but yielding after each variant so a season change can spread it
+// across several frames instead of freezing one (see BG_JOB in light.js)
+function* buildSpritesGen(s) {
+  for (const t of ['spruce', 'birch', 'decid'])
+    for (let i = 0; i < NV; i++) {
+      SPR[t][i] = makeSprite(t, i, s);
+      yield;
+    }
   buildBushSprites(s);
+}
+function buildSprites(s) {
+  const it = buildSpritesGen(s);
+  while (!it.next().done);
 }
 buildSprites(0);

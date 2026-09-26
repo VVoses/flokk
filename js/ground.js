@@ -174,7 +174,11 @@ const GRASS = [
     [224, 230, 238]
   ]
 ];
-function paintGround(season) {
+// same ground painting as paintGround, but yielding through the costly per-cell noise field (by far
+// its biggest cost) so a season change can spread that across several frames instead of freezing one;
+// see BG_JOB in light.js. Everything below the cell loop still runs in one go: it's a small fraction
+// of the cost and, unlike the loop above, several of its steps read back what earlier steps drew.
+function* paintGroundGen(season) {
   const keepR = R;
   R = mulberry32((SEED ^ 0x5151) + season * 7919);
   const winter = season === 3,
@@ -215,7 +219,7 @@ function paintGround(season) {
   ][season]; // forest floor
   const NDL = [124, 90, 56],
     MOS = [92, 124, 54];
-  for (let j = 0; j < nh; j++)
+  for (let j = 0; j < nh; j++) {
     for (let i = 0; i < nw; i++) {
       const x = i * Q - GB,
         y = j * Q;
@@ -308,6 +312,8 @@ function paintGround(season) {
       dd[o + 2] = b;
       dd[o + 3] = 255;
     }
+    yield;
+  }
   nx.putImageData(id, 0, 0);
   g.imageSmoothingEnabled = true;
   g.imageSmoothingQuality = 'high';
@@ -322,6 +328,7 @@ function paintGround(season) {
   g.beginPath();
   for (let i = 0; i < 45000 * K; i++) g.rect(RX(), RY(), 2.2, 2.2);
   g.fill();
+  yield;
   // small ground detail: tufts, stones, and what falls from the trees
   if (!winter) {
     for (const [col, n] of [
@@ -340,6 +347,7 @@ function paintGround(season) {
         g.lineTo(x + Math.sin(a) * l, y - Math.cos(a) * l);
       }
       g.stroke();
+      yield;
     }
   }
   g.fillStyle = winter ? 'rgba(150,160,175,.35)' : 'rgba(120,118,108,.55)';
@@ -350,6 +358,7 @@ function paintGround(season) {
     g.rect(x, y, rnd(2, 4), rnd(1.5, 3));
   }
   g.fill();
+  yield;
   g.fillStyle = winter ? 'rgba(255,255,255,.6)' : 'rgba(215,215,200,.45)';
   g.beginPath();
   for (let i = 0; i < 3500 * K; i++) {
@@ -360,7 +369,10 @@ function paintGround(season) {
   g.fill();
   const smp = A => (x, y) => A[clamp(Math.round(y / Q), 0, nh - 1) * nw + clamp(Math.round((x + GB) / Q), 0, nw - 1)];
   paintFloor(season, RX, RY, K, smp(FA), smp(BA), smp(RA));
+  yield;
+  let _tc = 0;
   for (const t0 of TREES) {
+    if (++_tc % 40 === 0) yield;
     if (t0.y < -20 || t0.y > H) continue;
     const offs = [0];
     if (t0.x < GB + 40) offs.push(W);
@@ -395,6 +407,7 @@ function paintGround(season) {
       }
     }
   }
+  yield;
   if (winter) {
     g.fillStyle = 'rgba(255,255,255,.4)';
     for (let i = 0; i < 260 * K; i++) {
@@ -471,8 +484,9 @@ function paintGround(season) {
   g.lineWidth = 3;
   g.strokeStyle = winter ? 'rgba(120,130,140,.4)' : 'rgba(95,85,60,.5)';
   g.stroke();
+  yield;
   const edgeOffs = (a, b) => [0].concat(a < GB + 60 ? [W] : [], b > W - GB - 60 ? [-W] : []);
-  for (const YARD of YARDS)
+  for (const YARD of YARDS) {
     for (const ox of edgeOffs(YARD.x, YARD.x + YARD.w)) {
       g.save();
       g.translate(ox, 0);
@@ -558,9 +572,11 @@ function paintGround(season) {
       }
       g.restore();
     }
+    yield;
+  }
   if (CHURCH) paintChurchyard(CHURCH, winter, season, edgeOffs);
   const R0 = R;
-  FIELDS.forEach((f, fi) => {
+  for (const [fi, f] of FIELDS.entries()) {
     for (const ox of edgeOffs(f.x, f.x + f.w)) {
       R = mulberry32((SEED ^ 0x77) + fi * 7919 + season * 131);
       g.save();
@@ -575,7 +591,8 @@ function paintGround(season) {
       paintField(g, f, kind, season);
       g.restore();
     }
-  });
+    yield;
+  }
   R = R0;
   // what lies between neighbouring plots: a ditch is a dark wet line in rank grass (a frozen, drifted
   // groove in winter); a hedge sits on a darker, weedy bank; a balk is just the meadow showing through
@@ -601,6 +618,7 @@ function paintGround(season) {
       g.restore();
     }
   }
+  yield;
   paintRailBed(winter);
   if (winter) {
     strokePoly(g, ROAD, 32, 'rgba(150,160,175,.35)');
@@ -633,6 +651,7 @@ function paintGround(season) {
         g.restore();
       }
   }
+  yield;
   paintCrossings(winter);
   paintRailSteel();
   function water(c, rf, R0) {
@@ -738,6 +757,7 @@ function paintGround(season) {
     g.restore();
   }
   water(LAKE, lakeR, LAKE.r);
+  yield;
   if (POND.x > 0) water(POND, pondR, POND.r);
   if (season === 1 || season === 2) {
     const LILY = rnd(0, TAU);

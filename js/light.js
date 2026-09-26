@@ -514,6 +514,18 @@ function drawFeeder(f) {
 /* ---------- seasons ---------- */
 /* season changes crossfade: the old ground and old trees fade out over ~10 s while the new season comes in */
 const TRANS = { t: 1, prevG: null, prevSPR: null, prevSeason: 0 };
+// building the new season's tree sprites, rims and ground texture is real work (the ground repaint alone
+// samples noise over the whole map). Done all at once it freezes the game for over a second right as the
+// season turns; instead a smooth season change hands the job here and update() steps through it a little
+// each frame (see runBgJob in update.js), while the old sprites and ground (TRANS.prevSPR/prevG) keep
+// showing through the crossfade in the meantime, so nothing pops once the job actually finishes.
+let BG_JOB = null;
+function* seasonVisualsGen(s) {
+  yield* buildSpritesGen(s);
+  yield* buildRimsGen();
+  SSPR = null;
+  yield* paintGroundGen(s);
+}
 const tEase = () => {
   const t = clamp(TRANS.t, 0, 1);
   return t * t * (3 - 2 * t);
@@ -539,10 +551,13 @@ function applySeason(s, smooth) {
   }
   const oldA = smooth ? ANIMALS.filter(a => a.life === undefined) : [];
   SEASON = s;
-  buildSprites(s);
-  buildRims();
-  SSPR = null;
-  paintGround(s);
+  if (smooth) {
+    BG_JOB = seasonVisualsGen(s); // stepped a little each frame in update() instead of all at once here
+  } else {
+    BG_JOB = null; // a hard cut (new game, dev jump): no crossfade waiting on it, so just do it now
+    const it = seasonVisualsGen(s);
+    while (!it.next().done);
+  }
   for (const p of perches) {
     if (p.type === 'tree') p.cover = s !== 3 || p.tt === 'spruce';
     if (p.type === 'bale') p.off = !(s === 2 || s === 3);
@@ -867,11 +882,16 @@ function mkOutline(src) {
   q.drawImage(src, 0, 0, w, h);
   return c;
 }
-function buildRims() {
-  for (const t of ['spruce', 'birch', 'decid']) for (let i = 0; i < NV; i++) OUTL[t][i] = mkOutline(SPR[t][i]);
+function* buildRimsGen() {
+  for (const t of ['spruce', 'birch', 'decid'])
+    for (let i = 0; i < NV; i++) {
+      OUTL[t][i] = mkOutline(SPR[t][i]);
+      yield;
+    }
   for (const t of ['spruce', 'birch', 'decid'])
     for (let i = 0; i < NV; i++) {
       const s = SPR[t][i];
       RIM[t][i] = { w: [mkRim(s, -1, 1), mkRim(s, 1, 1)], c: [mkRim(s, -1, 0), mkRim(s, 1, 0)] };
+      yield;
     }
 }
