@@ -34,7 +34,8 @@ const GROW = {
   leafSeason: -1
 };
 const GQ = 12, // world units per mask cell
-  GUP = 3; // and the smooth upscale it is drawn from
+  GUP = 3, // and the smooth upscale it is drawn from
+  GPAD = 2; // cells of the mask repeated past each end of the land, so it wraps across the seam unbroken
 
 /* ---------- fields ---------- */
 // the look a field has before (or after) the season's own ground look takes over, or null if it keeps one look
@@ -115,15 +116,16 @@ function buildCells() {
       nz[o] = n2;
     }
   GROW.cells = { nw, nh, th, gt, kind, sf, nz };
-  GROW.MC = mk(nw, nh);
-  GROW.MC2 = mk(nw * GUP, nh * GUP);
+  GROW.MC = mk(nw + 2 * GPAD, nh);
+  GROW.MC2 = mk((nw + 2 * GPAD) * GUP, nh * GUP);
   GROW.mKey = '';
 }
 // recompute the mask for season s at progress p; k fades the whole of it (a transition out of that season)
 function paintMask(s, p, k) {
   const { nw, nh, th, gt, kind, sf, nz } = GROW.cells,
     c = GROW.MC.getContext('2d'),
-    id = c.createImageData(nw, nh),
+    pw = nw + 2 * GPAD,
+    id = c.createImageData(pw, nh),
     d = id.data,
     ease = tEase();
   for (let o = 0; o < nw * nh; o++) {
@@ -162,11 +164,17 @@ function paintMask(s, p, k) {
     }
     a *= k;
     if (a < 0.004) continue;
-    const i4 = o * 4;
-    d[i4] = r;
-    d[i4 + 1] = gg;
-    d[i4 + 2] = b;
-    d[i4 + 3] = a * 255;
+    // written at its own column, and again past the far end when it is within GPAD of one
+    const j = (o / nw) | 0,
+      i = o - j * nw;
+    for (const pi of [i + GPAD, i + GPAD + nw, i + GPAD - nw]) {
+      if (pi < 0 || pi >= pw) continue;
+      const i4 = (j * pw + pi) * 4;
+      d[i4] = r;
+      d[i4 + 1] = gg;
+      d[i4 + 2] = b;
+      d[i4 + 3] = a * 255;
+    }
   }
   c.putImageData(id, 0, 0);
   // stretched straight onto the ground, bilinear filtering shows the cell grid as soft steps; a smooth
@@ -301,8 +309,14 @@ function growGround(sx, sy, ex, ey) {
   });
   ctx.globalAlpha = 1;
   if (GROW.maskOn) {
-    const q = GUP / GQ;
+    // each copy of the land draws its own stretch of the mask; where two copies meet, both end on the
+    // same whole device pixel, so the seam is neither left uncovered nor covered twice
+    const q = GUP / GQ,
+      m = ctx.getTransform(),
+      snap = x => (Math.round(m.a * x + m.e) - m.e) / m.a,
+      x0 = sx <= 0 ? snap(0) : sx,
+      x1 = ex >= W ? snap(W) : ex;
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(GROW.MC2, sx * q, sy * q, (ex - sx) * q, (ey - sy) * q, sx, sy, ex - sx, ey - sy);
+    ctx.drawImage(GROW.MC2, (x0 + GPAD * GQ) * q, sy * q, (x1 - x0) * q, (ey - sy) * q, x0, sy, x1 - x0, ey - sy);
   }
 }

@@ -1056,6 +1056,23 @@ function renderShadows(tx, ty, KS, inK) {
     c.strokeStyle = SHADE;
   }
 }
+// the ground's last SEAM_U units and first SEAM_U units side by side, rebuilt when the ground canvas changes
+const SEAM_U = 10, // 6 whole pixels of the ground canvas each side
+  SEAMC = new WeakMap();
+function seamStrip(img) {
+  let c = SEAMC.get(img);
+  if (!c || c.ver !== img.ver) {
+    if (!c) SEAMC.set(img, (c = document.createElement('canvas')));
+    const u = Math.round(SEAM_U * S);
+    c.width = 2 * u;
+    c.height = img.height;
+    const x = c.getContext('2d');
+    x.drawImage(img, img.width - u, 0, u, img.height, 0, 0, u, img.height);
+    x.drawImage(img, 0, 0, u, img.height, u, 0, u, img.height);
+    c.ver = img.ver;
+  }
+  return c;
+}
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
@@ -1104,11 +1121,16 @@ function render() {
       ex = Math.min(W, V.x1),
       ey = Math.min(H, gy1);
     if (ex > sx && ey > sy) {
-      // at the seam, overlap each copy by a few units of its neighbour so antialiased edges never leave a hairline
+      // where this copy meets its eastern neighbour, lay one strip of ground straddling the seam (the land's
+      // last few units and its first few, side by side) so neither copy's antialiased edge ends on bare
+      // background. Only this copy draws it, before its own snow and dew: the neighbour, drawn later, only
+      // paints its own ground from the seam east, so nothing already drawn west of the seam gets covered
       const blit = img => {
         ctx.drawImage(img, sx * S, sy * S, (ex - sx) * S, (ey - sy) * S, sx, sy, ex - sx, ey - sy);
-        if (ex >= W) ctx.drawImage(img, 0, sy * S, 4 * S, (ey - sy) * S, W, sy, 4, ey - sy);
-        if (sx <= 0) ctx.drawImage(img, (W - 4) * S, sy * S, 4 * S, (ey - sy) * S, -4, sy, 4, ey - sy);
+        if (ex >= W) {
+          const q = seamStrip(img);
+          ctx.drawImage(q, 0, sy * S, q.width, (ey - sy) * S, W - SEAM_U, sy, 2 * SEAM_U, ey - sy);
+        }
       };
       blit(G);
       if (TRANS.prevG) {
@@ -1206,13 +1228,27 @@ function render() {
       ctx.fillRect(8, -5, 3, 10);
       ctx.restore();
     }
-    for (const c of CLOUDSH) {
-      if (c.x + c.s < V.x0 || c.x - c.s > V.x1 || c.y + c.s < gy0 || c.y - c.s > gy1) continue;
-      ctx.globalAlpha = 0.38 * LIGHT.shadowA;
-      ctx.drawImage(SHADOW_SPR, c.x - c.s, c.y - c.s, c.s * 2, c.s * 2);
+    // each copy shades only its own stretch of land (cut on whole device pixels, like the snow), with the
+    // cloud shadows and mist that reach it from across the seam included, so one crossing the seam stays whole
+    ctx.save();
+    {
+      const m = ctx.getTransform(),
+        snap = x => (Math.round(m.a * x + m.e) - m.e) / m.a,
+        x0 = snap(0);
+      ctx.beginPath();
+      ctx.rect(x0, gy0 - 10, snap(W) - x0, gy1 - gy0 + 20);
+      ctx.clip();
     }
+    ctx.globalAlpha = 0.38 * LIGHT.shadowA;
+    for (const c of CLOUDSH)
+      for (const ox of [0, -W, W]) {
+        const x = c.x + ox;
+        if (x + c.s < Math.max(0, V.x0) || x - c.s > Math.min(W, V.x1) || c.y + c.s < gy0 || c.y - c.s > gy1) continue;
+        ctx.drawImage(SHADOW_SPR, x - c.s, c.y - c.s, c.s * 2, c.s * 2);
+      }
     ctx.globalAlpha = 1;
-    drawMist();
+    drawMist(); // the mist banks likewise
+    ctx.restore();
   }
   V = V0;
   if (LIGHT.shadowA > 0.02) {

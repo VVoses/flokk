@@ -704,6 +704,7 @@ function updateAnimals(dt) {
     c.x += WIND.x * 14 * dt;
     c.y += WIND.y * 14 * dt;
     if (c.x > W) c.x -= W;
+    else if (c.x < 0) c.x += W;
     if (c.y > H + 500) c.y = -400;
   }
   for (const c of SKYCLOUDS) {
