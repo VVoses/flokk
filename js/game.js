@@ -496,11 +496,20 @@ function overHTML(won) {
   return `<div><b>${st.maxFlock}</b><span>largest flock</span></div><div><b>${days}</b><span>days</span></div>`;
 }
 
+// how many midge clouds and dragonflies the season and the hour hold: none in winter, few at night
+function insectTarget() {
+  const night = LIGHT.night > 0.5;
+  return {
+    swarms: Math.round(40 * [0.6, 1.2, 0.7, 0][SEASON] * (night ? 0.2 : 1)),
+    dflies: night ? 0 : Math.round(9 * [0.4, 1, 0.3, 0][SEASON])
+  };
+}
 function refreshInsects() {
   swarms = [];
   dflies = [];
-  for (let i = 0; i < 40; i++) spawnSwarm(true);
-  for (let i = 0; i < 9; i++) spawnDfly();
+  const n = insectTarget();
+  for (let i = 0; i < n.swarms; i++) spawnSwarm(true);
+  for (let i = 0; i < n.dflies; i++) spawnDfly();
 }
 function landLabels() {
   $('bestTitle').textContent = LAND_NAME + (getBest() ? ` · best ${getBest()}` : '');
@@ -527,7 +536,6 @@ function newLand(btn, then) {
 }
 function startGame() {
   initAudio();
-  refreshInsects();
   // start in spring, or in whatever season was picked from the title screen, with a full year ahead
   const s0 = st.pickS || 0;
   CAL.t = s0 * DAYS_PER_SEASON * DAY_LEN;
@@ -537,10 +545,8 @@ function startGame() {
   RAIN.next = rr(20, 45);
   resetWeather();
   calUpdate();
-  if (SEASON !== s0) {
-    applySeason(s0);
-    refreshInsects();
-  }
+  if (SEASON !== s0) applySeason(s0);
+  refreshInsects();
   resetWorld(6, START.x, START.y);
   Object.assign(st, {
     energy: 0.85,

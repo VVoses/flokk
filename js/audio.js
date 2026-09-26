@@ -540,6 +540,9 @@ const AMB_REST = {
   goose: [30, 60],
   moose: [70, 150]
 };
+// how much of its daytime voice each kind keeps after dark: crows and magpies go to roost and fall silent,
+// cattle and sheep low or bleat now and then, ducks and geese talk a little on the water, a moose still calls
+const AMB_NIGHT = { cow: 0.3, sheep: 0.25, duck: 0.35, crow: 0, magpie: 0, goose: 0.5, moose: 0.6 };
 // how likely another of the same kind nearby answers an ambient call, a moment later, in its own voice
 const AMB_ANSWER = { cow: 0.3, goose: 0.4, crow: 0.35, duck: 0.25, magpie: 0.15 };
 // reactive calls (alarms, scolding, a skein passing): shortest gap before that kind is heard again
@@ -1734,8 +1737,13 @@ function audioTick(dt) {
       // rests a while, so a lone moose or one busy flock can't take every turn
       amb.callT = rr(6, 14);
       const rest = amb.rest || (amb.rest = {});
+      const hush = k => 1 - clamp(LIGHT.night * 1.4 - 0.2, 0, 1) * (1 - AMB_NIGHT[k]);
       const near = ANIMALS.filter(
-        a => a.k in AMB_REST && now > (rest[a.k] || 0) && Math.hypot(wdx(a.x, L.x), a.y - L.y) < 950
+        a =>
+          a.k in AMB_REST &&
+          now > (rest[a.k] || 0) &&
+          Math.hypot(wdx(a.x, L.x), a.y - L.y) < 950 &&
+          Math.random() < hush(a.k)
       );
       if (near.length) {
         const a = near[(Math.random() * near.length) | 0];
