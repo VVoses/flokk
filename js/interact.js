@@ -202,7 +202,7 @@ function magpieRaid(a, dt) {
     if (a.idle <= 0) {
       a.idle = rr(0.5, 1.2);
       a.hop += dt * 10;
-      if (Math.random() < 0.3) callAt('magpie', a.x, a.y, 0.6);
+      if (Math.random() < 0.15) callAt('magpie', a.x, a.y, 0.6);
     }
     if (a.t <= 0) {
       for (const p of FEEDER.perches) p.off = false;
@@ -383,7 +383,7 @@ function crowMob(a, dt) {
   a.z += (h.z - 0.3 + 0.25 * Math.sin(a.ma * 2) - a.z) * Math.min(1, dt * 1.1);
   a.cawT = (a.cawT ?? rr(0.4, 1.5)) - dt;
   if (a.cawT <= 0) {
-    a.cawT = rr(1.2, 3);
+    a.cawT = rr(2.5, 5);
     callAt('crow', a.x, a.y, 1);
   }
   if (near2(a, h) < 70 * 70 && Math.abs(a.z - h.z) < 0.8) {
@@ -468,7 +468,7 @@ function catLife(a, dt) {
     }
     if (!isBird && near2(a, p) < 85 * 85 && Math.random() < dt * 0.9)
       shoo(p, a.x, a.y); // the magpie spots it first
-    else if (!isBird && Math.random() < dt * 0.5) callAt('magpie', p.x, p.y, 1); // and scolds
+    else if (!isBird && Math.random() < dt * 0.25) callAt('magpie', p.x, p.y, 1); // and scolds
     return;
   }
   if (a.st === 'pounce') {

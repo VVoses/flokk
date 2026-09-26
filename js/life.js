@@ -604,7 +604,7 @@ function updateAnimals(dt) {
           )
         );
       }
-      callAt('goose', sx, sy, 6);
+      callAt('goose', sx, sy, 4);
     }
     LIFE.crowT -= dt;
     if (LIFE.crowT <= 0) {
