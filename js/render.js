@@ -1500,7 +1500,6 @@ function render() {
   drawRays();
   drawSnowfall(lastDt);
   drawRain(lastDt);
-  drawFluff(lastDt);
   /* ---- screen space ---- */
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const haze = ctx.createLinearGradient(0, 0, 0, vh * 0.45);

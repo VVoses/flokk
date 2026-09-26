@@ -34,7 +34,7 @@ files; function bodies can use anything, since they run after everything has loa
 | `rigs.js` | drawing: 3D flier rig (`LOOK`), quadrupeds (`QSPEC`, `drawQuad`), small animals, `animalPost`, `MOVES`/`BOUNDS` |
 | `light.js` | calendar `CAL`, sun, light overlay and lamps (`LIGHTS`, beams with `dir`), seasons (`applySeason`, crossfade `TRANS`), sky backdrop, snow, weather (`RAIN`/`updateWeather`, `drawRain`, overcast light grading, thunder flashes — off in winter), time-of-day grading (`KM`/`KE` keys, `applyGlaze`) |
 | `grow.js` | the year moving inside each season: snow melting back in patches (`GROW` mask, south-facing first), straw greening, trees leafing out and dropping leaves (`growUnder`), fields sprouting, ripening and harvested one by one (`fieldStage`, stage kinds painted by `paintField`), first snow settling; `seasonP()` is how far through the season we are |
-| `air.js` | light and air (`AIR`): morning mist over the lake and hollows, dew/frost/snow glints, pollen and seed fluff, light shafts at dawn and dusk; never at night |
+| `air.js` | light and air (`AIR`): morning mist over the lake and hollows, dew/frost/snow glints, light shafts at dawn and dusk; never at night |
 | `yard.js` | farmyard props (`PROPS`): flagpole with pennant, woodpile, clothesline, wheelbarrow; `yardSpot` finds open ground |
 | `rail.js` | periodic track, trains: liveries, wagon types, detailed `drawCar` |
 | `traffic.js` | sparse road traffic (car, van, tractor with trailer): `roadAt`, `drawVehicle`, headlights, shadows |

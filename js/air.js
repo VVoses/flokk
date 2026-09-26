@@ -1,10 +1,10 @@
 /* Flokk - air.js
    Light and air: morning mist pooling over the lake and in the hollows, dew (and frost, and snow) glittering
-   in the first low sun, pollen and seed fluff drifting through late spring and summer, and soft shafts of
-   light at dawn and dusk. None of it touches the night: winter nights stay clear, dark and cold.
+   in the first low sun, and soft shafts of light at dawn and dusk. None of it touches the night: winter
+   nights stay clear, dark and cold.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
-const AIR = { seed: null, banks: [], dew: [], mist: 0, dewK: 0, fluffK: 0, rays: 0 };
+const AIR = { seed: null, banks: [], dew: [], mist: 0, dewK: 0, rays: 0 };
 
 /* soft sprites, made once */
 const MIST_SPR = (() => {
@@ -79,23 +79,12 @@ function buildAir() {
   }
   AIR.dew.sort((a, b) => a.x - b.x);
 }
-const FLUFF = [];
-for (let i = 0; i < 90; i++)
-  FLUFF.push({
-    x: Math.random(),
-    y: Math.random(),
-    s: 0.5 + Math.random() * 1.2,
-    p: Math.random() * TAU,
-    seed: Math.random() < 0.45 // a seed tuft; otherwise a speck of pollen
-  });
-
 /* ---------- how much of each, now ---------- */
 function airTick(dt) {
   if (AIR.seed !== SEED) buildAir();
   const el = LIGHT.el,
     nf = LIGHT.night,
     rain = LIGHT.rain,
-    p = GROW.p,
     S2 = SEASON;
   // mist: thickest around sunrise and burning off as the sun climbs, a thin veil over the water at dusk;
   // some mornings thick, some clear. Nothing after dark, so the nights stay open and stark.
@@ -112,11 +101,6 @@ function airTick(dt) {
   let d = S2 === 3 ? clamp(el / 6, 0, 1) * 0.8 : LIGHT.eve ? 0 : clamp((el + 1) / 3, 0, 1) * clamp(1 - el / 18, 0, 1);
   d *= (1 - rain) * (1 - nf);
   AIR.dewK += (d - AIR.dewK) * Math.min(1, dt * 0.8);
-  // dandelion and willow fluff from late spring, pollen through summer thinning to a few thistle seeds
-  let f =
-    S2 === 0 ? 0.8 * smooth(0.55, 0.9, p) : S2 === 1 ? 1 - 0.55 * p : S2 === 2 ? 0.3 * (1 - smooth(0, 0.5, p)) : 0;
-  f *= (1 - nf) * (1 - rain);
-  AIR.fluffK += (f - AIR.fluffK) * Math.min(1, dt * 0.5);
   // light shafts: only with the sun low and a clear sky, strongest through mist
   const r2 = LIGHT.rim * (1 - nf) * (1 - 0.85 * rain) * (0.5 + 0.7 * AIR.mist);
   AIR.rays += (r2 - AIR.rays) * Math.min(1, dt * 0.6);
@@ -202,40 +186,4 @@ function drawRays() {
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-}
-// screen space: fluff and pollen drifting on the air, with a little parallax, lit up against a low sun
-function drawFluff(dt) {
-  const k = AIR.fluffK;
-  if (k < 0.02) return;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const n = Math.floor(FLUFF.length * k),
-    back = LIGHT.rim * 0.8,
-    warm = LIGHT.eve ? '255,210,150' : '255,236,200';
-  for (let i = 0; i < n; i++) {
-    const f = FLUFF[i];
-    f.x += (WIND.x * 0.012 + Math.sin(T * 0.4 + f.p) * 0.006) * dt * f.s;
-    f.y += (Math.sin(T * 0.3 + f.p * 2) * 0.012 - 0.003) * dt * f.s;
-    f.x -= Math.floor(f.x);
-    f.y -= Math.floor(f.y);
-    const X = (f.x * vw - (((cam.x + WX) * cam.z * 0.4 * f.s) % vw) + vw * 2) % vw,
-      Y = (f.y * vh - ((cam.py * cam.z * 0.4 * f.s) % vh) + vh * 2) % vh,
-      tw = 0.6 + 0.4 * Math.sin(T * 2.2 + f.p * 5);
-    if (f.seed) {
-      const r = 1.1 * f.s + 0.6;
-      ctx.globalAlpha = (0.35 + 0.35 * back) * Math.min(1, k * 1.5);
-      ctx.fillStyle = back > 0.1 ? `rgb(${warm})` : 'rgb(250,250,244)';
-      ctx.beginPath();
-      ctx.arc(X, Y, r, 0, TAU);
-      ctx.fill();
-      ctx.globalAlpha *= 0.3;
-      ctx.beginPath();
-      ctx.arc(X, Y, r * 2.4, 0, TAU);
-      ctx.fill();
-    } else {
-      ctx.globalAlpha = (0.25 + 0.55 * back) * tw * Math.min(1, k * 1.5);
-      ctx.fillStyle = `rgb(${warm})`;
-      ctx.fillRect(X, Y, 1.2 * f.s, 1.2 * f.s);
-    }
-  }
-  ctx.globalAlpha = 1;
 }
