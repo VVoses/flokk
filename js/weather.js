@@ -635,8 +635,8 @@ function drawWeatherBand(B) {
         Y = PY(p.y, p.z);
       if (!p.snow) {
         // a streak along the way it is falling: mostly down, slanted by the wind
-        const l = 15 * p.s,
-          w = WEATHER.s * 4.5;
+        const l = 7 * p.s,
+          w = WEATHER.s * 2.5;
         rain.moveTo(X, Y);
         rain.lineTo(X - c * w, Y - l - s * w * 0.4);
         r++;
