@@ -1242,16 +1242,23 @@ function renderShadows(tx, ty, KS, inK) {
       c.lineTo(x + h * SX + 0.01, y + h * SY);
       c.stroke();
     };
-    // trees: their own silhouettes, sheared along the sun
+    // trees: their own silhouettes, sheared along the sun. Each tree's transform is G0 composed with
+    // its own shear/translate; setting the composed matrix directly (one setTransform) instead of
+    // concatenating then resetting (transform + setTransform) halves the matrix changes in this loop,
+    // which matters with a forest's worth of trees on screen.
+    const a1 = dpr * z * SQ,
+      d1 = dpr * z * TILT * SQ,
+      e1 = tk * SQ,
+      f1 = ty * SQ;
     for (const t of TREES) {
       const hh = t.hpx / HZ;
       if (!visG(t.x + hh * SX * 0.5, t.y + hh * SY * 0.5, Math.hypot(hh * SX, hh * SY) * 0.6 + t.r * 2.2 + 60))
         continue;
       const k = t.k;
-      c.transform(px, py, -kx, -ky, t.x, t.y);
+      c.setTransform(a1 * px, d1 * py, -a1 * kx, -d1 * ky, a1 * t.x + e1, d1 * t.y + f1);
       c.drawImage(SSPR[t.type][t.v], -AX * k * (t.ws || 1), -AY * k, SW * k * (t.ws || 1), SHT * k);
-      G0();
     }
+    G0();
     c.fillStyle = SHADE;
     c.strokeStyle = SHADE;
     c.lineCap = 'round';
