@@ -234,7 +234,7 @@ function update(dt) {
     }
   }
   for (const h of hawks) updateHawk(h, dt);
-  hawks = hawks.filter(h => h.alpha > 0);
+  if (hawks.some(h => h.alpha <= 0)) hawks = hawks.filter(h => h.alpha > 0);
   for (const s of swarms) {
     stepSwarm(s, dt);
     if (s.moth) continue;
@@ -305,7 +305,8 @@ function update(dt) {
       }
     }
   }
-  swarms = swarms.filter(s => s.m.length > 0 && !(s.moth && LIGHT.night < 0.3));
+  const keepSwarm = s => s.m.length > 0 && !(s.moth && LIGHT.night < 0.3);
+  if (swarms.some(s => !keepSwarm(s))) swarms = swarms.filter(keepSwarm);
   {
     // insects follow the season and the hour; moths gather at the yard lamp at night
     const nightNow = LIGHT.night > 0.5,
@@ -346,7 +347,7 @@ function update(dt) {
       p.vz -= 3.5 * dt;
     } else if (p.k === 'd') p.z += dt * 0.2;
   }
-  parts = parts.filter(p => p.life > 0);
+  if (parts.some(p => p.life <= 0)) parts = parts.filter(p => p.life > 0);
   updateAnimals(dt);
   animalPost(dt);
   updateTrain(dt);

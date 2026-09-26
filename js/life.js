@@ -709,7 +709,8 @@ function updateAnimals(dt) {
     if (a.dying) a.fade -= dt / 6;
     else if (a.fade !== undefined && a.fade < 1) a.fade = Math.min(1, a.fade + dt / 6);
   }
-  ANIMALS = ANIMALS.filter(a => (a.life === undefined || a.life > 0) && !(a.dying && a.fade <= 0));
+  const keepAnimal = a => (a.life === undefined || a.life > 0) && !(a.dying && a.fade <= 0);
+  if (ANIMALS.some(a => !keepAnimal(a))) ANIMALS = ANIMALS.filter(keepAnimal);
   // passing flights: geese heading south in a V, rooks crossing, small flocks dropping in to feed (wild.js)
   if (L && st.mode !== 'pause') {
     updateWild(dt);
@@ -841,9 +842,9 @@ function updateAnimals(dt) {
     p.z += dt * (0.7 - age * 0.06);
     p.r += dt * (4.2 - age * 0.35);
   }
-  SMOKE = SMOKE.filter(p => p.life > 0);
+  if (SMOKE.some(p => p.life <= 0)) SMOKE = SMOKE.filter(p => p.life > 0);
   for (const r of RINGS) r.t += dt;
-  RINGS = RINGS.filter(r => r.t < 2.4);
+  if (RINGS.some(r => r.t >= 2.4)) RINGS = RINGS.filter(r => r.t < 2.4);
   for (const c of CLOUDSH) {
     c.x += WIND.x * 14 * dt;
     c.y += WIND.y * 14 * dt;
