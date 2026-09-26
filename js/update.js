@@ -213,6 +213,7 @@ function update(dt) {
   for (const h of hawks) updateHawk(h, dt);
   hawks = hawks.filter(h => h.alpha > 0);
   for (const s of swarms) {
+    stepSwarm(s, dt);
     if (s.moth) continue;
     s.vx += rr(-20, 20) * dt;
     s.vy += rr(-20, 20) * dt;
@@ -295,14 +296,7 @@ function update(dt) {
     if (nightNow && SEASON < 3 && LAMPS.length && swarms.filter(s => s.moth).length < 2 && Math.random() < dt * 0.5) {
       const l = LAMPS[0];
       const m = [];
-      for (let i = 0; i < 7; i++)
-        m.push({
-          a: rr(0, TAU),
-          rr: rr(6, 20),
-          ph: rr(0, TAU),
-          sp: rr(2, 4) * (Math.random() < 0.5 ? 1 : -1),
-          hz: rr(-0.2, 0.3)
-        });
+      for (let i = 0; i < 7; i++) m.push(mkMote('moth', rr(8, 22)));
       swarms.push({ x: l.x + rr(-10, 10), y: l.y + rr(-8, 8), vx: 0, vy: 0, z: 2.05, moth: true, m });
     }
     const dT = nightNow ? 0 : Math.round(9 * [0.4, 1, 0.3, 0][SEASON]);

@@ -1617,32 +1617,85 @@ function render() {
   for (const k of KS) {
     inK(k);
     setK(k);
-    // insects hang in the air at flock height - a wider, brighter halo helps a swarm catch the eye
-    // from a little way off, and each mote gets a dark fringe so it still reads against ground
-    // texture that happens to share its pale palette (wildflowers, frost, sun-fleck)
+    // insects are tiny living specks, not tokens: a dark body and a blur of wing, and in the sun a
+    // wing catches the light for a blink - the whole cloud glitters when the sun is low behind it.
+    // Their shadows flicker on the ground below, which ties a cloud to the land it hangs over.
+    const sunK = (1 - LIGHT.night) * (1 - LIGHT.rain * 0.7),
+      gold = LIGHT.glow,
+      glintA = sunK * (0.55 + 0.45 * gold),
+      glintC = gold > 0.3 ? '255,226,160' : '255,250,232',
+      // zoomed out, a speck must still be a pixel or so on screen, and the cloud's haze carries it
+      px = 1 / cam.z,
+      mb = Math.max(1.4, 1.5 * px),
+      ms = Math.max(1.1, 1.2 * px),
+      hazeA = clamp(0.08 + (1 - cam.z) * 0.12, 0.08, 0.16);
     for (const s of swarms) {
-      if (!visU(s.x, s.y, 40, s.z * HZ + 30)) continue;
-      const cy = PY(s.y, s.z);
-      const gr = ctx.createRadialGradient(s.x, cy, 0, s.x, cy, 34);
-      gr.addColorStop(0, 'rgba(255,241,175,.3)');
-      gr.addColorStop(1, 'rgba(255,241,175,0)');
-      ctx.fillStyle = gr;
-      ctx.beginPath();
-      ctx.arc(s.x, cy, 34, 0, TAU);
-      ctx.fill();
-      const ms = s.moth ? 2.6 : 2;
+      if (!visU(s.x, s.y, 60, s.z * HZ + 40)) continue;
+      if (!s.moth && LIGHT.shadowA > 0.05) {
+        ctx.fillStyle = `rgba(22,28,18,${0.16 * LIGHT.shadowA})`;
+        for (const m of s.m) {
+          const [mx, my, mz] = motePos(s, m);
+          ctx.fillRect(mx + mz * SX - 0.8, (my + mz * SY) * TILT - 0.6, 1.6, 1.2);
+        }
+      }
+      if (!s.moth) {
+        // many tiny wings together make a faint grey smudge in the air, shaped by where the flies are
+        ctx.fillStyle = `rgba(58,60,50,${hazeA})`;
+        ctx.beginPath();
+        for (const m of s.m) {
+          const [mx, my, mz] = motePos(s, m),
+            py = PY(my, mz);
+          ctx.moveTo(mx + 7, py);
+          ctx.ellipse(mx, py, 7, 10, 0, 0, TAU);
+        }
+        ctx.fill();
+      }
       for (const m of s.m) {
         const [mx, my, mz] = motePos(s, m);
         const py = PY(my, mz);
-        const a = 0.72 + 0.28 * Math.sin(T * 9 + m.ph);
-        ctx.globalAlpha = a * 0.55;
-        ctx.fillStyle = 'rgba(35,32,14,.6)';
-        ctx.fillRect(mx - ms - 0.7, py - ms - 0.7, ms * 2 + 1.4, ms * 2 + 1.4);
-        ctx.globalAlpha = a;
-        ctx.fillStyle = s.moth ? '#F7F2E4' : '#FFE98C';
-        ctx.fillRect(mx - ms, py - ms, ms * 2, ms * 2);
+        if (m.kind === 'moth') {
+          // pale wings beating fast, warm where the lamp lights them
+          const w = 1 + Math.abs(Math.sin(T * 34 + m.ph)) * 2.4;
+          ctx.fillStyle = 'rgba(246,236,210,.9)';
+          ctx.beginPath();
+          ctx.ellipse(mx - w * 0.55, py, w * 0.6, 1.6, -0.3, 0, TAU);
+          ctx.ellipse(mx + w * 0.55, py, w * 0.6, 1.6, 0.3, 0, TAU);
+          ctx.fill();
+          ctx.fillStyle = '#5C4E3C';
+          ctx.fillRect(mx - 0.6, py - 1.3, 1.2, 2.6);
+          continue;
+        }
+        const fly = m.kind === 'fly';
+        if (fly) {
+          // a hoverfly: a banded body in a blur of wing
+          const wb = Math.sin(T * 70 + m.ph);
+          ctx.fillStyle = 'rgba(228,232,222,.45)';
+          ctx.fillRect(mx - 2.6, py - 0.9 + wb * 0.5, 2.2, 1.1);
+          ctx.fillRect(mx + 0.4, py - 0.9 - wb * 0.5, 2.2, 1.1);
+          ctx.fillStyle = '#3A2E14';
+          ctx.fillRect(mx - 0.9, py - 1.1, 1.8, 2.4);
+          ctx.fillStyle = '#C99A2E';
+          ctx.fillRect(mx - 0.9, py - 0.2, 1.8, 0.6);
+        } else {
+          // each midge the flock can catch is a knot of several, buzzing round one another
+          ctx.fillStyle = 'rgba(30,27,22,.85)';
+          ctx.fillRect(mx - mb / 2, py - mb / 2, mb, mb);
+          for (let j = 1; j < 4; j++) {
+            const q = m.ph * j;
+            const sx = mx + Math.sin(T * (6 + j * 1.7) + q) * 5 + Math.sin(T * 13.1 + q * 3) * 1.5,
+              sy = py + Math.cos(T * (4.3 + j) + q * 2) * 7 + Math.sin(T * 17 + q) * 1.5;
+            ctx.fillRect(sx - ms / 2, sy - ms / 2, ms, ms);
+          }
+        }
+        if (glintA > 0.02) {
+          // now and then a wing flashes in the sun
+          const g = Math.max(0, Math.sin(T * (fly ? 3 : 5.5) + m.ph * 7)) ** 14 * glintA;
+          if (g > 0.03) {
+            ctx.fillStyle = `rgba(${glintC},${g})`;
+            ctx.fillRect(mx - mb, py - mb, mb * 1.7, mb * 1.7);
+          }
+        }
       }
-      ctx.globalAlpha = 1;
     }
     for (const f of dflies) {
       if (!visU(f.x, f.y, 20, f.z * HZ + 10)) continue;
