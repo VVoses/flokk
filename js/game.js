@@ -641,6 +641,8 @@ function startGame() {
     stamina: 1,
     dashT: 0,
     hawkT: 0,
+    // a white-tailed eagle: rare and huge, not a regular threat like the hawk/owl rotation
+    eagleT: rr(300, 900),
     joins: 0,
     overT: -1,
     dayOff: s0 * DAYS_PER_SEASON,
