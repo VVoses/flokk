@@ -21,9 +21,48 @@
       <div class="tl">
         <div class="count" id="count" role="img" aria-label="Birds in the flock">6</div>
         <div class="lines">
-          <div class="line" title="Energy"><i id="enBar"></i></div>
-          <div class="line gold" title="Next bird"><i id="foodBar"></i></div>
-          <div class="line leaf" title="Dash"><i id="stBar"></i></div>
+          <div class="meter" title="Energy">
+            <svg
+              class="meter-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" />
+            </svg>
+            <div class="line"><i id="enBar"></i></div>
+          </div>
+          <div class="meter" title="Next bird">
+            <svg
+              class="meter-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 3c3.4 3.4 6 7 6 10.2a6 6 0 1 1-12 0C6 10 8.6 6.4 12 3z" />
+            </svg>
+            <div class="line gold"><i id="foodBar"></i></div>
+          </div>
+          <div class="meter" title="Dash">
+            <svg
+              class="meter-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 5l6 7-6 7M13 5l6 7-6 7" />
+            </svg>
+            <div class="line leaf"><i id="stBar"></i></div>
+          </div>
         </div>
       </div>
       <div class="tr">
