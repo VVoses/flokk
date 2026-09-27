@@ -230,7 +230,9 @@ function walkerLife(a, dt) {
   a.x = nx;
   a.y = ny;
   if (Math.abs(hx) > 0.1) a.f = hx > 0 ? 1 : -1;
-  if (a.dist > 2600 && (!L || Math.abs(wdx(a.x, L.x)) > 1400) && !a.dying) {
+  // leave only once well past the edge of the current view, not at a fixed world distance, so a
+  // wide/zoomed-out view (a big flock) never sees them vanish still in frame
+  if (a.dist > 800 && !visG(a.x, a.y, 200) && !a.dying) {
     a.dying = true;
     a.fade = 1;
   }
@@ -238,9 +240,10 @@ function walkerLife(a, dt) {
 function spawnWalker() {
   if (!ROAD) return;
   if (RD.ref !== ROAD) roadInit();
-  // start well off to one side and head back towards where the flock is
+  // start just past the edge of the current view and head back towards where the flock is
   const side = Math.random() < 0.5 ? 1 : -1,
-    sx = L ? wrapX(L.x + side * rr(1300, 1500)) : rr(0, W);
+    margin = rr(120, 260),
+    sx = side > 0 ? V.x1 + margin : V.x0 - margin;
   const a = mkPerson('walker', 0, 0, { s: RD.sAt(sx), dir: 1, dist: 0, fade: 0 });
   a.dir = wdx(L ? L.x : 0, sx) * Math.cos(roadAt(a.s).ang) > 0 ? 1 : -1;
   walkerLife(a, 0.016);

@@ -183,6 +183,7 @@ function genBushes() {
       underTree(x, y)
     )
       return;
+    for (const P of LANES) if (polyDist(x, y, P) < 20 + r) return;
     for (const f of FIELDS) if (inField(f, x, y, r * 0.4)) return;
     for (const Y of YARDS) if (inYard(Y, x, y, -10)) return; // fine right at the fence line, not in the yard proper
     // (draws once used for the old blob shapes, kept so the rest of the world generates exactly as before)
@@ -213,19 +214,29 @@ function genBushes() {
     const edge = clamp(1 - Math.abs(f - 0.42) / 0.42, 0, 1);
     if (R() < 0.1 + 0.55 * edge) addBush(x, y, rnd(9, 17));
   }
-  // low cover along field edges, between the hedgerow trees
+  // low cover along field edges, between the hedgerow trees. Jittered outward along each edge's own
+  // normal (away from the field), not in raw x/y, so they hug the boundary as a hedge line rather than
+  // scattering in and out of the crop or drifting sideways onto a nearby road or farm lane.
   for (const f of FIELDS) {
-    const P = f.poly;
+    const P = f.poly,
+      c = polyCentroid(P);
     let s = 10; // carried round the outline, so short outline segments get no more bushes than long ones
     for (let i = 0; i < P.length; i++) {
       const p = P[i],
         q = P[(i + 1) % P.length],
         Ld = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      let nx = -(q[1] - p[1]) / (Ld || 1),
+        ny = (q[0] - p[0]) / (Ld || 1);
+      if ((p[0] - c[0]) * nx + (p[1] - c[1]) * ny < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
       for (; s < Ld; s += rnd(30, 55)) {
         if (R() < 0.55) continue;
-        const t = s / Ld,
-          x = lerp(p[0], q[0], t) + rnd(-14, 14),
-          y = lerp(p[1], q[1], t) + rnd(-14, 14);
+        const t = clamp(s / Ld + rnd(-0.04, 0.04), 0, 1),
+          out = rnd(4, 16),
+          x = lerp(p[0], q[0], t) + nx * out,
+          y = lerp(p[1], q[1], t) + ny * out;
         addBush(x, y, rnd(7, 13));
       }
       s -= Ld;

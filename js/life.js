@@ -696,7 +696,15 @@ function updateAnimals(dt) {
   }
   for (const a of ANIMALS) {
     if (a.dying) a.fade -= dt / 6;
-    else if (a.fade !== undefined && a.fade < 1) a.fade = Math.min(1, a.fade + dt / 6);
+    else if (a.k === 'human') {
+      // a person going indoors or turning in for the night eases out of sight rather than
+      // popping, since this happens in plain view (the farmyard, the ice hole)
+      const target = a.hide ? 0 : 1;
+      a.fade =
+        a.fade === undefined
+          ? target
+          : a.fade + Math.sign(target - a.fade) * Math.min(Math.abs(target - a.fade), dt / 0.6);
+    } else if (a.fade !== undefined && a.fade < 1) a.fade = Math.min(1, a.fade + dt / 6);
   }
   const keepAnimal = a => (a.life === undefined || a.life > 0) && !(a.dying && a.fade <= 0);
   if (ANIMALS.some(a => !keepAnimal(a))) ANIMALS = ANIMALS.filter(keepAnimal);
