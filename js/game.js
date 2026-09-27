@@ -630,7 +630,7 @@ function startGame() {
     starved: 0,
     cause: '',
     mode: 'play',
-    grace: 14,
+    grace: DAY_LEN,
     food: 0,
     eaten: 0,
     lost: 0,
