@@ -210,7 +210,7 @@ function update(dt) {
       kind = nightNow ? 'owl' : dayNow ? 'hawk' : null;
     for (const h of hawks)
       if (
-        ((h.kind === 'owl' && dayNow) || (h.kind === 'hawk' && nightNow)) &&
+        ((h.kind === 'owl' && dayNow) || (h.kind !== 'owl' && nightNow)) &&
         (h.state === 'patrol' || h.state === 'stalk')
       ) {
         h.state = 'leave';
@@ -231,6 +231,21 @@ function update(dt) {
             : 'a hawk — land in the trees to hide'
         );
       }
+    }
+    // a white-tailed eagle: a rare, once-in-a-while sight rather than a standing threat like the
+    // hawk/owl rotation above - huge, slower to commit, and much harder to shake off once it does
+    st.eagleT -= dt;
+    if (
+      dayNow &&
+      st.grace <= 0 &&
+      st.eagleT <= 0 &&
+      birds.length >= 3 &&
+      birds.some(exposed) &&
+      !hawks.some(h => h.kind === 'eagle' && h.state !== 'leave')
+    ) {
+      spawnHawk('eagle');
+      st.eagleT = rr(700, 1200);
+      teach('eagle', 'a white-tailed eagle — rare, and hard to outrun once it commits');
     }
   }
   for (const h of hawks) updateHawk(h, dt);
