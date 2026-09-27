@@ -662,7 +662,9 @@ function drawSkyBehind(tx, ty) {
         TT = i => L2.tt[((i % nH) + nH) % nH];
       const i0 = Math.floor((V.x0 - off) / st2) - 1,
         i1 = Math.ceil((V.x1 - off) / st2) + 1;
-      if (L2.p > 0) {
+      {
+        // softens every band's top edge into the sky, the nearest included - it sits right behind
+        // the real forest at the map's edge, so it needs to recede rather than read as a hard line
         const hz = ctx.createLinearGradient(0, L2.by - 70, 0, L2.by);
         const hc = LIGHT.skyBot;
         hz.addColorStop(0, hc + '00');

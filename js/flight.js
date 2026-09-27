@@ -463,8 +463,10 @@ function flyUpdate(b, dt) {
   const [wx, wy] = windPush(b);
   b.x += (b.vx + wx) * dt;
   b.y += (b.vy + wy) * dt;
-  /* altitude layering: birds in the flock spread vertically, and dip when panicking */
-  b.fz = FZ + 0.35 * Math.sin(T * 0.8 + b.ph) + (b.or - 0.5) * 0.4 - (b.panic > 0 ? 0.4 : 0);
+  /* altitude layering: birds in the flock spread vertically, dip when panicking, and climb or
+     drop with the terrain below - clearing roofs and treetops, settling lower over open water */
+  b.fz =
+    FZ + terrainClearance(b.x, b.y) + 0.35 * Math.sin(T * 0.8 + b.ph) + (b.or - 0.5) * 0.4 - (b.panic > 0 ? 0.4 : 0);
   b.z += (b.fz - b.z) * Math.min(1, dt * 2.2);
 }
 function landUpdate(b, dt) {
