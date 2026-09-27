@@ -782,7 +782,7 @@ function nearMiss(b) {
       max: 0.9,
       col: b.c2
     });
-  whooshMiss();
+  whooshMiss(b.x, b.y);
 }
 
 function eat(v, x, y, z) {
@@ -790,7 +790,7 @@ function eat(v, x, y, z) {
   st.eaten += v;
   feed(0.04 * v);
   sparkle(x, y, z);
-  chirp();
+  chirp(0.045, undefined, x, y);
   tryGrow();
 }
 function joinBird() {

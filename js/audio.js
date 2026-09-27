@@ -25,6 +25,15 @@ function panned(node, v) {
   }
   return node;
 }
+// where a sound at world (x, y) sits relative to the flock/camera it's heard from: pan across
+// roughly a screen's width, and 0 (right at the flock) .. 1 (at the edge of hearing) for how far
+// it has to carry. With no position given (a sound with no single source, like a join chime) it
+// comes from dead centre, same as before this existed.
+function spatial(x, y, range = 700) {
+  if (x == null || !L) return { pan: 0, d: 0 };
+  const dx = wdx(x, L.x);
+  return { pan: clamp(dx / (range * 0.8), -1, 1), d: clamp(Math.hypot(dx, y - L.y) / range, 0, 1) };
+}
 function loopNoise() {
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
@@ -51,8 +60,14 @@ function initAudio() {
     // small feedback-delay room for distant sounds and tones
     verb = ac.createGain();
     const vout = ac.createGain();
-    vout.gain.value = 0.45;
-    vout.connect(master);
+    vout.gain.value = 0.28;
+    // the reverb's own tail brightness: open field stays close to dry and open, forest canopy and
+    // farm walls dull and lengthen how present it feels - set every tick in audioTick from the
+    // flock's own position, so the room around it actually changes as it moves through the world
+    const verbLP = ac.createBiquadFilter();
+    verbLP.type = 'lowpass';
+    verbLP.frequency.value = 2600;
+    vout.connect(verbLP).connect(master);
     for (const [t, fb, lp] of [
       [0.137, 0.55, 2600],
       [0.211, 0.52, 2200],
@@ -205,7 +220,7 @@ function initAudio() {
       amb.rng = rng;
       amb.rng2 = rng2;
     }
-    Object.assign(amb, { wg, wf, wg2, wf2, wg3, wag, hg, trg });
+    Object.assign(amb, { wg, wf, wg2, wf2, wg3, wag, hg, trg, vout, verbLP });
   } catch (e) {
     ac = null;
   }
@@ -216,11 +231,12 @@ function chatter() {
   if (hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover')) return 0;
   return clamp(1 - 1.4 * LIGHT.night, 0, 1);
 }
-function chirp(vol = 0.045, base) {
+function chirp(vol = 0.045, base, x, y) {
   if (!ac || muted) return;
   const t = ac.currentTime;
   if (t - lastChirp < 0.07) return;
   lastChirp = t;
+  const { pan, d } = spatial(x, y, 380);
   const o = ac.createOscillator(),
     gn = ac.createGain(),
     f = base || rr(2900, 3900);
@@ -229,20 +245,25 @@ function chirp(vol = 0.045, base) {
   o.frequency.exponentialRampToValueAtTime(f * 1.35, t + 0.045);
   o.frequency.exponentialRampToValueAtTime(f * 0.88, t + 0.1);
   gn.gain.setValueAtTime(0, t);
-  gn.gain.linearRampToValueAtTime(vol, t + 0.01);
+  gn.gain.linearRampToValueAtTime(vol * (1 - 0.35 * d), t + 0.01);
   gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-  o.connect(gn).connect(master);
+  o.connect(gn);
+  const p = panned(gn, pan);
+  p.connect(master);
+  if (d > 0.15) p.connect(verb);
   o.start(t);
   o.stop(t + 0.13);
 }
-function hawkCry() {
+function hawkCry(x, y) {
   if (!ac || muted) return;
   const t = ac.currentTime;
+  const { pan, d } = spatial(x, y, 900);
   const o = ac.createOscillator(),
     gn = ac.createGain(),
     bp = ac.createBiquadFilter(),
     lfo = ac.createOscillator(),
-    lg = ac.createGain();
+    lg = ac.createGain(),
+    air = ac.createBiquadFilter();
   o.type = 'sawtooth';
   o.frequency.setValueAtTime(1650, t);
   o.frequency.exponentialRampToValueAtTime(1100, t + 0.75);
@@ -252,22 +273,28 @@ function hawkCry() {
   bp.type = 'bandpass';
   bp.frequency.value = 1500;
   bp.Q.value = 2.5;
+  // a cry from further off loses its top edge to the air before it reaches you
+  air.type = 'highshelf';
+  air.frequency.value = 2200;
+  air.gain.value = -10 * d;
   gn.gain.setValueAtTime(0, t);
-  gn.gain.linearRampToValueAtTime(0.09, t + 0.05);
-  gn.gain.setValueAtTime(0.09, t + 0.45);
+  gn.gain.linearRampToValueAtTime(0.09 * (1 - 0.3 * d), t + 0.05);
+  gn.gain.setValueAtTime(0.09 * (1 - 0.3 * d), t + 0.45);
   gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
-  o.connect(bp).connect(gn);
-  gn.connect(master);
-  gn.connect(verb);
+  o.connect(bp).connect(gn).connect(air);
+  const p = panned(air, pan);
+  p.connect(master);
+  p.connect(verb);
   o.start(t);
   lfo.start(t);
   o.stop(t + 0.82);
   lfo.stop(t + 0.82);
 }
 // the air cut by a stoop that missed: quick, sharp, and gone - never the same twice
-function whooshMiss() {
+function whooshMiss(x, y) {
   if (!ac || muted) return;
   const t = ac.currentTime;
+  const { pan } = spatial(x, y, 500);
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
   const f = ac.createBiquadFilter();
@@ -279,13 +306,15 @@ function whooshMiss() {
   gn.gain.setValueAtTime(0, t);
   gn.gain.linearRampToValueAtTime(0.11, t + 0.02);
   gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-  s.connect(f).connect(gn).connect(master);
+  s.connect(f).connect(gn);
+  panned(gn, pan).connect(master);
   s.start(t, Math.random() * 3);
   s.stop(t + 0.3);
 }
-function flutter(n) {
+function flutter(n, x, y) {
   if (!ac || muted) return;
   const t = ac.currentTime;
+  const { pan } = spatial(x, y, 550);
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
   const f = ac.createBiquadFilter();
@@ -304,7 +333,8 @@ function flutter(n) {
   am.connect(ag).connect(gn.gain);
   am.start(t);
   am.stop(t + 0.46);
-  s.connect(f).connect(gn).connect(master);
+  s.connect(f).connect(gn);
+  panned(gn, pan).connect(master);
   s.start(t, Math.random() * 3);
   s.stop(t + 0.46);
 }
@@ -315,12 +345,17 @@ function flutter(n) {
 // winter hawk's kill actually lands harder than a wary spring one's. last marks the flock's final
 // bird: heavier and slower to let go, rather than simply louder - the difference between a loss and
 // the end. Small jitter on top so no two kills sound quite the same.
-function thud(kind = 'hawk', power = 1, last = false) {
+function thud(kind = 'hawk', power = 1, last = false, x, y) {
   if (!ac || muted) return;
   const t = ac.currentTime,
     tail = last ? 1.6 : 1,
     gk = 0.85 + 0.3 * power,
     dur = (0.4 + 0.08 * power) * tail;
+  const { pan, d } = spatial(x, y, 500),
+    bus = ac.createGain(),
+    busOut = panned(bus, pan);
+  busOut.connect(master);
+  if (d > 0.1) busOut.connect(verb);
   if (kind !== 'fox') {
     // the bird's own voice, crying out as it's taken - this is the part meant to be felt, so it's
     // the loudest thing here. A slow, uneven vibrato (the same warble hawkCry uses, but shakier)
@@ -351,7 +386,7 @@ function thud(kind = 'hawk', power = 1, last = false) {
     cg.gain.linearRampToValueAtTime(0.05 * gk, t + 0.05);
     cg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     co.connect(cf);
-    co2.connect(cf).connect(cg).connect(master);
+    co2.connect(cf).connect(cg).connect(bus);
     co.start(t);
     co.stop(t + dur + 0.02);
     co2.start(t + 0.01);
@@ -370,7 +405,7 @@ function thud(kind = 'hawk', power = 1, last = false) {
   hg.gain.setValueAtTime(0, t);
   hg.gain.linearRampToValueAtTime(0.038 * gk, t + rr(0.025, 0.035));
   hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
-  hs.connect(hf).connect(hg).connect(master);
+  hs.connect(hf).connect(hg).connect(bus);
   hs.start(t, Math.random() * 3);
   hs.stop(t + 0.19);
   // feathers settling, not a strike - a soft hush with the edge filtered off, no percussive bite
@@ -384,7 +419,7 @@ function thud(kind = 'hawk', power = 1, last = false) {
   g2.gain.setValueAtTime(0, t + 0.04);
   g2.gain.linearRampToValueAtTime(0.026 * gk, t + 0.11);
   g2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.75);
-  s.connect(f).connect(g2).connect(master);
+  s.connect(f).connect(g2).connect(bus);
   s.start(t, Math.random() * 3);
   s.stop(t + dur * 0.8);
   // a low, muffled body underneath, faded in rather than struck - weight without a transient; this
@@ -401,7 +436,7 @@ function thud(kind = 'hawk', power = 1, last = false) {
   gn.gain.setValueAtTime(0, t + 0.02);
   gn.gain.linearRampToValueAtTime(0.065 * gk, t + 0.08);
   gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(lp).connect(gn).connect(master);
+  o.connect(lp).connect(gn).connect(bus);
   o.start(t + 0.02);
   o.stop(t + dur + 0.05);
 }
@@ -1637,6 +1672,20 @@ function audioTick(dt) {
             );
         }
       }
+  }
+  if (L) {
+    // the room the flock is actually standing in: dry and open over a bare field, dulled and
+    // longer-held under forest canopy, and a touch of tight slap-back against a farm's own walls -
+    // set from the flock's own position so the reverb changes as it moves, not as a fixed setting
+    const fo = clamp(forestness(L.x, L.y), 0, 1);
+    let bd = 1e9;
+    for (const b of BUILDS) {
+      const dd = Math.hypot(wdx(L.x, b.cx), L.y - b.cy);
+      if (dd < bd) bd = dd;
+    }
+    const nearBuild = clamp(1 - bd / 260, 0, 1);
+    amb.vout.gain.setTargetAtTime(0.16 + 0.32 * fo + 0.16 * nearBuild, now, 2.5);
+    amb.verbLP.frequency.setTargetAtTime(2600 - 1500 * fo + 500 * nearBuild, now, 2.5);
   }
   amb.tick -= dt;
   if (amb.tick > 0) return;

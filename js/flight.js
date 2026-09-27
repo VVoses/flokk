@@ -85,7 +85,7 @@ function pickTarget(h) {
 }
 function catchBird(h, b) {
   if (!removeBird(b)) return;
-  thud(h.kind, h.bold, birds.length === 0);
+  thud(h.kind, h.bold, birds.length === 0, b.x, b.y);
   h.state = 'carry';
   h.target = null;
   h.prey = b;
@@ -262,7 +262,7 @@ function updateHawk(h, dt) {
           h.state = 'dive';
           h.t = 0;
           h.diveMinD = null;
-          if (h.kind !== 'owl') hawkCry();
+          if (h.kind !== 'owl') hawkCry(h.x, h.y);
         }
       } else if (d > 950) {
         h.state = 'patrol';
@@ -294,7 +294,7 @@ function updateHawk(h, dt) {
         h.state = 'dive';
         h.t = 0;
         h.diveMinD = null;
-        if (h.kind !== 'owl') hawkCry();
+        if (h.kind !== 'owl') hawkCry(h.x, h.y);
       }
       break;
     }
@@ -506,7 +506,7 @@ function landUpdate(b, dt) {
     b.z = p.h;
     if (p.ang != null) b.heading = p.ang + (Math.random() < 0.85 ? 0 : Math.PI);
     b.idle = rr(0.4, 2);
-    if (Math.random() < 0.25 * chatter()) chirp(0.025);
+    if (Math.random() < 0.25 * chatter()) chirp(0.025, undefined, b.x, b.y);
   }
 }
 function perchUpdate(b, dt) {
