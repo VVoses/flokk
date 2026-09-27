@@ -13,18 +13,21 @@
 
 const near2 = (a, b) => wdx(a.x, b.x) ** 2 + (a.y - b.y) ** 2;
 const alive = o => o && !o.dying && ANIMALS.includes(o);
-// move towards (tx,ty) at up to sp, across the seam if that is shorter; returns remaining distance
-function steerA(a, tx, ty, sp, dt) {
+// move towards (tx,ty) at up to sp, across the seam if that is shorter; returns remaining distance.
+// brake sets how early it decelerates on approach (a smaller factor brakes sooner), arrive how close
+// counts as having gotten there; walkTo (life.js) is this with a gentler brake and a looser arrive,
+// reading its target from a.tx/a.ty instead of taking it explicitly
+function steerA(a, tx, ty, sp, dt, brake = 4, arrive = 2) {
   const walk = onFoot(a);
   if (walk && inBuild(tx, ty, NAV_M)) [tx, ty] = pushOut(tx, ty, NAV_M + 2);
   const dx = wdx(tx, a.x),
     dy = ty - a.y,
     d = Math.hypot(dx, dy);
-  if (d < 2) {
+  if (d < arrive) {
     a.vx = a.vy = 0;
     return d;
   }
-  const s = Math.min(sp, d * 4);
+  const s = Math.min(sp, d * brake);
   if (walk) {
     groundStep(a, dx, dy, d, s, dt);
     return d;
@@ -48,7 +51,7 @@ function herdMate(a) {
   const m = ANIMALS.filter(
     o => o !== a && o.k === a.k && !o.dying && !o.lamb && (a.rect ? o.rect === a.rect : o.hx === a.hx)
   );
-  return m.length ? m[(Math.random() * m.length) | 0] : null;
+  return m.length ? pickP(m) : null;
 }
 // a corvid takes off from a threat and resettles elsewhere in its patch
 function shoo(o, fx, fy) {
@@ -298,30 +301,8 @@ function foxLife(a, dt) {
   }
 }
 function foxCatch(a, b) {
-  const i = birds.indexOf(b);
-  if (i < 0) return;
-  birds.splice(i, 1);
-  if (b.perch && b.perch.occ === b) b.perch.occ = null;
-  st.lost++;
-  feathers(b.x, b.y, b.z, b.c2);
-  thud('fox', 1, !birds.length);
-  if (!birds.length) {
-    st.overT = 1.3;
-    return;
-  }
-  if (b === L) {
-    let nb = birds[0],
-      bd = 1e18;
-    for (const o of birds) {
-      const q = d2(o, b);
-      if (q < bd) {
-        bd = q;
-        nb = o;
-      }
-    }
-    L = nb;
-    if (L.state === 'perch' || L.state === 'land') takeoffAll();
-  }
+  if (!removeBird(b)) return;
+  thud('fox', 1, birds.length === 0);
 }
 
 /* ---- crows mob hawks ---- */

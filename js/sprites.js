@@ -524,7 +524,7 @@ function drawShrub(g, vi, season, stage) {
     if (winter && V.cling) {
       // a few dry leaves still hanging on
       for (let i = 0; i < 26; i++) {
-        const [tx, ty] = tips[(R() * tips.length) | 0];
+        const [tx, ty] = pick(tips);
         g.fillStyle = R() < 0.5 ? '#9A7446' : '#B48E58';
         leafDab(g, tx + rnd(-3, 3), ty + rnd(-2, 3), rnd(1.1, 1.7), rnd(0, TAU));
       }
@@ -586,7 +586,7 @@ function drawShrub(g, vi, season, stage) {
     // blossom, in small sprays on the sunny side
     g.fillStyle = V.bloom;
     for (let i = 0; i < 16; i++) {
-      const L = lobes[(R() * lobes.length) | 0],
+      const L = pick(lobes),
         a = rnd(-2.6, -0.4),
         d = rnd(0.4, 0.9) * L.r,
         x = L.x + Math.cos(a) * d,
@@ -600,7 +600,7 @@ function drawShrub(g, vi, season, stage) {
   } else if (season === 2) {
     // berries and hips hanging in bunches through the outer leaves
     for (let i = 0; i < 8; i++) {
-      const L = lobes[(R() * lobes.length) | 0],
+      const L = pick(lobes),
         a = rnd(-3, 0.3),
         d = rnd(0.35, 0.85) * L.r,
         x = L.x + Math.cos(a) * d,

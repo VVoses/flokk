@@ -402,7 +402,7 @@ function* paintGroundGen(season) {
       for (let i = 0; i < n; i++) {
         const a = R() * TAU,
           d = Math.sqrt(R()) * t.r * 1.5;
-        g.fillStyle = cols[(R() * cols.length) | 0];
+        g.fillStyle = pick(cols);
         g.fillRect(tx + Math.cos(a) * d, t.y + Math.sin(a) * d * 0.8, 2.2, 1.8);
       }
     }
@@ -1018,7 +1018,7 @@ function paintField(g, f, kind, season, edge = true) {
     const cols =
       season === 0 ? ['#F4F2EA', '#F4F2EA', '#E9D35A', '#F4F2EA'] : ['#E8E4F2', '#E9D35A', '#B08AD0', '#F2F0E6'];
     for (let i = 0; i < (f.w * f.h) / (season === 0 ? 1100 : 800); i++) {
-      g.fillStyle = cols[(R() * 4) | 0];
+      g.fillStyle = pick(cols);
       const x = rnd(f.x, f.x + f.w),
         y = rnd(f.y, f.y + f.h);
       if (inField(f, x, y, -3)) g.fillRect(x, y, 2.4, 2.4);
@@ -1303,7 +1303,7 @@ function paintFloor(season, RX, RY, K, fAt, bogAt, rockAt) {
       season === 0 ? ['#F6F4EC', '#F6F4EC', '#E9D35A'] : ['#B08AD0', '#E9D35A', '#F2F0E6', '#6E8AD0', '#D9587A'];
     for (const [x, y] of open) {
       if (R() < 0.55 || pfbm(x, y, 180, 43, 11) < 0.58) continue;
-      dots(x, y, 4, 9, FC[(R() * FC.length) | 0], 2);
+      dots(x, y, 4, 9, pick(FC), 2);
     }
   }
   // hare and deer tracks: painted separately, straight onto the composed canonical canvas (see

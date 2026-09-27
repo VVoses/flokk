@@ -27,7 +27,6 @@ const PEOPLE_PAL = {
 };
 const SKIN = ['#E8C4A4', '#D9AE8A', '#C08A64', '#8E6244'],
   HAIR = ['#3A2A1E', '#5A4030', '#8A6A44', '#C8A870', '#2A2624', '#9A9690'];
-const pickP = a => a[(Math.random() * a.length) | 0];
 function mkPerson(role, x, y, o) {
   return mkA(
     'human',

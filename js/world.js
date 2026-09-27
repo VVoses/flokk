@@ -374,7 +374,7 @@ function landName() {
     'bekken',
     'sætra'
   ];
-  return pre[(R() * pre.length) | 0] + a[(R() * a.length) | 0] + b[(R() * b.length) | 0];
+  return pick(pre) + pick(a) + pick(b);
 }
 
 /* ---------- perches ---------- */
@@ -585,7 +585,6 @@ function genLayout() {
   DIVIDES = [];
   YARDS = [];
   FARMS = [];
-  const pick = a => a[(R() * a.length) | 0];
   const HOUSE = ['#E6E0D2', '#E6E0D2', '#E9DDB0', '#C9D4D2', '#D8C9A8', '#A8432F', '#8C9A88'],
     BARN = ['#8E2F24', '#8E2F24', '#8E2F24', '#A0442E', '#E6E0D2', '#B8955A', '#6E7274'];
   const yardFree = (y2, m) => {
@@ -599,7 +598,7 @@ function genLayout() {
     let best = null,
       bestBad = 1e9;
     for (let i = 0; i < 1200; i++) {
-      const p = ROAD[(R() * ROAD.length) | 0];
+      const p = pick(ROAD);
       if (p[0] < 480 || p[0] > W - 480) continue;
       if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < 1350)) continue;
       const small = !main && R() < 0.45,
@@ -947,7 +946,7 @@ function genLayout() {
     for (const [Q] of leaves) if (R() < 0.92) tryLeaf(Q, 0);
     // grazing handy to the barn, crops further out
     mine.forEach((f, i) => {
-      f.t = i < 2 && R() < 0.75 ? 'pasture' : types[(R() * types.length) | 0];
+      f.t = i < 2 && R() < 0.75 ? 'pasture' : pick(types);
       f.farm = fm;
       FIELDS.push(f);
     });
@@ -1058,7 +1057,7 @@ function genLayout() {
   const placeChurch = () => {
     CHURCH = null;
     for (let i = 0; i < 1500; i++) {
-      const p = ROAD[(R() * ROAD.length) | 0];
+      const p = pick(ROAD);
       if (p[0] < 480 || p[0] > W - 480) continue;
       if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < (i < 400 ? 900 : i < 900 ? 640 : 380))) continue;
       const side = R() < 0.5 ? 1 : -1,
@@ -1238,7 +1237,7 @@ function genLayout() {
       dep: rnd(46, 54),
       ang: rnd(-0.35, 0.35),
       roof: R() < 0.7 ? 'turf' : 'slate',
-      wall: ['#5C3B26', '#7A3A22', '#6B5A48', '#8E2F24'][(R() * 4) | 0],
+      wall: pick(['#5C3B26', '#7A3A22', '#6B5A48', '#8E2F24']),
       wh: 20,
       rh: 40,
       windows: true
@@ -1255,7 +1254,7 @@ function genLayout() {
         dep: rnd(42, 50),
         ang: rnd(-0.4, 0.4),
         roof: R() < 0.6 ? 'turf' : 'slate',
-        wall: ['#5C3B26', '#7A3A22', '#6B5A48', '#E6E0D2'][(R() * 4) | 0],
+        wall: pick(['#5C3B26', '#7A3A22', '#6B5A48', '#E6E0D2']),
         wh: 20,
         rh: 38,
         windows: true

@@ -45,6 +45,12 @@ let R = mulberry32(777),
   SEED = 0;
 const rnd = (a, b) => a + R() * (b - a);
 const rr = (a, b) => a + Math.random() * (b - a);
+// one seeded random element of an array - the same R() every other generation helper here draws on,
+// so picking a house colour or a field crop is exactly as reproducible per-seed as everything else
+const pick = a => a[(R() * a.length) | 0];
+// the same, but plain Math.random() for anything that isn't part of world generation and has no
+// reason to be reproducible per-seed (a call's exact pitch, which colour a passing car is, ...)
+const pickP = a => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 const d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
@@ -115,6 +121,28 @@ function mk(w, h) {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
+  return c;
+}
+// a soft puffy cloud sprite: n randomly-placed, randomly-sized soft radial-gradient dots scattered
+// within a 256x128 ellipse, at a fixed seed so the shape is stable frame to frame rather than
+// redrawn. Shared by the morning-mist sprite (air.js) and the fog-bank sprite (weather.js) - same
+// recipe, a different texture for each
+function puffSprite({ seed, n, alpha, spreadX, spreadY, dPow, rMin, rRange }) {
+  const c = mk(256, 128),
+    q = c.getContext('2d'),
+    r = mulberry32(seed);
+  for (let i = 0; i < n; i++) {
+    const a = r() * TAU,
+      d = Math.sqrt(r()) * dPow,
+      x = 128 + Math.cos(a) * d * spreadX,
+      y = 64 + Math.sin(a) * d * spreadY,
+      rr2 = rMin + r() * rRange;
+    const gr = q.createRadialGradient(x, y, 0, x, y, rr2);
+    gr.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    gr.addColorStop(1, 'rgba(255,255,255,0)');
+    q.fillStyle = gr;
+    q.fillRect(x - rr2, y - rr2, rr2 * 2, rr2 * 2);
+  }
   return c;
 }
 function angLerp(a, b, t) {
@@ -191,4 +219,51 @@ const inRect = (x, y, r, m = 0) => x > r.x - m && x < r.x + r.w + m && y > r.y -
 // alpha 0..1 as two hex digits, for '#rrggbb' + hex2(a)
 function hex2(a) {
   return ((clamp(a, 0, 1) * 255) | 0).toString(16).padStart(2, '0');
+}
+
+/* ---------- 3D flying-rig geometry, shared by the hawk rig (render.js) and every other flying
+   rig (rigs.js) - each still builds its own points and animation, but the low-level math beneath
+   any of them is exactly this ---------- */
+// yaw/pitch/bank rotate-and-scale: turns a (forward, side, up) body-local point into a screen-ready
+// [x, y, depth] triple, scaled by K
+function mkRot3(bank, pitch, psi, K) {
+  const cb = Math.cos(bank),
+    sb = Math.sin(bank),
+    cp = Math.cos(pitch),
+    sp = Math.sin(pitch),
+    cy = Math.cos(psi),
+    sy = Math.sin(psi);
+  return (f, s2, u) => {
+    f *= K;
+    s2 *= K;
+    u *= K;
+    const s1 = s2 * cb + u * sb,
+      u1 = u * cb - s2 * sb;
+    const f2 = f * cp + u1 * sp,
+      u2 = u1 * cp - f * sp;
+    return [f2 * cy - s1 * sy, f2 * sy + s1 * cy, u2];
+  };
+}
+// trace a closed path through rig-local points, each mapped to screen space by P
+function tracePath(pts, P) {
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const q = P(p);
+    i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
+  });
+  ctx.closePath();
+}
+// average view-space depth of a set of rig-local points, for draw-order sorting (HVIEW: render.js)
+function depthOf(pts) {
+  let d = 0;
+  for (const p of pts) d += p[1] * HVIEW[1] + p[2] * HVIEW[2];
+  return d / pts.length;
+}
+// the normalized, sign-adjusted cross product of two edges sharing point a - a face normal
+function crossNormal(a, b, c, sg) {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+    v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  const l = (Math.hypot(n[0], n[1], n[2]) || 1) * sg;
+  return [n[0] / l, n[1] / l, n[2] / l];
 }

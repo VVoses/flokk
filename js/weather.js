@@ -217,7 +217,7 @@ function leafTick(dt) {
           sp: rr(3, 9) * (Math.random() < 0.5 ? -1 : 1),
           rot: rr(0, TAU),
           ph: rr(0, TAU),
-          c: LEAF_COL[(Math.random() * LEAF_COL.length) | 0],
+          c: pickP(LEAF_COL),
           s: rr(0.9, 1.4),
           age: 0,
           down: 0
@@ -373,24 +373,16 @@ function precipTick(dt) {
 }
 
 /* ---------- fog: banks drifting through on the still air, closing the view down round the flock ---------- */
-const FOG_SPR = (() => {
-  const c = mk(256, 128),
-    q = c.getContext('2d'),
-    r = mulberry32(991);
-  for (let i = 0; i < 60; i++) {
-    const a = r() * TAU,
-      d = Math.sqrt(r()) * 0.7,
-      x = 128 + Math.cos(a) * d * 100,
-      y = 64 + Math.sin(a) * d * 38,
-      rr2 = 20 + r() * 34;
-    const gr = q.createRadialGradient(x, y, 0, x, y, rr2);
-    gr.addColorStop(0, 'rgba(255,255,255,.12)');
-    gr.addColorStop(1, 'rgba(255,255,255,0)');
-    q.fillStyle = gr;
-    q.fillRect(x - rr2, y - rr2, rr2 * 2, rr2 * 2);
-  }
-  return c;
-})();
+const FOG_SPR = puffSprite({
+  seed: 991,
+  n: 60,
+  alpha: 0.12,
+  spreadX: 100,
+  spreadY: 38,
+  dPow: 0.7,
+  rMin: 20,
+  rRange: 34
+});
 const FOGC = document.createElement('canvas'),
   fgx = FOGC.getContext('2d');
 function fogTick(dt) {

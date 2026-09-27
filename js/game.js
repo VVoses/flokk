@@ -11,7 +11,7 @@ const PAL = [
   ['#3F3833', '#5F554C', '#4D4640']
 ];
 function newBird(x, y) {
-  const p = PAL[(Math.random() * PAL.length) | 0];
+  const p = pickP(PAL);
   return {
     x,
     y,
@@ -149,7 +149,7 @@ function randomSpot() {
       x = LAKE.x + Math.cos(a) * d;
       y = LAKE.y + Math.sin(a) * d;
     } else if (u < 0.8) {
-      const f = FIELDS[(Math.random() * FIELDS.length) | 0];
+      const f = pickP(FIELDS);
       x = rr(f.x, f.x + f.w);
       y = rr(f.y, f.y + f.h);
     } else {
@@ -809,6 +809,40 @@ function joinBird() {
 /* ---------- energy ---------- */
 function feed(v) {
   st.energy = clamp(st.energy + (v * 6) / Math.max(6, birds.length), 0, 1);
+}
+// a caught bird leaving the flock: clears its perch, counts the loss, spawns feathers, ends the run
+// if that was the last bird, and hands leadership to the nearest survivor if it was the leader.
+// Shared by every predator (catchBird in flight.js for hawks/owls, foxCatch in interact.js); the
+// caller still plays its own thud() with whatever kind/power fits it, and does any predator-specific
+// bookkeeping around the call (a hawk clearing other hawks' target on this bird, say). Returns
+// whether the bird was actually removed, so the caller knows whether to do that bookkeeping at all.
+// starveBird below is similar but deliberately separate: it picks its own bird rather than being
+// given one, and hands leadership to birds[0] rather than searching for the nearest survivor.
+function removeBird(b) {
+  const i = birds.indexOf(b);
+  if (i < 0) return false;
+  birds.splice(i, 1);
+  if (b.perch && b.perch.occ === b) b.perch.occ = null;
+  st.lost++;
+  feathers(b.x, b.y, b.z, b.c2);
+  if (!birds.length) {
+    st.overT = 1.3;
+    return true;
+  }
+  if (b === L) {
+    let nb = birds[0],
+      bd = 1e18;
+    for (const o of birds) {
+      const q = d2(o, b);
+      if (q < bd) {
+        bd = q;
+        nb = o;
+      }
+    }
+    L = nb;
+    if (L.state === 'perch' || L.state === 'land') takeoffAll();
+  }
+  return true;
 }
 function starveBird() {
   if (!birds.length) return;

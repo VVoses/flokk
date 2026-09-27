@@ -60,7 +60,7 @@ function placeProps(fm, taken) {
           u: rnd(0.12, 0.88),
           w: rnd(5, 9),
           h: rnd(6, 11),
-          col: ['#F2F0E8', '#E9E2CF', '#9DB6CF', '#D98A7A', '#E6D089', '#FFFFFF'][(R() * 6) | 0]
+          col: pick(['#F2F0E8', '#E9E2CF', '#9DB6CF', '#D98A7A', '#E6D089', '#FFFFFF'])
         })).sort((a, b) => a.u - b.u)
       }
     );
@@ -71,7 +71,7 @@ function placeProps(fm, taken) {
   }
   if (R() < 0.7)
     add('barrow', yardSpot(Y, taken, 18, near(fm.builds && fm.builds.find(b => b.kind !== 'house'))), 12, {
-      col: ['#3E6A4A', '#B3302A', '#5A6E80'][(R() * 3) | 0],
+      col: pick(['#3E6A4A', '#B3302A', '#5A6E80']),
       ang: rnd(-0.5, 0.5)
     });
 }
@@ -95,7 +95,7 @@ function placeGraves(C) {
         w: rnd(6, 9),
         h: rnd(8, 14),
         lean: old ? rnd(-0.18, 0.18) : rnd(-0.03, 0.03),
-        col: old ? ['#8A877E', '#7E7C74', '#9A9588'][(R() * 3) | 0] : ['#6E6E6C', '#A8A69E', '#4E4E50'][(R() * 3) | 0],
+        col: old ? pick(['#8A877E', '#7E7C74', '#9A9588']) : pick(['#6E6E6C', '#A8A69E', '#4E4E50']),
         moss: old ? rnd(0.2, 0.6) : 0
       });
     }

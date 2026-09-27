@@ -280,12 +280,7 @@ function drawBush(b) {
   ctx.save();
   ctx.translate(b.x, b.y * TILT);
   ctx.transform(1, 0, treeSway(b) * 0.45, 1, 0, 0);
-  if (TRANS.prevSPR && TRANS.prevSPR.bush) {
-    const e = tEase();
-    ctx.globalAlpha = 1 - e * 0.6;
-    ctx.drawImage(TRANS.prevSPR.bush[b.v], x, y, w, h);
-    ctx.globalAlpha = e;
-  }
+  crossfadeUnder(TRANS.prevSPR && TRANS.prevSPR.bush && TRANS.prevSPR.bush[b.v], x, y, w, h);
   let la = 1;
   if (b.v < 9 && GROW.leafSeason === SEASON && (SEASON === 0 || SEASON === 2) && BSPR.bare[b.v]) {
     const p = GROW.p,

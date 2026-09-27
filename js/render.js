@@ -125,22 +125,7 @@ const HWING = [
 ];
 function hawkGeom(h) {
   const K = h.s * (0.92 + 0.06 * h.z);
-  const cb = Math.cos(h.bank),
-    sb = Math.sin(h.bank),
-    cp = Math.cos(h.pitch),
-    sp = Math.sin(h.pitch),
-    cy = Math.cos(h.psi),
-    sy = Math.sin(h.psi);
-  const T3 = (f, s2, u) => {
-    f *= K;
-    s2 *= K;
-    u *= K;
-    const s1 = s2 * cb + u * sb,
-      u1 = u * cb - s2 * sb;
-    const f2 = f * cp + u1 * sp,
-      u2 = u1 * cp - f * sp;
-    return [f2 * cy - s1 * sy, f2 * sy + s1 * cy, u2];
-  };
+  const T3 = mkRot3(h.bank, h.pitch, h.psi, K);
   const fold = h.fold,
     owl = h.kind === 'owl',
     flapping = h.flapOn || Math.abs(Math.sin(h.flap)) > 0.08,
@@ -168,16 +153,7 @@ function hawkGeom(h) {
   ].map(([f, s2]) => T3(-0.3 + (f + 0.3) * tl, s2, 0.03));
   return { K, T3, wR: wing(1), wL: wing(-1), tail };
 }
-function wingNormal(p, sg) {
-  const a = p[0],
-    b = p[7],
-    c = p[11];
-  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
-    v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-  const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-  const l = (Math.hypot(n[0], n[1], n[2]) || 1) * sg;
-  return [n[0] / l, n[1] / l, n[2] / l];
-}
+const wingNormal = (p, sg) => crossNormal(p[0], p[7], p[11], sg);
 const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 function drawHawk(h) {
@@ -186,14 +162,7 @@ function drawHawk(h) {
   ctx.save();
   ctx.globalAlpha = Math.max(0, h.alpha);
   const P = p => [h.x + p[0], (h.y + p[1]) * TILT - h.z * HZ - p[2]];
-  const path = pts => {
-    ctx.beginPath();
-    pts.forEach((p, i) => {
-      const q = P(p);
-      i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
-    });
-    ctx.closePath();
-  };
+  const path = pts => tracePath(pts, P);
   const line = (a, b, col, w) => {
     const p = P(a),
       q = P(b);
@@ -203,11 +172,6 @@ function drawHawk(h) {
     ctx.moveTo(p[0], p[1]);
     ctx.lineTo(q[0], q[1]);
     ctx.stroke();
-  };
-  const depth = pts => {
-    let d = 0;
-    for (const p of pts) d += p[1] * HVIEW[1] + p[2] * HVIEW[2];
-    return d / pts.length;
   };
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -344,9 +308,9 @@ function drawHawk(h) {
     ctx.fill();
   };
   const parts = [
-    { d: depth(g.wL), f: () => drawWing(g.wL, -1) },
-    { d: depth(g.wR), f: () => drawWing(g.wR, 1) },
-    { d: depth(g.tail) - K * 0.2, f: drawTail },
+    { d: depthOf(g.wL), f: () => drawWing(g.wL, -1) },
+    { d: depthOf(g.wR), f: () => drawWing(g.wR, 1) },
+    { d: depthOf(g.tail) - K * 0.2, f: drawTail },
     { d: 0, f: drawBody }
   ];
   parts.sort((a, b) => a.d - b.d);
@@ -455,12 +419,7 @@ function drawTree(t) {
   ctx.save();
   ctx.translate(t.x, t.y * TILT);
   ctx.transform(1, 0, treeSway(t), 1, 0, 0);
-  if (TRANS.prevSPR) {
-    const e = tEase();
-    ctx.globalAlpha = 1 - e * 0.6;
-    ctx.drawImage(TRANS.prevSPR[t.type][t.v], x, y, w, h);
-    ctx.globalAlpha = e;
-  }
+  crossfadeUnder(TRANS.prevSPR && TRANS.prevSPR[t.type][t.v], x, y, w, h);
   // bare twigs and first leaves under a tree still leafing out, or losing its leaves (grow.js)
   const la = growUnder(t, x, y, w, h);
   ctx.globalAlpha *= la;

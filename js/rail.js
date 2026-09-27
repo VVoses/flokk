@@ -156,16 +156,15 @@ function spawnTrain() {
       cars.push({ k: 'coach', len: 54, h: 0.62, col: lv.col, band: lv.band, stripe: lv.stripe, top: lv.top });
     else {
       const r = Math.random(),
-        c = WAGON_COLS[(Math.random() * WAGON_COLS.length) | 0];
+        c = pickP(WAGON_COLS);
       if (r < 0.28) cars.push({ k: 'timber', len: 46, h: 0.46, col: '#4A4038', top: '#8A6A48' });
-      else if (r < 0.45)
-        cars.push({ k: 'tank', len: 40, h: 0.5, col: ['#2E2E30', '#C9CCCE', '#3E5A44'][(Math.random() * 3) | 0] });
+      else if (r < 0.45) cars.push({ k: 'tank', len: 40, h: 0.5, col: pickP(['#2E2E30', '#C9CCCE', '#3E5A44']) });
       else if (r < 0.65)
         cars.push({
           k: 'container',
           len: 50,
           h: 0.56,
-          col: ['#2F5E9A', '#B3302A', '#C28A2E', '#3E6A5A', '#E4E0D4'][(Math.random() * 5) | 0]
+          col: pickP(['#2F5E9A', '#B3302A', '#C28A2E', '#3E6A5A', '#E4E0D4'])
         });
       else cars.push({ k: 'box', len: 46, h: 0.58, col: c, top: shade(c, 0.8) });
     }
