@@ -162,10 +162,12 @@ function spawnAnimals() {
       );
   spawnPeople();
 }
-function threatNear(a, r) {
-  if (trainNear(a.x, a.y, r * 1.2)) return [a.x, a.y - 40];
+// humanOnly: only people count as a threat (moose tolerate dogs, traffic and hawks nearby, but not people)
+function threatNear(a, r, humanOnly) {
+  if (!humanOnly && trainNear(a.x, a.y, r * 1.2)) return [a.x, a.y - 40];
   for (const o of ANIMALS)
     if (o.k === 'human' && !o.hide && near2(o, a) < r * r * 1.7) return [a.x + wdx(o.x, a.x), o.y];
+  if (humanOnly) return null;
   {
     const v = trafficNear(a.x, a.y, r);
     if (v) return [a.x + wdx(v.x, a.x), v.y];
@@ -272,6 +274,39 @@ function inRectPt(r, m) {
   for (let i = 0; i < 12 && inBuild(p[0], p[1], NAV_M + 4); i++) p = ptIn(r, m);
   return inBuild(p[0], p[1], NAV_M) ? pushOut(p[0], p[1], NAV_M + 4) : p;
 }
+// half the footprint each kind needs to itself, so two of them never stand drawn on top of one another
+const SEP_R = { sheep: 6, pig: 6, cow: 9, deer: 6, moose: 11, hare: 3, duck: 4, heron: 5 };
+// a gentle nudge apart for any pair of grazing/wading animals overlapping this frame; too mild to
+// fight a deliberate walk toward a herd-mate or a flee target, just enough that bodies don't stack
+function separateAnimals() {
+  for (let i = 0; i < ANIMALS.length; i++) {
+    const a = ANIMALS[i],
+      ra = SEP_R[a.k];
+    if (!ra) continue;
+    for (let j = i + 1; j < ANIMALS.length; j++) {
+      const b = ANIMALS[j],
+        rb = SEP_R[b.k];
+      if (!rb) continue;
+      const min = ra + rb;
+      let dx = wdx(b.x, a.x),
+        dy = b.y - a.y,
+        d2 = dx * dx + dy * dy;
+      if (d2 >= min * min) continue;
+      if (d2 < 1e-4) {
+        const ang = rr(0, TAU);
+        ((dx = Math.cos(ang)), (dy = Math.sin(ang)), (d2 = 1));
+      }
+      const d = Math.sqrt(d2),
+        push = ((min - d) / d) * 0.5;
+      const nx = dx * push,
+        ny = dy * push;
+      a.x -= nx;
+      a.y -= ny;
+      b.x += nx;
+      b.y += ny;
+    }
+  }
+}
 function updateAnimals(dt) {
   interact(dt);
   updatePeople(dt);
@@ -314,7 +349,7 @@ function updateAnimals(dt) {
           hare = a.k === 'hare';
         if (a.chk <= 0 && a.st !== 'flee') {
           a.chk = 0.3;
-          const th = big ? null : threatNear(a, hare ? 90 : 150);
+          const th = big ? threatNear(a, 100, true) : threatNear(a, hare ? 90 : 150);
           if (th) {
             a.st = 'flee';
             a.t = rr(2, 3.5);
@@ -694,6 +729,7 @@ function updateAnimals(dt) {
       }
     }
   }
+  separateAnimals();
   for (const a of ANIMALS) {
     if (a.dying) a.fade -= dt / 6;
     else if (a.k === 'human') {
