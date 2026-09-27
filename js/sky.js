@@ -58,11 +58,14 @@ function genSky() {
     });
   };
   // four depth bands, nearest last: heights and colors step down together so each band's base
-  // sits close to the next nearer one's typical top, instead of one layer looming over the rest
+  // sits close to the next nearer one's typical top, instead of one layer looming over the rest.
+  // The two nearer bands sit right behind the real forest at the map's edge, so they read as a
+  // smooth, hazy hillside rather than tree icons of their own - a second, cruder treeline showing
+  // through the real one's gaps read as a seam, not a horizon (Karl, 2026-09-27).
   lay(-160, 0.55, 195, 120, 1200, '#A9BCC8', '#C3CFCC', true, false);
   lay(-128, 0.3, 92, 55, 720, '#889893', '#93A69A', false, false);
-  lay(-104, 0.12, 72, 45, 420, '#4B6650', '#5E7560', false, true);
-  lay(-93, 0, 40, 30, 300, '#2F4A34', '#2C4430', false, true);
+  lay(-104, 0.12, 72, 45, 420, '#4B6650', '#5E7560', false, false);
+  lay(-93, 0, 40, 30, 300, '#2F4A34', '#2C4430', false, false);
   for (let i = 0; i < 11; i++)
     SKYCLOUDS.push({ x: rnd(0, 6000), y: rnd(-680, -330), s: rnd(0.6, 1.5), p: rnd(0.6, 0.85) });
   for (let i = 0; i < 5; i++) CLOUDSH.push({ x: rnd(0, W), y: rnd(-300, H + 300), s: rnd(650, 1300) });
