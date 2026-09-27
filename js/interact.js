@@ -90,7 +90,7 @@ function scatterFlock(x, y, r) {
     n++;
   }
   if (n) {
-    flutter(n);
+    flutter(n, x, y);
     if (L.state === 'fly' && st.settled) {
       takeoffAll();
       st.settleCool = 2.8;
@@ -191,7 +191,7 @@ function magpieRaid(a, dt) {
           b.landCool = 2.5;
         }
       }
-      flutter(2);
+      flutter(2, a.x, a.y);
       callAt('magpie', a.x, a.y, 1, a);
       a.st = 'hold';
       a.z = 0.05;
@@ -302,7 +302,7 @@ function foxLife(a, dt) {
 }
 function foxCatch(a, b) {
   if (!removeBird(b)) return;
-  thud('fox', 1, birds.length === 0);
+  thud('fox', 1, birds.length === 0, b.x, b.y);
 }
 
 /* ---- crows mob hawks ---- */
