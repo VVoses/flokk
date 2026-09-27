@@ -1690,7 +1690,8 @@ function render() {
     for (const a of ANIMALS) {
       if (isSky(a)) {
         if (visU(a.x, a.y, 40, a.z * HZ + 30)) skyA.push([a, k]);
-      } else if (!a.hide && visU(a.x, a.y, 40, 60)) items.push([a.y, 7, a, k]);
+      } else if ((a.k === 'human' ? (a.fade ?? 1) > 0.02 : !a.hide) && visU(a.x, a.y, 40, 60))
+        items.push([a.y, 7, a, k]);
     }
     for (const b of birds) {
       if (b.state === 'fly' || b.state === 'land') {

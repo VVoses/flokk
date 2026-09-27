@@ -476,7 +476,7 @@ function drawCatSit(a) {
 /* ---------- people ---------- */
 const HUMAN = { leg: 5.8, hip: 1.3, sh: 2.5, torso: 8.4, stride: 10 };
 function drawHuman(a) {
-  if (a.hide) return;
+  if ((a.fade ?? 1) <= 0.02) return;
   const P = a.pal,
     pose = a.pose,
     seated = pose === 'sit' || pose === 'stool',
