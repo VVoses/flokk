@@ -13,7 +13,7 @@ function hud(dt) {
   $('calIcon').textContent = LIGHT.night > 0.5 ? '☾' : '☀';
   const en = st.energy ?? 1;
   ui.enBar.style.width = (en * 100).toFixed(0) + '%';
-  ui.enBar.style.background = en < 0.25 ? 'var(--hawk)' : en < 0.5 ? '#E0A33F' : '#8FC7D8';
+  ui.enBar.style.background = en < 0.25 ? 'var(--hawk)' : en < 0.5 ? 'var(--energy-caution)' : 'var(--energy-safe)';
   ui.count.textContent = birds.length;
   const need = needFor(birds.length);
   ui.foodBar.style.width = (Math.min(1, st.food / need) * 100).toFixed(0) + '%';
