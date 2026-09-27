@@ -213,22 +213,7 @@ const LOOK = {
 };
 const angDiff = (a, b) => ((((a - b + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
 function flyGeom(o, look, K) {
-  const cb = Math.cos(o.bank),
-    sb = Math.sin(o.bank),
-    cp = Math.cos(o.pitch),
-    sp = Math.sin(o.pitch),
-    cy = Math.cos(o.psi),
-    sy = Math.sin(o.psi);
-  const T3 = (f, s2, u) => {
-    f *= K;
-    s2 *= K;
-    u *= K;
-    const s1 = s2 * cb + u * sb,
-      u1 = u * cb - s2 * sb;
-    const f2 = f * cp + u1 * sp,
-      u2 = u1 * cp - f * sp;
-    return [f2 * cy - s1 * sy, f2 * sy + s1 * cy, u2];
-  };
+  const T3 = mkRot3(o.bank, o.pitch, o.psi, K);
   const span = 1 - 0.45 * o.fold,
     dih = o.dih ?? look.dih ?? 0.05;
   const wing = sg =>
@@ -252,32 +237,11 @@ function drawFly3(X, Y, o, look, K) {
   const g = flyGeom(o, look, K),
     n = look.wing.length;
   const P = p => [X + p[0], Y + p[1] * TILT - p[2]];
-  const path = pts => {
-    ctx.beginPath();
-    pts.forEach((p, i) => {
-      const q = P(p);
-      i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
-    });
-    ctx.closePath();
-  };
-  const depth = pts => {
-    let d = 0;
-    for (const p of pts) d += p[1] * HVIEW[1] + p[2] * HVIEW[2];
-    return d / pts.length;
-  };
+  const path = pts => tracePath(pts, P);
   let maxS = 0;
   for (const w of look.wing) maxS = Math.max(maxS, w[1]);
   const tipIdx = look.wing.map((w, i) => (w[1] > look.tipF * maxS ? i : -1)).filter(i => i >= 0);
-  const wingN = (p, sg) => {
-    const a = p[0],
-      b = p[(n / 2) | 0],
-      c = p[n - 3];
-    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
-      v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    const nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-    const l = (Math.hypot(nn[0], nn[1], nn[2]) || 1) * sg;
-    return [nn[0] / l, nn[1] / l, nn[2] / l];
-  };
+  const wingN = (p, sg) => crossNormal(p[0], p[(n / 2) | 0], p[n - 3], sg);
   const drawWing = (pts, sg) => {
     let nv = wingN(pts, sg);
     const top = dot3(nv, HVIEW) >= 0;
@@ -361,9 +325,9 @@ function drawFly3(X, Y, o, look, K) {
     ctx.stroke();
   };
   const parts = [
-    { d: depth(g.wL), f: () => drawWing(g.wL, -1) },
-    { d: depth(g.wR), f: () => drawWing(g.wR, 1) },
-    { d: depth(g.tail) - K * 0.2, f: drawTail },
+    { d: depthOf(g.wL), f: () => drawWing(g.wL, -1) },
+    { d: depthOf(g.wR), f: () => drawWing(g.wR, 1) },
+    { d: depthOf(g.tail) - K * 0.2, f: drawTail },
     { d: 0, f: drawBody }
   ];
   parts.sort((a, b) => a.d - b.d);

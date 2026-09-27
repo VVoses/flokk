@@ -220,3 +220,50 @@ const inRect = (x, y, r, m = 0) => x > r.x - m && x < r.x + r.w + m && y > r.y -
 function hex2(a) {
   return ((clamp(a, 0, 1) * 255) | 0).toString(16).padStart(2, '0');
 }
+
+/* ---------- 3D flying-rig geometry, shared by the hawk rig (render.js) and every other flying
+   rig (rigs.js) - each still builds its own points and animation, but the low-level math beneath
+   any of them is exactly this ---------- */
+// yaw/pitch/bank rotate-and-scale: turns a (forward, side, up) body-local point into a screen-ready
+// [x, y, depth] triple, scaled by K
+function mkRot3(bank, pitch, psi, K) {
+  const cb = Math.cos(bank),
+    sb = Math.sin(bank),
+    cp = Math.cos(pitch),
+    sp = Math.sin(pitch),
+    cy = Math.cos(psi),
+    sy = Math.sin(psi);
+  return (f, s2, u) => {
+    f *= K;
+    s2 *= K;
+    u *= K;
+    const s1 = s2 * cb + u * sb,
+      u1 = u * cb - s2 * sb;
+    const f2 = f * cp + u1 * sp,
+      u2 = u1 * cp - f * sp;
+    return [f2 * cy - s1 * sy, f2 * sy + s1 * cy, u2];
+  };
+}
+// trace a closed path through rig-local points, each mapped to screen space by P
+function tracePath(pts, P) {
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const q = P(p);
+    i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
+  });
+  ctx.closePath();
+}
+// average view-space depth of a set of rig-local points, for draw-order sorting (HVIEW: render.js)
+function depthOf(pts) {
+  let d = 0;
+  for (const p of pts) d += p[1] * HVIEW[1] + p[2] * HVIEW[2];
+  return d / pts.length;
+}
+// the normalized, sign-adjusted cross product of two edges sharing point a - a face normal
+function crossNormal(a, b, c, sg) {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+    v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  const l = (Math.hypot(n[0], n[1], n[2]) || 1) * sg;
+  return [n[0] / l, n[1] / l, n[2] / l];
+}
