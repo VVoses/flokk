@@ -13,6 +13,61 @@ function railDist(x, y) {
   if (!RAIL || y < RAILBOX[0] - 300 || y > RAILBOX[1] + 300) return 1e9;
   return polyDist(x, y, RAIL);
 }
+// push a rail control point away from the lake/pond, along x; when the straight push would
+// land outside the map's valid band (NORTH-60..H-560), try the other side of the water first,
+// since a point simply clamped back into the band can otherwise still land inside the shore
+const RAIL_LO = NORTH - 60,
+  RAIL_HI = H - 560;
+function railDodge(x, yy) {
+  for (const [c, extra] of [
+    [LAKE, LAKE.r * 0.5 + 240],
+    [POND, 160]
+  ]) {
+    if (c.x < 0) continue;
+    const rad = c.r + extra,
+      dx = wdx(x, c.x);
+    if (Math.abs(dx) >= rad) continue;
+    const dy = yy - c.y,
+      need = Math.sqrt(rad * rad - dx * dx);
+    if (Math.abs(dy) >= need) continue;
+    const near = dy >= 0 ? 1 : -1,
+      far = c.y + near * need,
+      other = c.y - near * need;
+    yy = far >= RAIL_LO && far <= RAIL_HI ? far : other;
+  }
+  return clamp(yy, RAIL_LO, RAIL_HI);
+}
+// last-resort guarantee on the finished, catmull-smoothed curve: railDodge's push above is generous
+// (kept well clear of the shore for looks) and can get clamped back near the water when the map's
+// band leaves no room for it, and the smoothing itself can overshoot back toward the water between
+// control points. This clears any point still inside the actual (wobbly) lake or pond shore, using
+// only the true radius plus a small safety margin, which fits the band far more often than the
+// generous push does, so the track can end up snug to the shore here but never crosses it.
+function railClear(x, yy) {
+  for (const c of [LAKE, POND]) {
+    if (c.x < 0) continue;
+    const dx = wdx(x, c.x);
+    if (Math.abs(dx) > c.r * 1.45) continue; // outside the blob's widest possible reach
+    const rad = c.r * 1.4 + 30; // clears the wobbly shore at any angle, plus a safety margin
+    if (Math.abs(dx) >= rad) continue;
+    const need = Math.sqrt(rad * rad - dx * dx),
+      dy = yy - c.y;
+    if (Math.abs(dy) >= need) continue;
+    const near = dy >= 0 ? 1 : -1,
+      far = c.y + near * need,
+      other = c.y - near * need,
+      farOk = far >= RAIL_LO && far <= RAIL_HI,
+      otherOk = other >= RAIL_LO && other <= RAIL_HI;
+    yy = farOk
+      ? far
+      : otherOk
+        ? other
+        : Math.abs(far - clamp(far, RAIL_LO, RAIL_HI)) < Math.abs(other - clamp(other, RAIL_LO, RAIL_HI))
+          ? far
+          : other;
+  }
+  return [x, clamp(yy, RAIL_LO, RAIL_HI)];
+}
 function genRail() {
   const ry = (ROADBOX[0] + ROADBOX[1]) / 2,
     lower = ry < H / 2;
@@ -35,38 +90,20 @@ function genRail() {
       pts = [];
     for (let i = 0; i < xs.length - 1; i++) {
       const x = xs[i];
-      let yy = clamp(ys[i] + (e * x) / W, lo, hi);
-      for (const [c, extra] of [
-        [LAKE, LAKE.r * 0.5 + 240],
-        [POND, 160]
-      ]) {
-        if (c.x < 0) continue;
-        const rad = c.r + extra,
-          dx = wdx(x, c.x);
-        if (Math.abs(dx) < rad) {
-          const dy = yy - c.y,
-            need = Math.sqrt(rad * rad - dx * dx);
-          if (Math.abs(dy) < need) yy = c.y + (dy >= 0 ? 1 : -1) * need;
-        }
-      }
-      pts.push([x, clamp(yy, NORTH - 60, H - 560)]);
+      pts.push([x, railDodge(x, clamp(ys[i] + (e * x) / W, lo, hi))]);
     }
     const P = trimX(catmull(extP(pts), 18), -1900, W + 1900);
     if (!P.some(p => inWater(p[0], p[1], 110))) RAIL = P;
   }
-  if (!RAIL)
-    RAIL = trimX(
-      catmull(
-        extP([
-          [0, H * 0.66],
-          [W / 3, H * 0.64],
-          [(W * 2) / 3, H * 0.66]
-        ]),
-        12
-      ),
-      -1900,
-      W + 1900
-    );
+  if (!RAIL) {
+    // last resort after 30 failed bends: a straight line down the corridor, still dodging
+    // the lake and pond by the same rule as above, so it never just cuts through them
+    const xs = periodXs(720, 960, 600),
+      mid = (lo + hi) / 2,
+      pts = xs.map(x => [x, railDodge(x, mid)]);
+    RAIL = trimX(catmull(extP(pts), 12), -1900, W + 1900);
+  }
+  RAIL = RAIL.map(p => railClear(p[0], p[1]));
   RAILBOX = [Math.min(...RAIL.map(p => p[1])), Math.max(...RAIL.map(p => p[1]))];
   RAILS = [0];
   for (let i = 1; i < RAIL.length; i++)
