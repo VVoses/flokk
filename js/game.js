@@ -613,16 +613,15 @@ function newLand(btn, then) {
 }
 function startGame() {
   initAudio();
-  // start in spring, or in whatever season was picked from the title screen, with a full year ahead
-  const s0 = st.pickS || 0;
-  CAL.t = s0 * DAYS_PER_SEASON * DAY_LEN;
+  // always start in spring, with a full year ahead
+  CAL.t = 0;
   CAL.year = 1;
   RAIN.t = 0;
   RAIN.target = 0;
   RAIN.next = rr(20, 45);
   resetWeather();
   calUpdate();
-  if (SEASON !== s0) applySeason(s0);
+  if (SEASON !== 0) applySeason(0);
   refreshInsects();
   resetWorld(6, START.x, START.y);
   Object.assign(st, {
@@ -645,7 +644,7 @@ function startGame() {
     eagleT: rr(300, 900),
     joins: 0,
     overT: -1,
-    dayOff: s0 * DAYS_PER_SEASON,
+    dayOff: 0,
     settleCool: 0
   });
   cam.x = L.x;
@@ -864,46 +863,4 @@ function starveBird() {
   if (b === L) {
     L = birds[0];
   }
-}
-
-/* ---------- hidden: tap the year bar three times to pick a season ---------- */
-function jumpToSeason(s) {
-  // the first day of that season within the year being played (which may have begun mid-year), at the same hour
-  const base = (CAL.year - 1) * YEAR_DAYS + (st.mode === 'title' ? 0 : st.dayOff || 0),
-    day = base + ((((s * DAYS_PER_SEASON - base) % YEAR_DAYS) + YEAR_DAYS) % YEAR_DAYS);
-  CAL.t = ((day * 24 + CAL.hour - START_HOUR) / 24) * DAY_LEN;
-  calUpdate();
-  if (st.mode !== 'play') st.pickS = s;
-  if (CAL.season !== SEASON) {
-    applySeason(CAL.season, true);
-    refreshInsects();
-    seasonBanner();
-  }
-}
-{
-  const yearEl = $('yearEl'),
-    pick = $('seasonPick');
-  let taps = [],
-    hideT = 0;
-  const hidePick = () => (pick.hidden = true);
-  yearEl.addEventListener('pointerdown', e => {
-    e.stopPropagation();
-    const now = performance.now();
-    taps = taps.filter(t => now - t < 700);
-    taps.push(now);
-    if (taps.length >= 3 && pick.hidden) {
-      taps = [];
-      for (const b of pick.children) b.classList.toggle('on', +b.dataset.s === SEASON);
-      pick.hidden = false;
-      clearTimeout(hideT);
-      hideT = setTimeout(hidePick, 6000);
-    }
-  });
-  pick.addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    e.stopPropagation();
-    jumpToSeason(+b.dataset.s);
-    hidePick();
-  });
 }

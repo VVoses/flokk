@@ -181,46 +181,6 @@ body.no-hud .hud {
   gap: var(--space-8);
   width: 120px;
   position: relative;
-  /* a taller, invisible tap area around the thin bar (triple-tap opens the season picker) */
-  pointer-events: auto;
-  padding: 12px 0;
-  margin: -12px 0;
-}
-.seasonpick {
-  position: absolute;
-  top: 100%;
-  right: -4px;
-  display: flex;
-  gap: var(--space-2);
-  animation: pickIn 0.35s ease;
-}
-.seasonpick[hidden] {
-  display: none;
-}
-.seasonpick button {
-  font: inherit;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--ink-muted);
-  background: none;
-  border: 0;
-  padding: 6px 4px;
-  cursor: pointer;
-  text-shadow: inherit;
-}
-.seasonpick button:hover,
-.seasonpick button.on {
-  color: var(--ink);
-}
-.seasonpick button.on {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-@keyframes pickIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
 }
 .year span {
   font-size: 13px;
