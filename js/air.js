@@ -7,24 +7,16 @@
 const AIR = { seed: null, banks: [], dew: [], mist: 0, dewK: 0, rays: 0 };
 
 /* soft sprites, made once */
-const MIST_SPR = (() => {
-  const c = mk(256, 128),
-    q = c.getContext('2d'),
-    r = mulberry32(777);
-  for (let i = 0; i < 46; i++) {
-    const a = r() * TAU,
-      d = Math.sqrt(r()) * 0.62,
-      x = 128 + Math.cos(a) * d * 110,
-      y = 64 + Math.sin(a) * d * 44,
-      rr2 = 22 + r() * 30;
-    const gr = q.createRadialGradient(x, y, 0, x, y, rr2);
-    gr.addColorStop(0, 'rgba(255,255,255,.075)');
-    gr.addColorStop(1, 'rgba(255,255,255,0)');
-    q.fillStyle = gr;
-    q.fillRect(x - rr2, y - rr2, rr2 * 2, rr2 * 2);
-  }
-  return c;
-})();
+const MIST_SPR = puffSprite({
+  seed: 777,
+  n: 46,
+  alpha: 0.075,
+  spreadX: 110,
+  spreadY: 44,
+  dPow: 0.62,
+  rMin: 22,
+  rRange: 30
+});
 // a shaft of light: narrow where it enters, widening and fading along its length, soft at the sides
 function mkBeam(col) {
   const c = mk(512, 96),

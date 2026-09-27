@@ -84,12 +84,7 @@ function pickTarget(h) {
   return best;
 }
 function catchBird(h, b) {
-  const i = birds.indexOf(b);
-  if (i < 0) return;
-  birds.splice(i, 1);
-  if (b.perch && b.perch.occ === b) b.perch.occ = null;
-  st.lost++;
-  feathers(b.x, b.y, b.z, b.c2);
+  if (!removeBird(b)) return;
   thud(h.kind, h.bold, birds.length === 0);
   h.state = 'carry';
   h.target = null;
@@ -101,23 +96,6 @@ function catchBird(h, b) {
       o.state = 'climb';
       o.cool = 2;
     }
-  if (!birds.length) {
-    st.overT = 1.3;
-    return;
-  }
-  if (b === L) {
-    let nb = birds[0],
-      bd = 1e18;
-    for (const o of birds) {
-      const q = d2(o, b);
-      if (q < bd) {
-        bd = q;
-        nb = o;
-      }
-    }
-    L = nb;
-    if (L.state === 'perch' || L.state === 'land') takeoffAll();
-  }
 }
 /* hawk flight: heading-based with a limited turn rate, so hawks carve real arcs.
    Bank follows turn rate x speed; pitch, wing fold, dihedral and tail fan follow the flight phase. */

@@ -301,30 +301,8 @@ function foxLife(a, dt) {
   }
 }
 function foxCatch(a, b) {
-  const i = birds.indexOf(b);
-  if (i < 0) return;
-  birds.splice(i, 1);
-  if (b.perch && b.perch.occ === b) b.perch.occ = null;
-  st.lost++;
-  feathers(b.x, b.y, b.z, b.c2);
-  thud('fox', 1, !birds.length);
-  if (!birds.length) {
-    st.overT = 1.3;
-    return;
-  }
-  if (b === L) {
-    let nb = birds[0],
-      bd = 1e18;
-    for (const o of birds) {
-      const q = d2(o, b);
-      if (q < bd) {
-        bd = q;
-        nb = o;
-      }
-    }
-    L = nb;
-    if (L.state === 'perch' || L.state === 'land') takeoffAll();
-  }
+  if (!removeBird(b)) return;
+  thud('fox', 1, birds.length === 0);
 }
 
 /* ---- crows mob hawks ---- */

@@ -123,6 +123,28 @@ function mk(w, h) {
   c.height = h;
   return c;
 }
+// a soft puffy cloud sprite: n randomly-placed, randomly-sized soft radial-gradient dots scattered
+// within a 256x128 ellipse, at a fixed seed so the shape is stable frame to frame rather than
+// redrawn. Shared by the morning-mist sprite (air.js) and the fog-bank sprite (weather.js) - same
+// recipe, a different texture for each
+function puffSprite({ seed, n, alpha, spreadX, spreadY, dPow, rMin, rRange }) {
+  const c = mk(256, 128),
+    q = c.getContext('2d'),
+    r = mulberry32(seed);
+  for (let i = 0; i < n; i++) {
+    const a = r() * TAU,
+      d = Math.sqrt(r()) * dPow,
+      x = 128 + Math.cos(a) * d * spreadX,
+      y = 64 + Math.sin(a) * d * spreadY,
+      rr2 = rMin + r() * rRange;
+    const gr = q.createRadialGradient(x, y, 0, x, y, rr2);
+    gr.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    gr.addColorStop(1, 'rgba(255,255,255,0)');
+    q.fillStyle = gr;
+    q.fillRect(x - rr2, y - rr2, rr2 * 2, rr2 * 2);
+  }
+  return c;
+}
 function angLerp(a, b, t) {
   const d = ((((b - a + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
   return a + d * t;
