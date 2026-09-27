@@ -472,21 +472,29 @@ function mk2Tint(col) {
 function drawWeatherGround() {
   const W2 = WEATHER,
     nf = LIGHT.night;
-  // spindrift streaming over the snow
+  // spindrift streaming over the snow: the same soft-halo-over-a-thin-core streak as the falling
+  // snow and rain, so a hard wind reads as a blur of light skimming the ground, not ruled lines on it
   if (W2.drift.length) {
     const c = Math.cos(W2.ang),
-      s = Math.sin(W2.ang);
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 1.8;
-    ctx.strokeStyle = `rgba(250,252,255,${0.55 - 0.2 * nf})`;
-    ctx.beginPath();
+      s = Math.sin(W2.ang),
+      path = new Path2D();
+    let any = false;
     for (const p of W2.drift) {
       if (!visG(p.x, p.y, 40) || p.a < 0.2) continue;
       const l = p.l * (0.6 + gustAt(p.x, p.y));
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(p.x - c * l, p.y - s * l);
+      path.moveTo(p.x, p.y);
+      path.lineTo(p.x - c * l, p.y - s * l);
+      any = true;
     }
-    ctx.stroke();
+    if (any) {
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = `rgba(250,252,255,${0.15 - 0.06 * nf})`;
+      ctx.stroke(path);
+      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = `rgba(250,252,255,${0.6 - 0.22 * nf})`;
+      ctx.stroke(path);
+    }
   }
   // raindrop rings on the water
   if (W2.drops.length) {
