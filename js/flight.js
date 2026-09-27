@@ -548,4 +548,4 @@ function perchUpdate(b, dt) {
       tryGrow();
     }
   }
-]
+}
