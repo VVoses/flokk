@@ -294,7 +294,7 @@ function separateAnimals() {
       if (d2 >= min * min) continue;
       if (d2 < 1e-4) {
         const ang = rr(0, TAU);
-        (dx = Math.cos(ang)), (dy = Math.sin(ang)), (d2 = 1);
+        ((dx = Math.cos(ang)), (dy = Math.sin(ang)), (d2 = 1));
       }
       const d = Math.sqrt(d2),
         push = ((min - d) / d) * 0.5;
