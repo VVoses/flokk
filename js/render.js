@@ -495,6 +495,19 @@ function drawTree(t) {
   ctx.globalAlpha *= la;
   if (la > 0.005) ctx.drawImage(spr, x, y, w, h);
   ctx.globalAlpha = 1;
+  // recede into the sky only past the map's actual northern edge (y<0 - the thin strip generated
+  // beyond it purely so the treeline doesn't look clipped): without this, a bare tree's crown out
+  // there, taller on screen than the misty ridge far behind it, reads as a hard shape floating in
+  // open sky rather than a hazy, distant one. Never touches anything within the real map (y>=0).
+  const edge = Math.pow(clamp(-t.y / 260, 0, 1), 1.5);
+  if (edge > 0.01 && la > 0.005) {
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = edge * 0.5 * la;
+    ctx.fillStyle = LIGHT.skyBot;
+    ctx.fillRect(x, y, w, h);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
   if (LIGHT.rim > 0.04 && la > 0.005) {
     const r = RIM[t.type][t.v];
     if (r) {
