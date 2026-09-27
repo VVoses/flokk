@@ -200,17 +200,36 @@ function drawHawk(h) {
     const owl = h.kind === 'owl',
       eagle = h.kind === 'eagle';
     path(pts);
-    // a white-tailed eagle reads dark on both wing faces, unlike a hawk's pale barred underside
-    ctx.fillStyle = shade(eagle ? '#3B2C20' : top ? (owl ? '#766656' : '#5C3F28') : owl ? '#DCCFBA' : '#D6C3A0', lit);
+    // a white-tailed eagle reads dark on both wing faces; an owl's top is a cooler, greyer brown
+    // than a hawk's warm rufous, closer to bark and dead leaves than to a hawk's ruddy tan
+    ctx.fillStyle = shade(eagle ? '#3B2C20' : top ? (owl ? '#5E5747' : '#5C3F28') : owl ? '#E6E1D0' : '#D6C3A0', lit);
     ctx.fill();
     path(pts.slice(2, 11).concat([mix3(pts[2], pts[11], 0.5)]));
     ctx.fillStyle = top ? 'rgba(28,18,10,.5)' : 'rgba(70,48,30,.4)';
     ctx.fill();
     if (top) {
-      line(mix3(pts[0], pts[13], 0.4), mix3(pts[2], pts[11], 0.35), shade('#A07F58', lit), K * 0.09);
-      line(mix3(pts[1], pts[12], 0.5), mix3(pts[2], pts[11], 0.55), shade('#8A6A48', lit), K * 0.06);
-      // the splayed primaries of a soaring hawk, each one visible rather than one flat blade of wing
-      if (!owl) {
+      const la = mix3(pts[0], pts[13], 0.4),
+        lb = mix3(pts[2], pts[11], 0.35),
+        ma = mix3(pts[1], pts[12], 0.5),
+        mb = mix3(pts[2], pts[11], 0.55);
+      line(la, lb, shade(owl ? '#8A8065' : '#A07F58', lit), K * 0.09);
+      line(ma, mb, shade(owl ? '#766C54' : '#8A6A48', lit), K * 0.06);
+      if (owl) {
+        // dappled mottling across the wing - a real owl's cryptic bark-and-leaf camouflage pattern,
+        // in place of a hawk's clean splayed primaries, so the two read differently at a glance
+        ctx.fillStyle = 'rgba(38,32,22,.4)';
+        for (const t of [0.25, 0.5, 0.75])
+          for (const [p1, p2] of [
+            [la, lb],
+            [ma, mb]
+          ]) {
+            const q = P(mix3(p1, p2, t));
+            ctx.beginPath();
+            ctx.ellipse(q[0], q[1], K * 0.028, K * 0.018, 0, 0, TAU);
+            ctx.fill();
+          }
+      } else {
+        // the splayed primaries of a soaring hawk, each one visible rather than one flat blade of wing
         const wrist = mix3(pts[1], pts[2], 0.4);
         for (const k of [3, 5, 7, 9]) line(wrist, pts[k], 'rgba(28,17,9,.4)', K * 0.03);
       }
@@ -256,15 +275,29 @@ function drawHawk(h) {
       my = (nose[1] + rump[1]) / 2,
       len = Math.hypot(nose[0] - rump[0], nose[1] - rump[1]),
       ang = Math.atan2(nose[1] - rump[1], nose[0] - rump[0]);
-    ctx.fillStyle = h.kind === 'eagle' ? '#3A2C21' : '#6E4E31';
+    // an owl's body reads cooler and greyer than a hawk's warm rufous-brown, even before any markings
+    ctx.fillStyle = h.kind === 'eagle' ? '#3A2C21' : h.kind === 'owl' ? '#5E5747' : '#6E4E31';
     ctx.beginPath();
     ctx.ellipse(mx, my, Math.max(len / 2, K * 0.2), K * 0.2, ang, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = h.kind === 'eagle' ? '#4F3D2C' : '#93704B';
+    ctx.fillStyle = h.kind === 'eagle' ? '#4F3D2C' : h.kind === 'owl' ? '#8C8168' : '#93704B';
     ctx.beginPath();
     ctx.ellipse(mx - K * 0.03, my - K * 0.05, Math.max(len / 2, K * 0.2) * 0.75, K * 0.1, ang, 0, TAU);
     ctx.fill();
-    if (h.kind !== 'owl' && h.kind !== 'eagle') {
+    if (h.kind === 'owl') {
+      // vertical streaking down the breast, the way a real owl's underside reads - a hawk barred
+      // crosswise, an owl streaked lengthwise, so the two are tellable apart by markings alone
+      ctx.strokeStyle = 'rgba(45,38,26,.4)';
+      ctx.lineWidth = K * 0.02;
+      for (const q of [-0.28, -0.08, 0.12, 0.3]) {
+        const bx = mx - K * 0.03 + Math.cos(ang) * len * 0.18 - Math.sin(ang) * len * 0.1 * q,
+          by = my - K * 0.05 + Math.sin(ang) * len * 0.18 + Math.cos(ang) * len * 0.1 * q;
+        ctx.beginPath();
+        ctx.moveTo(bx - Math.cos(ang) * K * 0.08, by - Math.sin(ang) * K * 0.08);
+        ctx.lineTo(bx + Math.cos(ang) * K * 0.05, by + Math.sin(ang) * K * 0.05);
+        ctx.stroke();
+      }
+    } else if (h.kind !== 'eagle') {
       // fine barring on the breast, the way a real hawk's underside is streaked, not one flat patch
       ctx.strokeStyle = 'rgba(60,38,20,.35)';
       ctx.lineWidth = K * 0.02;
@@ -306,6 +339,13 @@ function drawHawk(h) {
         ctx.arc(hd[0] + ex + (px / pl) * K * 0.07 * sg, hd[1] + ey + (py / pl) * K * 0.07 * sg, K * 0.045, 0, TAU);
         ctx.fill();
       }
+      // a small dark hooked beak beneath the facial disc, easy to miss but part of the silhouette
+      ctx.fillStyle = '#241A10';
+      ctx.beginPath();
+      ctx.moveTo(hd[0] + ex - (px / pl) * K * 0.03, hd[1] + ey - (py / pl) * K * 0.03);
+      ctx.lineTo(hd[0] + (bk[0] - hd[0]) * 0.42, hd[1] + (bk[1] - hd[1]) * 0.42);
+      ctx.lineTo(hd[0] + ex + (px / pl) * K * 0.03, hd[1] + ey + (py / pl) * K * 0.03);
+      ctx.fill();
       return;
     }
     const eagle = h.kind === 'eagle';

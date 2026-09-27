@@ -46,6 +46,14 @@ function roadDist(x, y) {
 function inBuild(x, y, m = 0) {
   return buildAt(x, y, m) !== null;
 }
+// how much extra height the flock should keep here: a climb over roofs and treetops it would
+// otherwise clip, a bit lower again over open water where there's nothing to catch a wing on
+function terrainClearance(x, y) {
+  if (inBuild(x, y, 60)) return 0.9;
+  if (forestness(x, y) > 0.56) return 0.8;
+  if (inWater(x, y)) return -0.45;
+  return 0;
+}
 /* ---- farmyards: rectangles turned to fit the land ----
    A yard is lw x lh in its own frame (u along ang, v across), centred on cx,cy; x,y,w,h is its bounding box
    and poly its corners, so the field helpers (inField, ptIn) work on it too. */

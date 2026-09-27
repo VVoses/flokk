@@ -158,7 +158,7 @@ function update(dt) {
       L.y = H - 60;
       L.vy = Math.min(0, L.vy);
     }
-    L.z += (FZ + 0.15 * Math.sin(T * 0.9) - L.z) * Math.min(1, dt * 2.2);
+    L.z += (FZ + terrainClearance(L.x, L.y) + 0.15 * Math.sin(T * 0.9) - L.z) * Math.min(1, dt * 2.2);
     if (!steer && Math.hypot(L.vx, L.vy) < 22) {
       st.stillT += dt;
       if (st.stillT > 0.45 && !st.settled) settle();
@@ -224,12 +224,8 @@ function update(dt) {
       if (active < want && st.hawkT <= 0 && birds.some(exposed)) {
         spawnHawk(kind);
         st.hawkT = rr(7, 13);
-        teach(
-          kind,
-          kind === 'owl'
-            ? 'an owl hears you fly and sees you in lamplight or on snow — keep still and hidden'
-            : 'a hawk — land in the trees to hide'
-        );
+        // hawk or owl plays the same from the flock's side, so one shared tip rather than two
+        teach('predator', 'a hawk or owl on the hunt — land in the trees, or keep still and hidden');
       }
     }
     // a white-tailed eagle: a rare, once-in-a-while sight rather than a standing threat like the
