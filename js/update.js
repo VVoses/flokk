@@ -247,6 +247,7 @@ function update(dt) {
       st.eagleT = rr(700, 1200);
       teach('eagle', 'a white-tailed eagle — rare, and hard to outrun once it commits');
     }
+    if (isYule()) teach('yule', 'midwinter Jul — the farms deck out with trees, lights and treats for the birds');
   }
   for (const h of hawks) updateHawk(h, dt);
   if (hawks.some(h => h.alpha <= 0)) hawks = hawks.filter(h => h.alpha > 0);

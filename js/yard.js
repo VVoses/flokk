@@ -5,7 +5,8 @@
 'use strict';
 let PROPS = [];
 const FLAG_H = 3.3,
-  LINE_H = 0.78;
+  LINE_H = 0.78,
+  XTREE_H = 2.1;
 // an open spot in the yard: clear of buildings, the lamp and other props, scored by pref (lower is better)
 function yardSpot(Y, taken, m, pref) {
   let best = null,
@@ -74,6 +75,29 @@ function placeProps(fm, taken) {
       col: pick(['#3E6A4A', '#B3302A', '#5A6E80']),
       ang: rnd(-0.5, 0.5)
     });
+  // Jul: a decorated tree in the yard and, on the main farm, a straw julebukk goat by the woodpile -
+  // both stand there year-round like everything else here, but drawProp only shows them at midwinter
+  if (fm.main || R() < 0.4)
+    add(
+      'xtree',
+      yardSpot(Y, taken, 22, (x, y) => -near(h)(x, y) * 0.15),
+      20,
+      {
+        orn: Array.from({ length: 10 }, () => ({
+          u: rnd(0.15, 0.92),
+          a: rnd(-1, 1),
+          col: pick(['#C0282D', '#D9C27A', '#2B4C8C', '#E8E6DE'])
+        })),
+        lights: Array.from({ length: 14 }, () => ({ u: rnd(0.1, 0.95), a: rnd(-1, 1), ph: rnd(0, TAU) }))
+      }
+    );
+  if (fm.main)
+    add(
+      'goat',
+      yardSpot(Y, taken, 14, (x, y) => (fm.wood ? Math.hypot(fm.wood.x - x, fm.wood.y - y) : 0)),
+      10,
+      { ang: rnd(-0.3, 0.3) }
+    );
 }
 // the churchyard's graves: rows either side of the church, the old stones leaning, a few iron crosses
 function placeGraves(C) {
@@ -113,6 +137,8 @@ function propShadows(c, cap) {
       cap(p.x + 22, p.y, LINE_H, 1.6);
     } else if (p.k === 'barrow') cap(p.x, p.y, 0.25, 9);
     else if (p.k === 'grave') cap(p.x, p.y, p.h / HZ, p.w * 0.8);
+    else if (p.k === 'xtree' && isYule()) cap(p.x, p.y, XTREE_H, 3.5);
+    else if (p.k === 'goat' && isYule()) cap(p.x, p.y, 0.16, 5.5);
   }
 }
 function drawProp(p) {
@@ -327,6 +353,104 @@ function drawProp(p) {
     ctx.fillStyle = '#2A2622';
     ctx.beginPath();
     ctx.arc(5, -1.6, 1.9, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (p.k === 'xtree') {
+    if (!isYule()) return;
+    const top = PY(p.y, XTREE_H),
+      Ht = gy - top,
+      wAt = u => 7.2 - 4.1 * u;
+    ctx.fillStyle = '#3A2418';
+    ctx.fillRect(X - 1, gy - 2, 2, 2.5);
+    // three stacked, tapering boughs - the classic layered-fir silhouette, snow along each edge
+    for (const t of [
+      { b: 0, a: 0.46, w: 7.2 },
+      { b: 0.32, a: 0.74, w: 5.2 },
+      { b: 0.6, a: 1, w: 3.1 }
+    ]) {
+      const by = gy - Ht * t.b,
+        ay = gy - Ht * t.a;
+      ctx.fillStyle = shade('#2E4A2E', 0.85 + 0.2 * t.b);
+      ctx.beginPath();
+      ctx.moveTo(X - t.w, by);
+      ctx.lineTo(X + t.w, by);
+      ctx.lineTo(X, ay);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(244,247,250,.85)';
+      ctx.beginPath();
+      ctx.moveTo(X - t.w * 0.9, by - 0.6);
+      ctx.lineTo(X + t.w * 0.9, by - 0.6);
+      ctx.lineTo(X, by - 1.8);
+      ctx.closePath();
+      ctx.fill();
+    }
+    for (const o of p.orn) {
+      ctx.fillStyle = o.col;
+      ctx.beginPath();
+      ctx.arc(X + o.a * wAt(o.u) * 0.7, gy - Ht * o.u, 0.9, 0, TAU);
+      ctx.fill();
+    }
+    // fairy lights, warm and twinkling once the dark comes on
+    if (LIGHT.night > 0.05)
+      for (const l of p.lights) {
+        const tw = 0.55 + 0.45 * Math.sin(T * 3 + l.ph);
+        ctx.fillStyle = `rgba(255,214,140,${(0.35 + 0.55 * LIGHT.night) * tw})`;
+        ctx.beginPath();
+        ctx.arc(X + l.a * wAt(l.u) * 0.7, gy - Ht * l.u, 1.1, 0, TAU);
+        ctx.fill();
+      }
+    ctx.fillStyle = '#F2C14E';
+    ctx.beginPath();
+    ctx.arc(X, top - 1, 1.4, 0, TAU);
+    ctx.fill();
+    return;
+  }
+  if (p.k === 'goat') {
+    if (!isYule()) return;
+    ctx.save();
+    ctx.translate(X, gy);
+    ctx.rotate(p.ang * 0.2);
+    // a woven-straw julebukk: four thin legs, a straw body and head, curved horns, a red ribbon
+    ctx.strokeStyle = '#7A6540';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const lx of [-3, -1.2, 1.2, 3]) {
+      ctx.moveTo(lx, -3.5);
+      ctx.lineTo(lx, 0);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#C9A14A';
+    ctx.beginPath();
+    ctx.ellipse(0, -5, 4.6, 2.6, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120,95,50,.5)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let i = -3; i <= 3; i++) {
+      ctx.moveTo(i * 1.3, -7);
+      ctx.lineTo(i * 1.3 + 1, -3);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#C9A14A';
+    ctx.beginPath();
+    ctx.ellipse(5.4, -6.8, 1.8, 1.4, 0.3, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#8A6E3E';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(6, -8);
+    ctx.quadraticCurveTo(8.5, -10.5, 7, -12);
+    ctx.moveTo(5, -8);
+    ctx.quadraticCurveTo(6.5, -10.2, 5.4, -11.3);
+    ctx.stroke();
+    ctx.fillStyle = '#C0282D';
+    ctx.fillRect(3.6, -7.4, 1.6, 2.2);
+    ctx.fillStyle = 'rgba(244,247,250,.8)';
+    ctx.beginPath();
+    ctx.ellipse(-0.5, -7.3, 3.6, 0.9, 0, Math.PI, 0);
     ctx.fill();
     ctx.restore();
   }
