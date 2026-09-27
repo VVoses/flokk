@@ -13,6 +13,9 @@ const DAY_LEN = 100,
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
 const CAL = { t: 0, day: 0, hour: START_HOUR, yp: 0, season: 0, year: 1 };
 let SEASON = 0;
+// the middle day of winter - trees, lights and other Jul (yule) things come out at the farms, the
+// same one-day-a-season timing as the church bell below (audio.js)
+const isYule = () => SEASON === 3 && CAL.day % DAYS_PER_SEASON === 1;
 const LIGHT = {
   el: 30,
   theta: 1.5,
@@ -512,6 +515,18 @@ function drawFeeder(f) {
   ctx.stroke();
   ctx.fillStyle = '#B8292B';
   ctx.fillRect(f.x - 2.5, top - 1, 5, 3);
+  // at midwinter Jul, a little wreath and bow on the roof - the julenek tradition of a treat left for the birds
+  if (isYule()) {
+    ctx.strokeStyle = '#2E4A2E';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(f.x, top - 6, 3, 0, TAU);
+    ctx.stroke();
+    ctx.fillStyle = '#C0282D';
+    ctx.beginPath();
+    ctx.arc(f.x, top - 9, 1, 0, TAU);
+    ctx.fill();
+  }
 }
 
 /* ---------- seasons ---------- */

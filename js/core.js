@@ -13,7 +13,8 @@ const TILT = 0.62,
   HZ = 42,
   FZ = 2.2,
   HAWKZ = 3.6,
-  OWLZ = 2.9;
+  OWLZ = 2.9,
+  EAGLEZ = 4.4;
 let SX = 23,
   SY = 17;
 const PY = (y, h) => y * TILT - h * HZ;

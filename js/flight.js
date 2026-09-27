@@ -22,12 +22,12 @@ function spawnHawk(kind = 'hawk') {
     bank: 0,
     pitch: 0,
     kind,
-    cz: kind === 'owl' ? OWLZ : HAWKZ,
+    cz: kind === 'owl' ? OWLZ : kind === 'eagle' ? EAGLEZ : HAWKZ,
     fold: 0.2,
     fan: 0,
     dih: 0.08,
-    z: kind === 'owl' ? OWLZ : HAWKZ,
-    s: kind === 'owl' ? 15 : 17,
+    z: kind === 'owl' ? OWLZ : kind === 'eagle' ? EAGLEZ : HAWKZ,
+    s: kind === 'eagle' ? 24 : 15,
     state: 'patrol',
     sub: 'glide',
     subT: rr(3, 6),
@@ -156,7 +156,7 @@ function updateHawk(h, dt) {
   h.scan -= dt;
   let vT = 160,
     pitchT = 0,
-    foldT = 0.1,
+    foldT = h.kind === 'owl' ? 0.1 : h.kind === 'eagle' ? 0.12 : 0.18,
     dihT = 0.1,
     flapWant = 0,
     zT = h.z,
@@ -199,7 +199,7 @@ function updateHawk(h, dt) {
         // gliding to the next thermal on swept wings, sinking a little
         const d = steerTo(h, dt, h.tcx, h.tcy, 0.9, 1.6);
         vT = 220;
-        foldT = 0.3;
+        foldT = h.kind === 'owl' ? 0.3 : h.kind === 'eagle' ? 0.22 : 0.44;
         dihT = 0.05;
         zT = h.cz - 0.5;
         zRate = 0.1;
@@ -247,14 +247,14 @@ function updateHawk(h, dt) {
       }
       const d = steerTo(h, dt, t.x + t.vx * 0.5, t.y + t.vy * 0.5, 1.8, 2.6);
       vT = 245;
-      foldT = 0.25;
+      foldT = h.kind === 'owl' ? 0.25 : h.kind === 'eagle' ? 0.2 : 0.38;
       dihT = 0.03;
       zT = h.cz - 0.2;
       zRate = 0.3;
       flapWant = d > 500 ? 9 : 0;
       if (d < 320) {
         const still = t.state === 'perch' || t.state === 'takeoff' || Math.hypot(t.vx, t.vy) < 70;
-        if (still && h.kind !== 'owl') {
+        if (still && h.kind === 'hawk') {
           h.state = 'hover';
           h.t = 0;
           h.hoverDur = rr(0.7, 1.4);
@@ -315,9 +315,9 @@ function updateHawk(h, dt) {
         break;
       }
       const d = steerTo(h, dt, t.x + t.vx * 0.25, t.y + t.vy * 0.25, 3, 4);
-      vT = (h.kind === 'owl' ? 370 : 480) + Math.min(90, birds.length * 0.8);
+      vT = (h.kind === 'owl' ? 370 : h.kind === 'eagle' ? 460 : 480) + Math.min(90, birds.length * 0.8);
       accel = 1.8;
-      foldT = 0.85;
+      foldT = h.kind === 'eagle' ? 0.55 : 0.85;
       dihT = 0;
       zRate = 0;
       pitchT = clamp(Math.atan2((h.z - t.z) * HZ, Math.max(20, d)) * 1.15, 0.15, 1.25);
@@ -361,7 +361,7 @@ function updateHawk(h, dt) {
         pitchT = -0.12;
       } else {
         vT = 215;
-        foldT = 0.28;
+        foldT = h.kind === 'owl' ? 0.28 : h.kind === 'eagle' ? 0.22 : 0.42;
         zT = h.cz + 1.2;
         zRate = 0.3;
       }
@@ -373,6 +373,7 @@ function updateHawk(h, dt) {
   if (turnSet !== null) h.turn += (turnSet - h.turn) * Math.min(1, dt * 2);
   if (zRate) h.z += (zT - h.z) * Math.min(1, dt * zRate * 2);
   if (h.kind === 'owl' && h.state !== 'dive') vT *= 0.82;
+  if (h.kind === 'eagle' && h.state !== 'dive') vT *= 0.85;
   h.v += (vT - h.v) * Math.min(1, dt * accel);
   h.psi += h.turn * dt;
   h.heading = h.psi;
