@@ -164,6 +164,21 @@ Before a change lands, it should pass these:
     `tools/seasons.py`, `tools/timelapse.py`, `tools/night.py`), and put before/after screenshots in the PR
     description.
 
+## The interface language
+
+This document is about the world seen through the canvas. The HUD and overlay cards drawn in
+DOM/CSS on top of it — buttons, meters, the year bar, pause and results cards — have their own
+design system, extracted from the shipped source: <https://claude.ai/artifact/ExeLJtLAzYJSMrNccnBmMC>.
+
+Check new HUD/UI work against it the way world work is checked against the checklist above. The
+short version of its own voice: quiet and lowercase for anything ambient (hints, captions, the
+season banner), thin display weights for numbers and headings, `pointer-events: none` by default
+so the world stays the thing being looked at, and text-shadow rather than solid panels to stay
+legible over whatever the sky is doing — because most of this UI floats directly over the
+rendered world, not over a flat surface. The same "nothing sits on top of the world" instinct
+from Pillar 2 applies here in spirit even though the HUD is, necessarily, actually on top: keep
+it thin, quiet and out of the way rather than competing with the land for attention.
+
 ## Tried and removed
 
 A record of things that didn't fit, so they don't come back:
