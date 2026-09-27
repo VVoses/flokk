@@ -413,8 +413,8 @@ function drawFlyer(b) {
   const K = b.s * (0.95 + 0.04 * b.z),
     X = b.x,
     Y = PY(b.y, b.z);
-  ctx.globalAlpha = 0.16 + 0.1 * LIGHT.night;
-  ctx.drawImage(HALO, X - K * 2.3, Y - K * 2.3, K * 4.6, K * 4.6);
+  ctx.globalAlpha = 0.09 + 0.06 * LIGHT.night;
+  ctx.drawImage(HALO, X - K * 1.7, Y - K * 1.7, K * 3.4, K * 3.4);
   ctx.globalAlpha = 1;
   if (b === L) {
     ctx.globalAlpha = 0.34 + 0.1 * Math.sin(T * 2);
