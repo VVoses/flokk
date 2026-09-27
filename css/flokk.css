@@ -20,6 +20,20 @@
   --text-glow-soft: 0 2px 24px rgba(10, 16, 12, 0.5);
   --text-glow-tight: 0 1px 3px rgba(10, 16, 12, 0.85);
   --icon-shadow: 0 1px 6px rgba(10, 16, 12, 0.4);
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-5: 5px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-14: 14px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --radius-hairline: 1px;
+  --radius-bar: 2px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
   color-scheme: dark;
 }
 [hidden] {
@@ -62,7 +76,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: calc(env(safe-area-inset-top, 0px) + 18px) 20px 0;
+  padding: calc(env(safe-area-inset-top, 0px) + var(--space-18)) var(--space-20) 0;
   pointer-events: none;
   text-shadow: var(--hud-glow);
   z-index: 2; /* above the overlays, though it's hidden while any overlay is up (see .no-hud below) */
@@ -117,11 +131,11 @@ body.no-hud .hud {
 }
 .lines {
   display: grid;
-  gap: 5px;
+  gap: var(--space-5);
 }
 .line {
   height: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-bar);
   background: rgba(246, 243, 234, 0.18);
   overflow: hidden;
   box-shadow: 0 1px 6px rgba(10, 16, 12, 0.25);
@@ -145,12 +159,12 @@ body.no-hud .hud {
 .tr {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-14);
 }
 .year {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   width: 120px;
   position: relative;
   /* a taller, invisible tap area around the thin bar (triple-tap opens the season picker) */
@@ -163,7 +177,7 @@ body.no-hud .hud {
   top: 100%;
   right: -4px;
   display: flex;
-  gap: 2px;
+  gap: var(--space-2);
   animation: pickIn 0.35s ease;
 }
 .seasonpick[hidden] {
@@ -210,7 +224,7 @@ body.no-hud .hud {
 }
 .yearbar i {
   display: block;
-  border-radius: 2px;
+  border-radius: var(--radius-bar);
   opacity: 0.8;
 }
 .yearbar i:nth-child(1) {
@@ -230,7 +244,7 @@ body.no-hud .hud {
   top: -4px;
   width: 2px;
   height: 10px;
-  border-radius: 1px;
+  border-radius: var(--radius-hairline);
   background: var(--ink);
   transform: translateX(-1px);
   transition: left 0.3s linear;
@@ -271,11 +285,11 @@ body.no-hud .hud {
 }
 .dash {
   position: fixed;
-  left: 20px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  left: var(--space-20);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-20));
   width: 58px;
   height: 58px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: rgba(246, 243, 234, 0.08);
   border: 1px solid var(--line);
   color: var(--ink);
@@ -370,7 +384,7 @@ body.no-hud .hud {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: var(--space-24);
   background: radial-gradient(
     ellipse 70% 55% at 50% 50%,
     rgba(14, 20, 16, 0.4),
@@ -421,7 +435,7 @@ body.no-hud .hud {
 }
 .actions {
   display: flex;
-  gap: 10px;
+  gap: var(--space-10);
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -432,8 +446,8 @@ body.no-hud .hud {
   color: var(--ink);
   background: rgba(246, 243, 234, 0.08);
   border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 11px 24px;
+  border-radius: var(--radius-pill);
+  padding: 11px var(--space-24);
   cursor: pointer;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -452,12 +466,12 @@ body.no-hud .hud {
 }
 .stats {
   display: flex;
-  gap: 28px;
+  gap: var(--space-28);
   justify-content: center;
 }
 .stats div {
   display: grid;
-  gap: 4px;
+  gap: var(--space-4);
 }
 .stats b {
   font-weight: 300;
