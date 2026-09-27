@@ -37,7 +37,8 @@ files; function bodies can use anything, since they run after everything has loa
 | `world.js` | world state, `genLayout` (lake, road, rail route, farms `FARMS`/`YARDS`, fields, cabins, zones), `genWorld` (trees, hedges, bales, fences, poles), seam twins `buildGhosts`, field polygons; farms' plots are cut from one tract per farm (`plotsFor`) with balks, ditches and hedges between them in `DIVIDES` |
 | `sprites.js` | tree sprites per season (`buildSprites`, `NV` variants) |
 | `ground.js` | `paintGround` → wide canvas `GE` → seam-blended `G`; `paintField` (one field as a given kind); `paintFloor` (forest floor, bogs, rocks, flowers, tracks) |
-| `audio.js` | WebAudio graph, animal voices (`animalCall`, `quack`, `baa`, `moo`, `bark`), ambience, music, `audioTick` |
+| `audio.js` | WebAudio graph, animal voices (`animalCall`, `quack`, `baa`, `moo`, `bark`), ambience, `audioTick` |
+| `music.js` | generative background music, one voice per season (`musicTick`) |
 | `sky.js` | shoreline `shoreY`, ridges, clouds, boulders |
 | `life.js` | `ANIMALS`, spawning, per-kind behaviour `updateAnimals`, passing flocks, smoke |
 | `interact.js` | animals reacting to each other (mobbing, cat, dog, herds, ducks); `callAt` sound queue |
