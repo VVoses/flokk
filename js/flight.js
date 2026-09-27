@@ -27,7 +27,7 @@ function spawnHawk(kind = 'hawk') {
     fan: 0,
     dih: 0.08,
     z: kind === 'owl' ? OWLZ : HAWKZ,
-    s: kind === 'owl' ? 15 : 17,
+    s: 15,
     state: 'patrol',
     sub: 'glide',
     subT: rr(3, 6),
@@ -156,7 +156,7 @@ function updateHawk(h, dt) {
   h.scan -= dt;
   let vT = 160,
     pitchT = 0,
-    foldT = 0.1,
+    foldT = h.kind === 'owl' ? 0.1 : 0.18,
     dihT = 0.1,
     flapWant = 0,
     zT = h.z,
@@ -199,7 +199,7 @@ function updateHawk(h, dt) {
         // gliding to the next thermal on swept wings, sinking a little
         const d = steerTo(h, dt, h.tcx, h.tcy, 0.9, 1.6);
         vT = 220;
-        foldT = 0.3;
+        foldT = h.kind === 'owl' ? 0.3 : 0.44;
         dihT = 0.05;
         zT = h.cz - 0.5;
         zRate = 0.1;
@@ -247,7 +247,7 @@ function updateHawk(h, dt) {
       }
       const d = steerTo(h, dt, t.x + t.vx * 0.5, t.y + t.vy * 0.5, 1.8, 2.6);
       vT = 245;
-      foldT = 0.25;
+      foldT = h.kind === 'owl' ? 0.25 : 0.38;
       dihT = 0.03;
       zT = h.cz - 0.2;
       zRate = 0.3;
@@ -361,7 +361,7 @@ function updateHawk(h, dt) {
         pitchT = -0.12;
       } else {
         vT = 215;
-        foldT = 0.28;
+        foldT = h.kind === 'owl' ? 0.28 : 0.42;
         zT = h.cz + 1.2;
         zRate = 0.3;
       }
@@ -548,4 +548,4 @@ function perchUpdate(b, dt) {
       tryGrow();
     }
   }
-}
+]
