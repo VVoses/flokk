@@ -1,7 +1,8 @@
 /* Flokk - admin.js
    Hidden admin panel: jump straight to a season, hour or weather, for looking around and testing.
-   Loaded only when the page is opened with ?debug=1 (see the end of index.html), and even then stays
-   out of sight until toggled with Ctrl+Shift+D, so a normal player never sees or loads it.
+   Loaded only when the page is opened with ?debug=1 (see the end of index.html), so a normal player
+   never even loads it; shows itself as soon as it loads, and the backquote key hides/reshows it so it
+   can be tucked away while looking at the game underneath.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 (function () {
@@ -97,13 +98,12 @@
 
   const panel = document.createElement('div');
   panel.id = 'adminPanel';
-  panel.hidden = true;
   panel.style.cssText =
     'position:fixed;left:10px;bottom:10px;z-index:9999;background:rgba(20,26,20,0.86);color:#f6f3ea;' +
     'font:12px/1.3 ui-sans-serif,system-ui,sans-serif;padding:10px 12px;border-radius:8px;' +
     'border:1px solid rgba(255,255,255,0.18);pointer-events:auto;user-select:none;max-width:280px';
   const title = document.createElement('div');
-  title.textContent = 'Admin (ctrl+shift+D to hide)';
+  title.textContent = 'Admin (` to hide)';
   title.style.cssText = 'font-weight:600;margin-bottom:6px;opacity:0.85';
   panel.appendChild(title);
   panel.appendChild(
@@ -117,8 +117,9 @@
   panel.appendChild(row('Weather', WEATHERS, k => WEATHER_PRESETS[k]()));
   document.body.appendChild(panel);
 
+  // backquote, not a combo the browser or the game reserves, so it always reaches the page
   addEventListener('keydown', e => {
-    if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') {
+    if (e.code === 'Backquote') {
       e.preventDefault();
       panel.hidden = !panel.hidden;
     }
