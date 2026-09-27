@@ -225,7 +225,7 @@ function update(dt) {
         spawnHawk(kind);
         st.hawkT = rr(7, 13);
         // hawk or owl plays the same from the flock's side, so one shared tip rather than two
-        teach('predator', 'a hawk or owl on the hunt — land in the trees, or keep still and hidden');
+        teach('predator', 'a predator is chasing you, hide in the trees');
       }
     }
     // a white-tailed eagle: a rare, once-in-a-while sight rather than a standing threat like the
@@ -241,9 +241,7 @@ function update(dt) {
     ) {
       spawnHawk('eagle');
       st.eagleT = rr(700, 1200);
-      teach('eagle', 'a white-tailed eagle — rare, and hard to outrun once it commits');
     }
-    if (isYule()) teach('yule', 'midwinter Jul — the farms deck out with trees, lights and treats for the birds');
   }
   for (const h of hawks) updateHawk(h, dt);
   if (hawks.some(h => h.alpha <= 0)) hawks = hawks.filter(h => h.alpha > 0);
