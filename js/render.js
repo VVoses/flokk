@@ -1795,10 +1795,13 @@ function render() {
     for (const s of swarms) {
       if (!visU(s.x, s.y, 60, s.z * HZ + 40)) continue;
       if (!s.moth && LIGHT.shadowA > 0.05) {
-        ctx.fillStyle = `rgba(22,28,18,${0.16 * LIGHT.shadowA})`;
+        ctx.fillStyle = `rgba(18,24,15,${0.28 * LIGHT.shadowA})`;
         for (const m of s.m) {
           const [mx, my, mz] = motePos(s, m);
-          ctx.fillRect(mx + mz * SX - 0.8, (my + mz * SY) * TILT - 0.6, 1.6, 1.2);
+          const sh = clamp(1 - mz / 6, 0.45, 0.85);
+          ctx.beginPath();
+          ctx.ellipse(mx + mz * SX, (my + mz * SY) * TILT, 3.8 * sh, 1.8 * sh, 0, 0, TAU);
+          ctx.fill();
         }
       }
       if (!s.moth) {
@@ -1887,9 +1890,12 @@ function render() {
     }
     for (const f of dflies) {
       if (!visU(f.x, f.y, 20, f.z * HZ + 10)) continue;
-      ctx.fillStyle = 'rgba(30,50,40,.18)';
+      const shadowX = f.x + f.z * SX,
+        shadowY = (f.y + f.z * SY) * TILT,
+        shadowPulse = 0.85 + Math.sin(T * 7 + f.h) * 0.15;
+      ctx.fillStyle = `rgba(20,35,25,${0.3 * LIGHT.shadowA})`;
       ctx.beginPath();
-      ctx.ellipse(f.x, f.y * TILT, 5, 2, 0, 0, TAU);
+      ctx.ellipse(shadowX, shadowY, 7 * shadowPulse, 2.4 * shadowPulse, f.h, 0, 0, TAU);
       ctx.fill();
       ctx.save();
       ctx.translate(f.x, PY(f.y, f.z + Math.sin(T * 4 + f.h) * 0.05));

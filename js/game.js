@@ -286,7 +286,7 @@ function spawnDfly() {
     col: Math.random() < 0.5 ? '#3E9BB0' : '#6FA23F'
   });
 }
-const motePos = (s, m) => [s.x + m.ox, s.y + m.oy, s.z + m.oh / HZ];
+const motePos = (s, m) => [s.x + m.ox, s.y + m.oy, s.z + m.oh / HZ + Math.sin(T * 2.1 + m.ph) * 0.08];
 
 /* ---------- perch assignment ---------- */
 function validGround(x, y) {
@@ -788,10 +788,33 @@ function nearMiss(b) {
   whooshMiss(b.x, b.y);
 }
 
-function eat(v, x, y, z) {
+function feedingSnap(eater, x, y, z) {
+  const candidates = birds
+    .filter(b => b.state === 'fly' && (b === eater || Math.hypot(wdx(b.x, x), b.y - y) < 100))
+    .sort((a, b) =>
+      a === eater ? -1 : b === eater ? 1 : Math.hypot(wdx(a.x, x), a.y - y) - Math.hypot(wdx(b.x, x), b.y - y)
+    );
+  for (const b of candidates.slice(0, 1 + (Math.random() < 0.45 ? 1 : 0))) {
+    b.feedT = rr(0.18, 0.32);
+    b.feedX = b.x + wdx(x, b.x) + rr(-5, 5);
+    b.feedY = y + rr(-5, 5);
+    b.feedZ = z;
+    b.flapping = true;
+    b.fbT = Math.max(b.fbT, b.feedT);
+    if (b === L) {
+      const dx = b.feedX - b.x,
+        dy = b.feedY - b.y,
+        d = Math.hypot(dx, dy) || 1;
+      b.vx += (dx / d) * 38;
+      b.vy += (dy / d) * 38;
+    }
+  }
+}
+function eat(v, x, y, z, eater) {
   st.food += v;
   st.eaten += v;
   feed(0.04 * v);
+  feedingSnap(eater, x, y, z);
   sparkle(x, y, z);
   chirp(0.045, undefined, x, y);
   tryGrow();

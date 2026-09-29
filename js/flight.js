@@ -441,6 +441,15 @@ function flyUpdate(b, dt) {
   dvy += sy * 260;
   dvx += Math.cos(T * 1.3 + b.ph) * 25;
   dvy += Math.sin(T * 1.1 + b.ph * 1.7) * 25;
+  if (b.feedT > 0) {
+    b.feedT -= dt;
+    const dx = b.feedX - b.x,
+      dy = b.feedY - b.y,
+      d = Math.hypot(dx, dy) || 1,
+      snap = smooth(0, 55, d) * smooth(0, 0.12, b.feedT);
+    dvx += (dx / d) * 190 * snap;
+    dvy += (dy / d) * 190 * snap;
+  }
   for (const h of hawks) {
     if (h.state !== 'dive' && h.state !== 'stalk' && h.state !== 'hover') continue;
     const hx = b.x - h.x,
@@ -467,6 +476,7 @@ function flyUpdate(b, dt) {
      drop with the terrain below - clearing roofs and treetops, settling lower over open water */
   b.fz =
     FZ + terrainClearance(b.x, b.y) + 0.35 * Math.sin(T * 0.8 + b.ph) + (b.or - 0.5) * 0.4 - (b.panic > 0 ? 0.4 : 0);
+  if (b.feedT > 0) b.fz = lerp(b.fz, b.feedZ, 0.45);
   b.z += (b.fz - b.z) * Math.min(1, dt * 2.2);
 }
 function landUpdate(b, dt) {

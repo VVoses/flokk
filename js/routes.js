@@ -85,7 +85,8 @@ function makeJourney(from, to) {
       );
       for (const c of hits) {
         const s = lengths[i - 1] + Math.hypot(c.x - points[i - 1][0], c.y - points[i - 1][1]);
-        if (!crossings.some(o => Math.abs(o.s - s) < 3)) crossings.push({ ...c, s });
+        const built = CROSSINGS.find(o => Math.hypot(wdx(o.x, c.x), o.y - c.y) < 5);
+        if (!crossings.some(o => Math.abs(o.s - s) < 3)) crossings.push({ ...c, s, underpass: !!built?.underpass });
       }
     }
   }
@@ -101,7 +102,7 @@ function journeyAt(route, s) {
   return { x: lerp(a[0], b[0], t), y: lerp(a[1], b[1], t), ang: Math.atan2(b[1] - a[1], b[0] - a[0]) };
 }
 function crossingClosed(c) {
-  if (!TRAIN) return false;
+  if (!TRAIN || c.underpass) return false;
   const s = railSAtX(wrapX(c.x)),
     ahead = ((((s - TRAIN.s) * TRAIN.dir) % RAIL_P) + RAIL_P) % RAIL_P;
   return ahead < Math.max(TRAIN.v, TRAIN.vmax) * 5 + 50 || ahead > RAIL_P - TRAIN.tot - 40;

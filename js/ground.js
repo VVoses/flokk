@@ -634,6 +634,13 @@ function* paintGroundGen(season) {
         strokePoly(g, offsetPoly(P, 4), 3, 'rgba(170,180,192,.6)');
         g.restore();
       }
+    g.fillStyle = '#E6EAEE';
+    for (const farm of FARMS) {
+      const p = farm.yard.gate;
+      g.beginPath();
+      g.ellipse(p[0], p[1], 20, 14, farm.yard.ang, 0, TAU);
+      g.fill();
+    }
   } else {
     strokePoly(g, ROAD, 58, 'rgba(160,150,110,.09)');
     strokePoly(g, ROAD, 44, 'rgba(160,150,110,.13)');
@@ -651,13 +658,21 @@ function* paintGroundGen(season) {
         strokePoly(g, P, 6, season === 2 ? 'rgba(134,161,93,.55)' : 'rgba(110,150,78,.55)');
         g.restore();
       }
+    g.fillStyle = '#AFA27E';
+    for (const farm of FARMS) {
+      const p = farm.yard.gate;
+      g.beginPath();
+      g.ellipse(p[0], p[1], 22, 15, farm.yard.ang, 0, TAU);
+      g.fill();
+    }
   }
   yield;
   // Narrow wheel-worn access tracks, with grass between the ruts.
   for (const track of FIELD_TRACKS) {
     const P = track.path;
     for (const ox of edgeOffs(Math.min(...P.map(p => p[0])), Math.max(...P.map(p => p[0])))) {
-      g.save(); g.translate(ox, 0);
+      g.save();
+      g.translate(ox, 0);
       strokePoly(g, P, 13, winter ? '#D9E0E4' : 'rgba(105,92,65,.35)');
       for (const side of [-3.5, 3.5]) strokePoly(g, offsetPoly(P, side), 3.2, winter ? '#B9C3CC' : '#AD9C78');
       g.restore();
@@ -829,6 +844,22 @@ function* paintGroundGen(season) {
         g.save();
         g.translate(c.x + ox, c.y);
         g.rotate(c.ang);
+        if (c.underpass) {
+          // The road drops into a short dark cutting while the railway stays on
+          // its embankment above. Pale retaining walls make the two levels read.
+          g.fillStyle = winter ? 'rgba(72,78,86,.78)' : 'rgba(48,43,34,.78)';
+          g.fillRect(-hl * 1.15, -hw, hl * 2.3, hw * 2);
+          const wall = g.createLinearGradient(-hl * 1.15, 0, hl * 1.15, 0);
+          wall.addColorStop(0, winter ? '#BCC3CA' : '#8E846E');
+          wall.addColorStop(0.22, winter ? '#737B84' : '#554D40');
+          wall.addColorStop(0.78, winter ? '#737B84' : '#554D40');
+          wall.addColorStop(1, winter ? '#BCC3CA' : '#8E846E');
+          g.fillStyle = wall;
+          g.fillRect(-hl * 1.15, -hw - 4, hl * 2.3, 4);
+          g.fillRect(-hl * 1.15, hw, hl * 2.3, 4);
+          g.restore();
+          continue;
+        }
         g.fillStyle = winter ? 'rgba(213,217,222,.92)' : '#7C6A50';
         g.fillRect(-hl, -hw, hl * 2, hw * 2);
         // worn wheel path down the middle where wheels have crossed it season after season

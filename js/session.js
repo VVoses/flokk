@@ -199,6 +199,8 @@ function initSession() {
   const hasSession = !!readSession();
   $('continueBtn').hidden = !hasSession;
   $('startBtn').textContent = hasSession ? 'Start new flight' : 'Take off';
+  $('startBtn').classList.toggle('danger', hasSession);
+  $('startBtn').title = hasSession ? 'Erase this saved flight and begin again' : '';
   $('continueBtn').onclick = restoreSession;
   window.addEventListener('pagehide', saveSession);
   document.addEventListener('visibilitychange', () => {

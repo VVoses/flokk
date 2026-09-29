@@ -464,10 +464,10 @@ function blocked(x, y, r) {
   for (const Y of YARDS) if (inYard(Y, x, y, r * 0.4)) return true;
   if (inChurchyard(x, y, r * 0.4)) return true;
   if (inBuild(x, y, r * 0.6 + 12)) return true;
-  if (roadDist(x, y) < 52 + r * 0.85) return true;
-  if (FIELD_TRACKS.some(t => polyDist(x, y, t.path) < 15 + r)) return true;
+  if (roadDist(x, y) < 62 + r) return true;
+  if (FIELD_TRACKS.some(t => polyDist(x, y, t.path) < 20 + r)) return true;
   if (railDist(x, y) < 34 + r * 0.85) return true;
-  for (const P of LANES) if (polyDist(x, y, P) < 26 + r * 0.7) return true;
+  for (const P of LANES) if (polyDist(x, y, P) < 34 + r * 0.8) return true;
   if (segDist(x, y, JET.x0, JET.y0, JET.x1, JET.y1) < r + 12) return true;
   return false;
 }
@@ -1545,9 +1545,17 @@ function genWorld(seed) {
   // level crossings: every place the road or a farm lane crosses the railway, plus a crossbuck sign
   // standing at the roadside on each approach; poles, wires and fences all keep clear of the gap
   for (const x of findCrossings(ROAD, RAIL)) CROSSINGS.push(Object.assign(x, { w: 15 }));
-  for (const P of [...LANES, ...FIELD_TRACKS.map(t => t.path)]) for (const x of findCrossings(P, RAIL)) CROSSINGS.push(Object.assign(x, { w: 10 }));
+  for (const P of [...LANES, ...FIELD_TRACKS.map(t => t.path)])
+    for (const x of findCrossings(P, RAIL)) CROSSINGS.push(Object.assign(x, { w: 10 }));
+  const publicCrossings = CROSSINGS.filter(c => c.w >= 13 && c.x >= 0 && c.x < W),
+    eligibleUnderpasses = publicCrossings.filter(c => Math.abs(Math.sin(c.ang - c.rang)) > 0.62);
+  for (const c of eligibleUnderpasses) c.underpass = hash2(c.x * 0.03, c.y * 0.03) < 0.38;
+  if (eligibleUnderpasses.length && !eligibleUnderpasses.some(c => c.underpass))
+    eligibleUnderpasses.reduce((best, c) =>
+      hash2(c.x * 0.03, c.y * 0.03) < hash2(best.x * 0.03, best.y * 0.03) ? c : best
+    ).underpass = true;
   for (const c of CROSSINGS) {
-    if (c.w < 13) continue; // only the public road gets crossing signs, not a farm track
+    if (c.w < 13 || c.underpass) continue; // underpasses need no crossbucks or stopping place
     const relA = c.ang - c.rang,
       s = Math.max(Math.abs(Math.sin(relA)), 0.28),
       hl = clamp(26 / s, 26, 70),

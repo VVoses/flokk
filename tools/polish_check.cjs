@@ -45,7 +45,8 @@ const root = path.resolve(__dirname, '..');
       return {
         actions: actions.map(r => ({ top: r.top, left: r.left, right: r.right })),
         hints: hints.map(r => ({ top: r.top, bottom: r.bottom })),
-        label: $('startBtn').textContent
+        label: $('startBtn').textContent,
+        destructive: $('startBtn').classList.contains('danger')
       };
     });
     assert.equal(titleLayout.actions.length, 3);
@@ -57,6 +58,7 @@ const root = path.resolve(__dirname, '..');
       'gameplay hints form separate rows'
     );
     assert.equal(titleLayout.label, 'Start new flight');
+    assert(titleLayout.destructive, 'starting over is visually marked as destructive');
     await page.click('#continueBtn');
     const restored = await page.evaluate(() => ({
       seed: SEED,
@@ -99,6 +101,7 @@ const root = path.resolve(__dirname, '..');
           .map(p => ({ p, water: inWater(wrapX(p[0]), p[1], 0), building: buildAt(p[0], p[1], -2)?.kind }));
         const hazards = bad.length;
         const shallow = CROSSINGS.filter(c => c.x >= 0 && c.x < W && Math.abs(Math.sin(c.ang - c.rang)) < 0.45).length;
+        const underpasses = CROSSINGS.filter(c => c.x >= 0 && c.x < W && c.underpass).length;
         const paths = [...ACCESS_TRUNKS, ...LANES, ...FIELD_TRACKS.flatMap(t => [t.path, t.network])],
           seamJumps = [];
         let longestSegment = 0;
@@ -109,6 +112,19 @@ const root = path.resolve(__dirname, '..');
             longestSegment = Math.max(longestSegment, Math.hypot(dx, dy));
             if (Math.abs(dx) > W / 2) seamJumps.push([path[i - 1], path[i]]);
           }
+        let minorIntrusions = 0;
+        for (const track of FIELD_TRACKS)
+          for (let i = 1; i < track.path.length; i++) {
+            const a = track.path[i - 1],
+              b = track.path[i],
+              n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 10));
+            for (let j = 0; j <= n; j++) {
+              const x = lerp(a[0], b[0], j / n),
+                y = lerp(a[1], b[1], j / n);
+              if (inWater(wrapX(x), y, 12) || YARDS.some(yard => inYard(yard, x, y, 2))) minorIntrusions++;
+            }
+          }
+        const roadShoreHits = ROAD.filter(p => p[0] >= 0 && p[0] < W && inWater(p[0], p[1], 60)).length;
         const missing = FIELDS.filter(f => f.t !== 'sty' && !f.track).map(f => ({
           x: Math.round(f.x),
           y: Math.round(f.y),
@@ -123,8 +139,11 @@ const root = path.resolve(__dirname, '..');
           hazards,
           bad,
           shallow,
+          underpasses,
           seamJumps: seamJumps.length,
           longestSegment: Math.round(longestSegment),
+          minorIntrusions,
+          roadShoreHits,
           trunks: ACCESS_TRUNKS.length,
           fields: FIELDS.filter(f => f.t !== 'sty').length,
           tracks: FIELD_TRACKS.length,
@@ -144,6 +163,10 @@ const root = path.resolve(__dirname, '..');
       'crossings have safe approach angles'
     );
     assert(
+      report.some(r => r.underpasses > 0),
+      'suitable worlds include road-under-rail crossings'
+    );
+    assert(
       report.every(r => r.seamJumps === 0),
       'tracks never take the long way across the world seam'
     );
@@ -159,6 +182,14 @@ const root = path.resolve(__dirname, '..');
       report.every(r => r.tracks === r.fields),
       'every workable field has an access track'
     );
+    assert(
+      report.every(r => r.minorIntrusions === 0),
+      'minor tracks stay outside courtyards and water'
+    );
+    assert(
+      report.every(r => r.roadShoreHits === 0),
+      'public roads retain a stable lake-shore verge'
+    );
     const traffic = await page.evaluate(() => {
       genWorld(17);
       roadInit();
@@ -167,20 +198,43 @@ const root = path.resolve(__dirname, '..');
       const c = { x: railAt(RAIL_S0 + 300).x, y: railAt(RAIL_S0 + 300).y, s: 200 };
       TRAIN = { s: railSAtX(wrapX(c.x)) - 100, dir: 1, v: 160, vmax: 200, tot: 160 };
       const blocked = crossingRoom({ crossings: [c] }, 140, 15);
+      const underpassOpen = crossingRoom({ crossings: [{ ...c, underpass: true }] }, 140, 15);
       TRAIN = null;
       const open = crossingRoom({ crossings: [c] }, 140, 15);
       const a = mkA('deer', 100, 100);
       groundStep(a, 100, 0, 100, 60, 0);
       const finite = Number.isFinite(a.x) && Number.isFinite(a.vx);
+      const eater = birds[1],
+        oldV = [eater.vx, eater.vy];
+      eater.state = 'fly';
+      feedingSnap(eater, eater.x + 35, eater.y + 18, eater.z - 0.2);
+      flyUpdate(eater, 0.05);
+      const feedingReaction = eater.feedT > 0 && Math.hypot(eater.vx - oldV[0], eater.vy - oldV[1]) > 1;
       const fields = FIELDS.filter(f => f.track && ['plow', 'stubble', 'crop'].includes(f.t));
       const tractorRoute = fields.length > 1 ? makeJourney(ptIn(fields[0], 30), ptIn(fields[1], 30)) : null;
       const usesRoad = tractorRoute && tractorRoute.points.some(p => roadDist(wrapX(p[0]), p[1]) < 20);
       const usesTrack =
         tractorRoute && tractorRoute.points.some(p => FIELD_TRACKS.some(t => polyDist(wrapX(p[0]), p[1], t.path) < 12));
-      return { blocked, open: open === Infinity, finite, journey: route.length > 0, usesRoad, usesTrack };
+      return {
+        blocked,
+        underpassOpen: underpassOpen === Infinity,
+        open: open === Infinity,
+        finite,
+        feedingReaction,
+        journey: route.length > 0,
+        usesRoad,
+        usesTrack
+      };
     });
     assert(
-      traffic.blocked < 60 && traffic.open && traffic.finite && traffic.journey && traffic.usesRoad && traffic.usesTrack
+      traffic.blocked < 60 &&
+        traffic.underpassOpen &&
+        traffic.open &&
+        traffic.finite &&
+        traffic.feedingReaction &&
+        traffic.journey &&
+        traffic.usesRoad &&
+        traffic.usesTrack
     );
     console.log('traffic checks', traffic);
     fs.mkdirSync(path.join(root, 'tools/out/polish'), { recursive: true });

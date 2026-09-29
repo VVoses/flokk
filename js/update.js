@@ -300,7 +300,7 @@ function update(dt) {
           const [mx, my, mz] = motePos(s, s.m[i]);
           if (wdx(mx, b.x) ** 2 + (my - b.y) ** 2 < 170) {
             s.m.splice(i, 1);
-            if (playing) eat(1, mx, my, mz);
+            if (playing) eat(1, mx, my, mz, b);
             else sparkle(mx, my, mz);
           }
         }
@@ -309,7 +309,7 @@ function update(dt) {
         const f = dflies[i];
         if (wdx(f.x, b.x) ** 2 + (f.y - b.y) ** 2 < 200) {
           dflies.splice(i, 1);
-          if (playing) eat(3, f.x, f.y, f.z);
+          if (playing) eat(3, f.x, f.y, f.z, b);
         }
       }
     }

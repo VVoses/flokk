@@ -31,6 +31,8 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Vehicles and walkers yield to trains.
 - [x] Connected road/lane routes between actual destinations.
 - [x] Shared gravel branches form a road hierarchy before splitting into individual approaches.
+- [x] Merge field tracks before courtyards, keep minor tracks out of yards and water, and leave readable forest verges.
+- [x] Mix signed level crossings with road-under-rail cuttings where the crossing angle allows it.
 - [x] Farm tractors travel between yards and fields; delivery and visitor journeys.
 - [ ] Multi-seed geometry and traffic regression checks.
 

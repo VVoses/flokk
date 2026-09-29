@@ -173,9 +173,10 @@ function trackClear(a, b, field) {
     const x = wrapX(a[0] + (dx * i) / n),
       y = a[1] + (dy * i) / n;
     const crossesField = FIELDS.some(
-      f => f !== field && inField(f, x, y, 8) && !(f.farm === field.farm && f.poly && edgeDist(f.poly, x, y) < 30)
-    );
-    if (inWater(x, y, 12) || inBuild(x, y, 15) || crossesField) return false;
+        f => f !== field && inField(f, x, y, 8) && !(f.farm === field.farm && f.poly && edgeDist(f.poly, x, y) < 30)
+      ),
+      crossesYard = YARDS.some(yard => inYard(yard, x, y, 3));
+    if (inWater(x, y, 18) || inBuild(x, y, 15) || crossesField || crossesYard) return false;
   }
   return true;
 }
@@ -186,6 +187,10 @@ function trackPathClear(path, field) {
 function buildFieldTracks() {
   FIELD_TRACKS = [];
   const sources = ROAD.filter((p, i) => p[0] >= 0 && p[0] < W && i % 2 === 0).map(p => ({ p, prefix: [p] }));
+  const registerTrack = track => {
+    for (let i = 2; i < track.network.length; i += 3)
+      sources.push({ p: track.network[i], prefix: track.network.slice(0, i + 1) });
+  };
   for (const lane of LANES)
     for (let i = 0; i < lane.length; i += 2) sources.push({ p: lane[i], prefix: lane.slice(0, i + 1) });
   for (const f of FIELDS) {
@@ -211,8 +216,9 @@ function buildFieldTracks() {
       const crosses = findCrossings(path, RAIL);
       if (crosses.some(x => Math.abs(Math.sin(x.ang - x.rang)) < 0.55)) continue;
       f.gate = c.gate;
-      f.track = { path, network: continuousPath([...c.source.prefix, c.gate]) };
+      f.track = { path, network: continuousPath([...c.source.prefix, ...path.slice(1)]) };
       FIELD_TRACKS.push(f.track);
+      registerTrack(f.track);
       break;
     }
     if (!f.track && candidates.length) {
@@ -230,6 +236,7 @@ function buildFieldTracks() {
         f.track = track;
         f.gate = candidate.gate;
         FIELD_TRACKS.push(track);
+        registerTrack(track);
         break;
       }
     }
