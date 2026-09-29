@@ -96,13 +96,23 @@ function genRail() {
     const candidate = P.map(p => railClear(p[0], p[1]));
     const crossings = findCrossings(ROAD, candidate).filter(c => c.x >= 0 && c.x < W);
     const shallow = crossings.some(c => Math.abs(Math.sin(c.ang - c.rang)) < 0.55);
-    const crowded = candidate.some(p => p[0] >= 0 && p[0] < W && roadDist(p[0], p[1]) < 65 &&
-      !crossings.some(c => Math.hypot(c.x - p[0], c.y - p[1]) < 140));
+    const crowded = candidate.some(
+      p =>
+        p[0] >= 0 &&
+        p[0] < W &&
+        roadDist(p[0], p[1]) < 65 &&
+        !crossings.some(c => Math.hypot(c.x - p[0], c.y - p[1]) < 140)
+    );
     if (!shallow && !crowded && !candidate.some(p => inWater(p[0], p[1], 40))) RAIL = candidate;
   }
   if (!RAIL) {
     // A clear northern corridor is preferable to forcing road and rail into the same gap.
-    RAIL = [[-1900, 500], [0, 500], [W, 500], [W + 1900, 500]];
+    RAIL = [
+      [-1900, 500],
+      [0, 500],
+      [W, 500],
+      [W + 1900, 500]
+    ];
   }
   RAILBOX = [Math.min(...RAIL.map(p => p[1])), Math.max(...RAIL.map(p => p[1]))];
   RAILS = [0];

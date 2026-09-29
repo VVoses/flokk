@@ -421,7 +421,17 @@ function drawQuad(a) {
     );
     // muzzle or snout at the front of the face
     const m = H3(S.hRx * 1.2, S.hRy * (a.k === 'pig' ? 0.25 : 0.2), 0);
-    ellDraw(ello(...m, S.hRx * (a.k === 'fox' ? 0.72 : 0.36), S.hRy * (a.k === 'fox' ? 0.36 : 0.6), S.hRy * (a.k === 'fox' ? 0.4 : 0.62), -ha), a.k === 'fox' ? '#C8BA9B' : headCol, a.k === 'pig' ? 0.85 : 0.72);
+    ellDraw(
+      ello(
+        ...m,
+        S.hRx * (a.k === 'fox' ? 0.72 : 0.36),
+        S.hRy * (a.k === 'fox' ? 0.36 : 0.6),
+        S.hRy * (a.k === 'fox' ? 0.4 : 0.62),
+        -ha
+      ),
+      a.k === 'fox' ? '#C8BA9B' : headCol,
+      a.k === 'pig' ? 0.85 : 0.72
+    );
     if (a.k === 'pig')
       for (const sd of [-1, 1]) {
         const q = P2(...H3(S.hRx * 1.52, S.hRy * 0.25, sd * 0.6));

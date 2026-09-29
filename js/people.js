@@ -219,16 +219,30 @@ const lineEnd = a => [a.x + a.f * (a.ice ? 7 : 30), a.y + (a.ice ? 3 : 10)];
 function walkerLife(a, dt) {
   if (!a.route) {
     const targets = journeyDestinations();
-    if (!targets.length) { a.dying = true; return; }
+    if (!targets.length) {
+      a.dying = true;
+      return;
+    }
     const target = pickP(targets);
-    a.route = makeJourney([a.x, a.y], target.point); a.routeS = 0;
+    a.route = makeJourney([a.x, a.y], target.point);
+    a.routeS = 0;
   }
-  if (a.visitT > 0) { a.visitT -= dt; a.st = 'idle'; a.vx = a.vy = 0; return; }
+  if (a.visitT > 0) {
+    a.visitT -= dt;
+    a.st = 'idle';
+    a.vx = a.vy = 0;
+    return;
+  }
   if (travelAnimal(a, a.route, 13, dt)) {
     const targets = journeyDestinations().filter(d => Math.hypot(wdx(d.point[0], a.x), d.point[1] - a.y) > 100);
     if (!targets.length) return;
-    a.route = makeJourney([a.x, a.y], pickP(targets).point); a.routeS = 0; a.visitT = rr(10, 30);
-    if (!inView(a.x, a.y, 200)) { a.dying = true; a.fade = 0; }
+    a.route = makeJourney([a.x, a.y], pickP(targets).point);
+    a.routeS = 0;
+    a.visitT = rr(10, 30);
+    if (!inView(a.x, a.y, 200)) {
+      a.dying = true;
+      a.fade = 0;
+    }
   }
 }
 function spawnWalker() {
@@ -241,7 +255,8 @@ function spawnWalker() {
   const a = mkPerson('walker', 0, 0, { s: RD.sAt(sx), dir: 1, dist: 0, fade: 0 });
   a.dir = wdx(L ? L.x : 0, sx) * Math.cos(roadAt(a.s).ang) > 0 ? 1 : -1;
   const entry = roadAt(a.s);
-  a.x = entry.x; a.y = entry.y;
+  a.x = entry.x;
+  a.y = entry.y;
   walkerLife(a, 0.016);
   ANIMALS.push(a);
 }
@@ -253,9 +268,13 @@ function updatePeople(dt) {
       const target = a.seasonTravel;
       // Wait until the ice is visibly established before stepping out onto the lake.
       if (target.ice && winterW() < 0.95) continue;
-      a.pose = null; a.st = 'walk'; a.hide = false;
+      a.pose = null;
+      a.st = 'walk';
+      a.hide = false;
       if (steerA(a, target.x, target.y, 13, dt) < 4) {
-        a.ice = !!target.ice; a.pose = target.pose; a.seasonTravel = null;
+        a.ice = !!target.ice;
+        a.pose = target.pose;
+        a.seasonTravel = null;
       }
       continue;
     }

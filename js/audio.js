@@ -256,28 +256,43 @@ function chirp(vol = 0.045, base, x, y) {
 }
 function hawkCry(x, y) {
   if (!ac || muted) return;
-  const t = ac.currentTime, { pan, d } = spatial(x, y, 900),
-    voice = reedOsc(0.65), breath = ac.createBufferSource(),
-    throat = ac.createBiquadFilter(), air = ac.createBiquadFilter(), gain = ac.createGain(),
-    pitch = rr(0.93, 1.06), duration = rr(0.65, 0.9);
+  const t = ac.currentTime,
+    { pan, d } = spatial(x, y, 900),
+    voice = reedOsc(0.65),
+    breath = ac.createBufferSource(),
+    throat = ac.createBiquadFilter(),
+    air = ac.createBiquadFilter(),
+    gain = ac.createGain(),
+    pitch = rr(0.93, 1.06),
+    duration = rr(0.65, 0.9);
   voice.frequency.setValueAtTime(1420 * pitch, t);
   voice.frequency.exponentialRampToValueAtTime(1770 * pitch, t + 0.09);
   voice.frequency.exponentialRampToValueAtTime(970 * pitch, t + duration);
-  throat.type = 'bandpass'; throat.Q.value = 1.3;
-  throat.frequency.setValueAtTime(2000, t); throat.frequency.linearRampToValueAtTime(1350, t + duration);
-  air.type = 'lowpass'; air.frequency.value = lerp(5200, 1900, d); air.Q.value = 0.5;
+  throat.type = 'bandpass';
+  throat.Q.value = 1.3;
+  throat.frequency.setValueAtTime(2000, t);
+  throat.frequency.linearRampToValueAtTime(1350, t + duration);
+  air.type = 'lowpass';
+  air.frequency.value = lerp(5200, 1900, d);
+  air.Q.value = 0.5;
   gain.gain.setValueAtTime(0, t);
   gain.gain.linearRampToValueAtTime(0.065 * (1 - d * 0.6), t + 0.07);
   gain.gain.exponentialRampToValueAtTime(0.025 * (1 - d * 0.6), t + duration * 0.6);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
   voice.connect(throat).connect(gain).connect(air);
   breath.buffer = amb.noise;
-  const breathGain = ac.createGain(); breathGain.gain.value = 0.1;
+  const breathGain = ac.createGain();
+  breathGain.gain.value = 0.1;
   breath.connect(breathGain).connect(throat);
-  const p = panned(air, pan), send = ac.createGain(); send.gain.value = 0.12 + d * 0.45;
-  p.connect(master); p.connect(send).connect(verb);
-  voice.start(t); breath.start(t, rr(0, 2));
-  voice.stop(t + duration + 0.03); breath.stop(t + duration + 0.03);
+  const p = panned(air, pan),
+    send = ac.createGain();
+  send.gain.value = 0.12 + d * 0.45;
+  p.connect(master);
+  p.connect(send).connect(verb);
+  voice.start(t);
+  breath.start(t, rr(0, 2));
+  voice.stop(t + duration + 0.03);
+  breath.stop(t + duration + 0.03);
 }
 // the air cut by a stoop that missed: quick, sharp, and gone - never the same twice
 function whooshMiss(x, y) {
@@ -750,7 +765,8 @@ function animalCall(k, vol, pn, o = {}) {
   out.connect(air);
   const p = panned(air, pn);
   p.connect(dry).connect(master);
-  const send = ac.createGain(); send.gain.value = 0.12 + 0.55 * d;
+  const send = ac.createGain();
+  send.gain.value = 0.12 + 0.55 * d;
   p.connect(send).connect(verb);
   const sw = (f0, f1, dur, t0, q, bpf, type = 'sawtooth', vib = 0) => {
     const pj = VOX.p * wob(0.025);

@@ -174,19 +174,27 @@ function spawnAnimals(preserve = false) {
       for (const a of candidates.filter(a => a.k === kind)) {
         a.fade = 0;
         ANIMALS.push(a);
-        if (kind === 'tractor')
-          ANIMALS.push(...candidates.filter(g => g.k === 'gull' && g.follow === a));
+        if (kind === 'tractor') ANIMALS.push(...candidates.filter(g => g.k === 'gull' && g.follow === a));
       }
     }
     for (const a of ANIMALS) {
-      if (a.k === 'butterfly' && SEASON >= 2) { a.dying = true; a.fade ??= 1; }
+      if (a.k === 'butterfly' && SEASON >= 2) {
+        a.dying = true;
+        a.fade ??= 1;
+      }
       if ((a.k === 'duck' || a.k === 'heron') && SEASON === 3) a.migrating = true;
       if (a.k === 'sheep' || a.k === 'cow' || a.k === 'tractor') {
         if (SEASON === 3) {
           const barns = BUILDS.filter(b => b.kind === 'barn' || b.kind === 'sbarn');
-          const barn = barns.sort((b, c) => Math.hypot(wdx(b.cx, a.x), b.cy - a.y) - Math.hypot(wdx(c.cx, a.x), c.cy - a.y))[0];
+          const barn = barns.sort(
+            (b, c) => Math.hypot(wdx(b.cx, a.x), b.cy - a.y) - Math.hypot(wdx(c.cx, a.x), c.cy - a.y)
+          )[0];
           if (barn) a.shelter = frontOf(barn);
-        } else { a.shelter = null; a.hide = false; a.busy = false; }
+        } else {
+          a.shelter = null;
+          a.hide = false;
+          a.busy = false;
+        }
       }
       if (a.role === 'fisher') {
         const next = candidates.find(b => b.role === 'fisher');
@@ -348,16 +356,29 @@ function updateAnimals(dt) {
   for (const a of ANIMALS) {
     a.anim += dt;
     if (a.migrating) {
-      a.busy = true; a.st = 'fly'; a.vx = 65; a.vy = -22;
-      a.x += a.vx * dt; a.y += a.vy * dt; a.z = Math.min(3, a.z + dt * 0.7);
-      a.hd = Math.atan2(a.vy, a.vx); a.flap += dt * 7;
-      if (!inView(a.x, a.y, 300)) { a.dying = true; a.fade = 0; }
+      a.busy = true;
+      a.st = 'fly';
+      a.vx = 65;
+      a.vy = -22;
+      a.x += a.vx * dt;
+      a.y += a.vy * dt;
+      a.z = Math.min(3, a.z + dt * 0.7);
+      a.hd = Math.atan2(a.vy, a.vx);
+      a.flap += dt * 7;
+      if (!inView(a.x, a.y, 300)) {
+        a.dying = true;
+        a.fade = 0;
+      }
       continue;
     }
     if (a.shelter) {
-      a.busy = true; a.st = 'walk'; a.graze = false;
+      a.busy = true;
+      a.st = 'walk';
+      a.graze = false;
       if (steerA(a, ...a.shelter, a.k === 'tractor' ? 24 : 12, dt) < 4) {
-        a.hide = true; a.st = 'idle'; a.vx = a.vy = 0;
+        a.hide = true;
+        a.st = 'idle';
+        a.vx = a.vy = 0;
       }
       continue;
     }

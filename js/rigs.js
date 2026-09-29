@@ -489,7 +489,11 @@ function drawSkyAnimal(a) {
 }
 function drawSkyAnimal2(a) {
   if (a.k === 'butterfly') return drawButterfly(a);
-  const look = LOOK[a.k] || (a.k === 'duck' ? { ...LOOK.goose, K: 8.5, neck: 0.15, head: a.drake ? '#364C43' : '#736550', beak: '#AAA15C', amp: 0.8 } : null);
+  const look =
+    LOOK[a.k] ||
+    (a.k === 'duck'
+      ? { ...LOOK.goose, K: 8.5, neck: 0.15, head: a.drake ? '#364C43' : '#736550', beak: '#AAA15C', amp: 0.8 }
+      : null);
   if (!look) return;
   drawFly3(a.x, PY(a.y, a.z), skyPose(a, look), look, look.K * (0.95 + 0.03 * a.z));
 }
