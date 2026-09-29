@@ -298,18 +298,20 @@ function update(dt) {
         if (dx * dx + dy * dy > 2900) continue;
         for (let i = s.m.length - 1; i >= 0; i--) {
           const [mx, my, mz] = motePos(s, s.m[i]);
-          if (wdx(mx, b.x) ** 2 + (my - b.y) ** 2 < 170) {
+          const catchR = b === L ? 26 : 15;
+          if (wdx(mx, b.x) ** 2 + (my - b.y) ** 2 < catchR * catchR) {
             s.m.splice(i, 1);
-            if (playing) eat(1, mx, my, mz, b);
+            if (playing) eat(1, mx, my, mz);
             else sparkle(mx, my, mz);
           }
         }
       }
       for (let i = dflies.length - 1; i >= 0; i--) {
         const f = dflies[i];
-        if (wdx(f.x, b.x) ** 2 + (f.y - b.y) ** 2 < 200) {
+        const catchR = b === L ? 30 : 17;
+        if (wdx(f.x, b.x) ** 2 + (f.y - b.y) ** 2 < catchR * catchR) {
           dflies.splice(i, 1);
-          if (playing) eat(3, f.x, f.y, f.z, b);
+          if (playing) eat(3, f.x, f.y, f.z);
         }
       }
     }

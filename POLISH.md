@@ -53,6 +53,7 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 ## Verification
 
 - [x] Give saved-game title actions a stable primary/secondary layout and show each gameplay hint on its own line.
+- [x] Keep insect pickup forgiving around the lead bird while limiting feeding-snap animation to non-player flock members.
 - Seasonal regression: `node tools/transition_check.cjs` (requires Playwright).
   Set PLAYWRIGHT_MODULE and CHROMIUM_PATH to use existing local installations.
 - Existing syntax, flow, seam, growth, and road checks remain relevant.

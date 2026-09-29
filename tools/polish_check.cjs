@@ -204,12 +204,17 @@ const root = path.resolve(__dirname, '..');
       const a = mkA('deer', 100, 100);
       groundStep(a, 100, 0, 100, 60, 0);
       const finite = Number.isFinite(a.x) && Number.isFinite(a.vx);
-      const eater = birds[1],
-        oldV = [eater.vx, eater.vy];
-      eater.state = 'fly';
-      feedingSnap(eater, eater.x + 35, eater.y + 18, eater.z - 0.2);
-      flyUpdate(eater, 0.05);
-      const feedingReaction = eater.feedT > 0 && Math.hypot(eater.vx - oldV[0], eater.vy - oldV[1]) > 1;
+      const leaderV = [L.vx, L.vy];
+      for (const b of birds.slice(1)) b.state = 'fly';
+      feedingSnap(L.x + 35, L.y + 18, L.z - 0.2);
+      const reactor = birds.slice(1).find(b => b.feedT > 0),
+        oldV = reactor && [reactor.vx, reactor.vy];
+      if (reactor) flyUpdate(reactor, 0.05);
+      const feedingReaction =
+        reactor &&
+        Math.hypot(reactor.vx - oldV[0], reactor.vy - oldV[1]) > 1 &&
+        L.vx === leaderV[0] &&
+        L.vy === leaderV[1];
       const fields = FIELDS.filter(f => f.track && ['plow', 'stubble', 'crop'].includes(f.t));
       const tractorRoute = fields.length > 1 ? makeJourney(ptIn(fields[0], 30), ptIn(fields[1], 30)) : null;
       const usesRoad = tractorRoute && tractorRoute.points.some(p => roadDist(wrapX(p[0]), p[1]) < 20);
