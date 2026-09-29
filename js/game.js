@@ -592,6 +592,7 @@ function landLabels() {
     LAND_NAME + (flock ? ` · best flock ${flock}` : '') + (days ? ` · ${days} ${days === 1 ? 'day' : 'days'}` : '');
 }
 function newLand(btn, then) {
+  clearSession();
   const old = btn.textContent;
   btn.textContent = 'Shaping the land…';
   btn.disabled = true;
@@ -612,6 +613,7 @@ function newLand(btn, then) {
   }, 40);
 }
 function startGame() {
+  clearSession();
   initAudio();
   // always start in spring, with a full year ahead
   CAL.t = 0;
@@ -702,6 +704,7 @@ function pause() {
   $('pauseStats').innerHTML = statsHTML();
   $('pauseOv').hidden = false;
   $('resumeBtn').focus();
+  saveSession();
 }
 function resume() {
   st.mode = 'play';
@@ -710,6 +713,7 @@ function resume() {
   syncHud();
 }
 function gameOver() {
+  clearSession();
   hideBanner();
   st.mode = 'over';
   $('overTitle').textContent = st.cause === 'starved' ? 'Starved' : 'Taken';

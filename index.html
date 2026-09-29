@@ -119,9 +119,16 @@
       <div class="card">
         <h1>Flokk</h1>
         <p class="sub">a year with a flock of sparrows</p>
-        <div class="keys" id="keysTxt">hold the mouse or arrow keys to fly · let go to land · space to dash</div>
+        <ul class="keys" id="keysTxt" aria-label="How to fly">
+          <li>hold the mouse or arrow keys to fly</li>
+          <li>let go to land</li>
+          <li>press space to dash</li>
+        </ul>
         <div class="actions">
-          <button class="btn main" id="startBtn">Take off</button><button class="btn" id="newLandBtn">New land</button>
+          <span id="saveNote" role="status"></span>
+          <button class="btn main" id="continueBtn" hidden>Continue flight</button>
+          <button class="btn main" id="startBtn">Take off</button>
+          <button class="btn" id="newLandBtn">New land</button>
         </div>
         <div class="fine" id="bestTitle"></div>
       </div>
@@ -176,10 +183,13 @@
     <script src="js/yard.js"></script>
     <script src="js/rail.js"></script>
     <script src="js/traffic.js"></script>
+    <script src="js/regions.js"></script>
+    <script src="js/routes.js"></script>
     <script src="js/game.js"></script>
     <script src="js/flight.js"></script>
     <script src="js/update.js"></script>
     <script src="js/render.js"></script>
+    <script src="js/session.js"></script>
     <script src="js/main.js"></script>
     <script>
       if (/[?&]dev\b/.test(location.search)) document.write('<script src="js/dev.js"><\/script>');

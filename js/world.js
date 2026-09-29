@@ -7,6 +7,7 @@ let LAKE,
   POND,
   ROAD,
   LANES,
+  ACCESS_TRUNKS = [],
   FIELDS,
   DIVIDES = [], // the balks, ditches and hedges between neighbouring plots: {t, w, pts}
   YARD,
@@ -254,6 +255,7 @@ function navPlan(x0, y0, x1, y1) {
 }
 // one step of s units/second towards (a.x+dx, a.y+dy), going round any building in the way
 function groundStep(a, dx, dy, d, s, dt) {
+  if (!(dt > 0)) return;
   const gx = a.x + dx,
     gy = a.y + dy;
   let ux = dx,
@@ -275,8 +277,21 @@ function groundStep(a, dx, dy, d, s, dt) {
     }
   } else a.nav = null;
   const ul = Math.hypot(ux, uy) || 1;
-  let nx = a.x + (ux / ul) * s * dt,
-    ny = a.y + (uy / ul) * s * dt;
+  const aim = Math.atan2(uy, ux),
+    speed = Math.hypot(a.vx || 0, a.vy || 0),
+    heading = a.moveHeading ?? a.hd3 ?? aim,
+    turn = angDiff(aim, heading),
+    large = a.k === 'cow' || a.k === 'moose' || a.k === 'tractor',
+    rate = large ? 2.2 : a.k === 'fox' || a.k === 'dog' ? 4.8 : 3.4,
+    nextHeading = heading + clamp(turn, -rate * dt, rate * dt),
+    // Slow before a corner, then accelerate out along the new heading.
+    target = Math.min(s, Math.sqrt(2 * 70 * ul)) * Math.max(0, Math.cos(turn)),
+    acceleration = large ? 28 : 65,
+    nextSpeed = Math.max(0, speed + clamp(target - speed, -110 * dt, acceleration * dt)),
+    step = Math.min(ul, nextSpeed * dt);
+  a.moveHeading = nextHeading;
+  let nx = a.x + Math.cos(nextHeading) * step,
+    ny = a.y + Math.sin(nextHeading) * step;
   // never onto a roof: slide along the wall instead (also the fallback when no route exists)
   if (inBuild(nx, ny, NAV_M - 4)) [nx, ny] = pushOut(nx, ny, NAV_M - 3);
   a.vx = (nx - a.x) / dt;
@@ -306,6 +321,11 @@ function forestness(x, y) {
   }
   const out = Math.max(-y, y - H);
   if (out > 0) f += 0.5;
+  if (REGIONS.length) {
+    const regional = regionWeights(x, y);
+    f -= regional.town * 0.2;
+    f += regional.highland * 0.035;
+  }
   return f;
 }
 /* a gentle rolling elevation field, purely for hillshading the ground texture - the land itself
@@ -445,6 +465,7 @@ function blocked(x, y, r) {
   if (inChurchyard(x, y, r * 0.4)) return true;
   if (inBuild(x, y, r * 0.6 + 12)) return true;
   if (roadDist(x, y) < 52 + r * 0.85) return true;
+  if (FIELD_TRACKS.some(t => polyDist(x, y, t.path) < 15 + r)) return true;
   if (railDist(x, y) < 34 + r * 0.85) return true;
   for (const P of LANES) if (polyDist(x, y, P) < 26 + r * 0.7) return true;
   if (segDist(x, y, JET.x0, JET.y0, JET.x1, JET.y1) < r + 12) return true;
@@ -1337,7 +1358,11 @@ function genLayout() {
       break;
     }
   }
+  placeServices();
+  clearAccessLanes();
+  LANES = LANES.map(squareLaneCrossings);
   shapeFields();
+  buildFieldTracks();
   LAND_NAME = landName();
 }
 function genWorld(seed) {
@@ -1355,6 +1380,9 @@ function genWorld(seed) {
   SPARK.length = 0;
   CROSSINGS.length = 0;
   XSIGNS.length = 0;
+  REGIONS = [];
+  FIELD_TRACKS = [];
+  ACCESS_TRUNKS = [];
   genLayout();
   // trees: forest by noise and zones, hedgerows along fields, birches on the shores
   for (let gx = 0; gx < W; gx += 46)
@@ -1517,7 +1545,7 @@ function genWorld(seed) {
   // level crossings: every place the road or a farm lane crosses the railway, plus a crossbuck sign
   // standing at the roadside on each approach; poles, wires and fences all keep clear of the gap
   for (const x of findCrossings(ROAD, RAIL)) CROSSINGS.push(Object.assign(x, { w: 15 }));
-  for (const P of LANES) for (const x of findCrossings(P, RAIL)) CROSSINGS.push(Object.assign(x, { w: 10 }));
+  for (const P of [...LANES, ...FIELD_TRACKS.map(t => t.path)]) for (const x of findCrossings(P, RAIL)) CROSSINGS.push(Object.assign(x, { w: 10 }));
   for (const c of CROSSINGS) {
     if (c.w < 13) continue; // only the public road gets crossing signs, not a farm track
     const relA = c.ang - c.rang,
@@ -1619,6 +1647,7 @@ function fenceField(f) {
   for (let i = 0; i < posts.length; i++) {
     const p = posts[i],
       q = posts[(i + 1) % posts.length];
+    if (f.gate && Math.hypot(wdx((p.x + q.x) / 2, f.gate[0]), (p.y + q.y) / 2 - f.gate[1]) < 30) continue;
     FSEG.push({ p, q, k: Math.max(p.y, q.y) });
   }
 }

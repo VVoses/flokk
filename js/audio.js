@@ -60,7 +60,7 @@ function initAudio() {
     // small feedback-delay room for distant sounds and tones
     verb = ac.createGain();
     const vout = ac.createGain();
-    vout.gain.value = 0.28;
+    vout.gain.value = 0.16;
     // the reverb's own tail brightness: open field stays close to dry and open, forest canopy and
     // farm walls dull and lengthen how present it feels - set every tick in audioTick from the
     // flock's own position, so the room around it actually changes as it moves through the world
@@ -256,39 +256,28 @@ function chirp(vol = 0.045, base, x, y) {
 }
 function hawkCry(x, y) {
   if (!ac || muted) return;
-  const t = ac.currentTime;
-  const { pan, d } = spatial(x, y, 900);
-  const o = ac.createOscillator(),
-    gn = ac.createGain(),
-    bp = ac.createBiquadFilter(),
-    lfo = ac.createOscillator(),
-    lg = ac.createGain(),
-    air = ac.createBiquadFilter();
-  o.type = 'sawtooth';
-  o.frequency.setValueAtTime(1650, t);
-  o.frequency.exponentialRampToValueAtTime(1100, t + 0.75);
-  lfo.frequency.value = 32;
-  lg.gain.value = 70;
-  lfo.connect(lg).connect(o.frequency);
-  bp.type = 'bandpass';
-  bp.frequency.value = 1500;
-  bp.Q.value = 2.5;
-  // a cry from further off loses its top edge to the air before it reaches you
-  air.type = 'highshelf';
-  air.frequency.value = 2200;
-  air.gain.value = -10 * d;
-  gn.gain.setValueAtTime(0, t);
-  gn.gain.linearRampToValueAtTime(0.09 * (1 - 0.3 * d), t + 0.05);
-  gn.gain.setValueAtTime(0.09 * (1 - 0.3 * d), t + 0.45);
-  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
-  o.connect(bp).connect(gn).connect(air);
-  const p = panned(air, pan);
-  p.connect(master);
-  p.connect(verb);
-  o.start(t);
-  lfo.start(t);
-  o.stop(t + 0.82);
-  lfo.stop(t + 0.82);
+  const t = ac.currentTime, { pan, d } = spatial(x, y, 900),
+    voice = reedOsc(0.65), breath = ac.createBufferSource(),
+    throat = ac.createBiquadFilter(), air = ac.createBiquadFilter(), gain = ac.createGain(),
+    pitch = rr(0.93, 1.06), duration = rr(0.65, 0.9);
+  voice.frequency.setValueAtTime(1420 * pitch, t);
+  voice.frequency.exponentialRampToValueAtTime(1770 * pitch, t + 0.09);
+  voice.frequency.exponentialRampToValueAtTime(970 * pitch, t + duration);
+  throat.type = 'bandpass'; throat.Q.value = 1.3;
+  throat.frequency.setValueAtTime(2000, t); throat.frequency.linearRampToValueAtTime(1350, t + duration);
+  air.type = 'lowpass'; air.frequency.value = lerp(5200, 1900, d); air.Q.value = 0.5;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.065 * (1 - d * 0.6), t + 0.07);
+  gain.gain.exponentialRampToValueAtTime(0.025 * (1 - d * 0.6), t + duration * 0.6);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+  voice.connect(throat).connect(gain).connect(air);
+  breath.buffer = amb.noise;
+  const breathGain = ac.createGain(); breathGain.gain.value = 0.1;
+  breath.connect(breathGain).connect(throat);
+  const p = panned(air, pan), send = ac.createGain(); send.gain.value = 0.12 + d * 0.45;
+  p.connect(master); p.connect(send).connect(verb);
+  voice.start(t); breath.start(t, rr(0, 2));
+  voice.stop(t + duration + 0.03); breath.stop(t + duration + 0.03);
 }
 // the air cut by a stoop that missed: quick, sharp, and gone - never the same twice
 function whooshMiss(x, y) {
@@ -580,8 +569,8 @@ function owlHoot(v) {
     o.frequency.linearRampToValueAtTime(f * 0.93, t0 + d);
     const l = ac.createOscillator(),
       lg = ac.createGain();
-    l.frequency.value = 16;
-    lg.gain.value = 6;
+    l.frequency.value = rr(3.8, 5.5);
+    lg.gain.value = 2.2;
     l.connect(lg).connect(o.frequency);
     g2.gain.setValueAtTime(0, t0);
     g2.gain.linearRampToValueAtTime(1, t0 + 0.08);
@@ -753,15 +742,16 @@ function animalCall(k, vol, pn, o = {}) {
   VOX = { p: v.p * wob(0.03) * (1 + 0.07 * x), f: v.f * wob(0.02), r: v.r * wob(0.06) * (1 - 0.18 * x), x };
   // distance: a far call loses its top to the air and reaches you more as echo off the land than direct
   const air = ac.createBiquadFilter();
-  air.type = 'highshelf';
-  air.frequency.value = 2500;
-  air.gain.value = -14 * d;
+  air.type = 'lowpass';
+  air.frequency.value = lerp(7600, 1900, d);
+  air.Q.value = 0.55;
   const dry = ac.createGain();
   dry.gain.value = 1 - 0.45 * d;
   out.connect(air);
   const p = panned(air, pn);
   p.connect(dry).connect(master);
-  p.connect(verb);
+  const send = ac.createGain(); send.gain.value = 0.12 + 0.55 * d;
+  p.connect(send).connect(verb);
   const sw = (f0, f1, dur, t0, q, bpf, type = 'sawtooth', vib = 0) => {
     const pj = VOX.p * wob(0.025);
     f0 *= pj;
@@ -1048,10 +1038,10 @@ function quack(t0, out, f0, v, len = 1) {
   const am = ac.createOscillator(),
     amg = ac.createGain(),
     rough = ac.createGain();
-  am.type = 'square';
-  am.frequency.value = rr(34, 44);
-  amg.gain.value = 0.45;
-  rough.gain.value = 0.55;
+  am.type = 'sine';
+  am.frequency.value = rr(28, 39);
+  amg.gain.value = 0.22;
+  rough.gain.value = 0.78;
   am.connect(amg).connect(rough.gain);
   const env = ac.createGain();
   env.gain.setValueAtTime(0, t0);

@@ -489,7 +489,7 @@ function drawSkyAnimal(a) {
 }
 function drawSkyAnimal2(a) {
   if (a.k === 'butterfly') return drawButterfly(a);
-  const look = LOOK[a.k];
+  const look = LOOK[a.k] || (a.k === 'duck' ? { ...LOOK.goose, K: 8.5, neck: 0.15, head: a.drake ? '#364C43' : '#736550', beak: '#AAA15C', amp: 0.8 } : null);
   if (!look) return;
   drawFly3(a.x, PY(a.y, a.z), skyPose(a, look), look, look.K * (0.95 + 0.03 * a.z));
 }
@@ -628,10 +628,10 @@ const QSPEC = {
     catEars: true
   },
   fox: {
-    L: 7,
-    H: 2.9,
-    hip: 5.6,
-    lw: 1.35,
+    L: 8.2,
+    H: 2.65,
+    hip: 6.2,
+    lw: 1.05,
     leg: '#241512',
     neckL: 2.6,
     neckW: 2.9,
@@ -662,7 +662,7 @@ function animalColors(a) {
     case 'cat':
       return a.ginger ? { body: '#C8793A', shade: '#A55F2A' } : { body: '#6B6560', shade: '#524D48' };
     case 'fox':
-      return { body: '#BE5A20', shade: '#8C4016' };
+      return { body: '#A56D43', shade: '#704A32' };
   }
 }
 function drawHare(a) {
@@ -1058,6 +1058,7 @@ function animalPost(dt) {
   }
 }
 const isSky = a =>
+  a.migrating ||
   a.k === 'gull' ||
   a.k === 'goose' ||
   a.k === 'rook' ||

@@ -26,10 +26,9 @@ function update(dt) {
   weatherTick(dt);
   calUpdate();
   runBgJob();
-  if (TRANS.t < 1) {
-    // held just short of done while the new season's sprites/ground are still being built (BG_JOB), so
-    // the crossfade never finishes revealing them before they're actually ready
-    TRANS.t = Math.min(BG_JOB ? 0.999 : 1, TRANS.t + dt / 10);
+  if (TRANS.t < 1 && !BG_JOB) {
+    // Reveal the incoming season only when every asset and growth stage is ready.
+    TRANS.t = Math.min(1, TRANS.t + dt / 10);
     if (TRANS.t >= 1) {
       TRANS.prevG = null;
       TRANS.prevSPR = null;

@@ -38,11 +38,13 @@ function mkA(k, x, y, o) {
     o || {}
   );
 }
-function spawnAnimals() {
+function spawnAnimals(preserve = false) {
+  const residents = preserve ? ANIMALS.filter(a => !a.dying) : [];
+  const oldWild = preserve ? WILD.flocks : null;
   ANIMALS = [];
   SMOKE = [];
   RINGS = [];
-  wildReset();
+  if (!preserve) wildReset();
   const pastures = FIELDS.filter(f => f.t === 'pasture');
   if (SEASON < 3)
     pastures.slice(0, 3).forEach((f, i) => {
@@ -161,6 +163,37 @@ function spawnAnimals() {
         })
       );
   spawnPeople();
+  if (preserve) {
+    const candidates = ANIMALS;
+    ANIMALS = residents;
+    WILD.flocks = oldWild;
+    // Year-round residents keep their identity, group relationships and current routine.
+    // Only seasonal species absent from this world need a new population.
+    for (const kind of ['sheep', 'cow', 'duck', 'heron', 'tractor', 'butterfly']) {
+      if (residents.some(a => a.k === kind)) continue;
+      for (const a of candidates.filter(a => a.k === kind)) {
+        a.fade = 0;
+        ANIMALS.push(a);
+        if (kind === 'tractor')
+          ANIMALS.push(...candidates.filter(g => g.k === 'gull' && g.follow === a));
+      }
+    }
+    for (const a of ANIMALS) {
+      if (a.k === 'butterfly' && SEASON >= 2) { a.dying = true; a.fade ??= 1; }
+      if ((a.k === 'duck' || a.k === 'heron') && SEASON === 3) a.migrating = true;
+      if (a.k === 'sheep' || a.k === 'cow' || a.k === 'tractor') {
+        if (SEASON === 3) {
+          const barns = BUILDS.filter(b => b.kind === 'barn' || b.kind === 'sbarn');
+          const barn = barns.sort((b, c) => Math.hypot(wdx(b.cx, a.x), b.cy - a.y) - Math.hypot(wdx(c.cx, a.x), c.cy - a.y))[0];
+          if (barn) a.shelter = frontOf(barn);
+        } else { a.shelter = null; a.hide = false; a.busy = false; }
+      }
+      if (a.role === 'fisher') {
+        const next = candidates.find(b => b.role === 'fisher');
+        if (next && !!next.ice !== !!a.ice) a.seasonTravel = { x: next.x, y: next.y, ice: next.ice, pose: next.pose };
+      }
+    }
+  }
 }
 // humanOnly: only people count as a threat (moose tolerate dogs, traffic and hawks nearby, but not people)
 function threatNear(a, r, humanOnly) {
@@ -224,7 +257,7 @@ function rowStart(f, x, y) {
 // a tractor done with its field picks another ploughed, stubble or cropped field - one of the nearer ones
 // of its own farm, or any farm's if its own has none - and drives to the head of that field's first row
 function tractorMove(a) {
-  const ok = f => f !== a.rect && (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop');
+  const ok = f => f !== a.rect && f.track && (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop');
   let cand = FIELDS.filter(f => ok(f) && f.farm === a.rect.farm);
   if (!cand.length) cand = FIELDS.filter(ok);
   const near = cand
@@ -242,6 +275,8 @@ function tractorMove(a) {
   LIFE.tractorF = f;
   a.next = f;
   a.go = [s.x, s.y];
+  a.route = makeJourney([a.x, a.y], a.go);
+  a.routeS = 0;
   a.row = s.row;
   a.rdir = 1;
   a.dirn = s.dirn;
@@ -312,6 +347,20 @@ function updateAnimals(dt) {
   updatePeople(dt);
   for (const a of ANIMALS) {
     a.anim += dt;
+    if (a.migrating) {
+      a.busy = true; a.st = 'fly'; a.vx = 65; a.vy = -22;
+      a.x += a.vx * dt; a.y += a.vy * dt; a.z = Math.min(3, a.z + dt * 0.7);
+      a.hd = Math.atan2(a.vy, a.vx); a.flap += dt * 7;
+      if (!inView(a.x, a.y, 300)) { a.dying = true; a.fade = 0; }
+      continue;
+    }
+    if (a.shelter) {
+      a.busy = true; a.st = 'walk'; a.graze = false;
+      if (steerA(a, ...a.shelter, a.k === 'tractor' ? 24 : 12, dt) < 4) {
+        a.hide = true; a.st = 'idle'; a.vx = a.vy = 0;
+      }
+      continue;
+    }
     if (a.busy) continue;
     a.t -= dt;
     a.chk -= dt;
@@ -624,20 +673,14 @@ function updateAnimals(dt) {
         if (LIGHT.night > 0.4) break;
         if (a.go) {
           // on the way to the next field, in a higher gear than when working it
-          const dx = wdx(a.go[0], a.x),
-            dy = a.go[1] - a.y,
-            d = Math.hypot(dx, dy);
-          if (d < 6) {
+          a.route ||= makeJourney([a.x, a.y], a.go);
+          if (travelAnimal(a, a.route, TRACTOR_ROAD, dt)) {
             a.rect = a.next;
-            a.go = a.next = null;
+            a.go = a.next = a.route = null;
+            a.routeS = 0;
             a.work = rr(60, 140);
-          } else {
-            a.vx = (dx / d) * TRACTOR_ROAD;
-            a.x = wrapX(a.x + a.vx * dt);
-            a.y += (dy / d) * TRACTOR_ROAD * dt;
-            if (Math.abs(dx) > 2) a.f = a.vx > 0 ? 1 : -1;
-            tractorTurn(a, Math.atan2(dy, dx), dt);
           }
+          tractorTurn(a, a.moveHeading ?? a.ang ?? 0, dt);
           tractorDust(a, dt);
           break;
         }
@@ -732,7 +775,7 @@ function updateAnimals(dt) {
   separateAnimals();
   for (const a of ANIMALS) {
     if (a.dying) a.fade -= dt / 6;
-    else if (a.k === 'human') {
+    else if (a.k === 'human' || a.shelter) {
       // a person going indoors or turning in for the night eases out of sight rather than
       // popping, since this happens in plain view (the farmyard, the ice hole)
       const target = a.hide ? 0 : 1;

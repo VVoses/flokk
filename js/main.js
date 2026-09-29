@@ -67,10 +67,12 @@ function frame(now) {
   last = now;
   lastDt = dt;
   if (st.mode === 'play' || st.mode === 'title' || st.overT > 0) update(dt);
+  sessionTick(dt);
   audioTick(dt);
   render();
   hud(dt);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-$('startBtn').focus();
+initSession();
+(readSession() ? $('continueBtn') : $('startBtn')).focus();

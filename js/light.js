@@ -536,13 +536,14 @@ const TRANS = { t: 1, prevG: null, prevSPR: null, prevSeason: 0 };
 // samples noise over the whole map). Done all at once it freezes the game for over a second right as the
 // season turns; instead a smooth season change hands the job here and update() steps through it a little
 // each frame (see runBgJob in update.js), while the old sprites and ground (TRANS.prevSPR/prevG) keep
-// showing through the crossfade in the meantime, so nothing pops once the job actually finishes.
+// fully visible until the job finishes; only then does the crossfade begin.
 let BG_JOB = null;
 function* seasonVisualsGen(s) {
   yield* buildSpritesGen(s);
   yield* buildRimsGen();
   SSPR = null;
   yield* paintGroundGen(s);
+  yield* growSeasonGen();
 }
 const tEase = () => {
   const t = clamp(TRANS.t, 0, 1);
@@ -568,7 +569,12 @@ function leafFallSnap(spr, bare, fallEnd) {
 function applySeason(s, smooth) {
   if (smooth && s !== SEASON) {
     TRANS.prevG = mk(G.width, G.height);
-    TRANS.prevG.getContext('2d').drawImage(G, 0, 0);
+    const outgoing = TRANS.prevG.getContext('2d');
+    outgoing.drawImage(G, 0, 0);
+    outgoing.save();
+    outgoing.scale(S, S);
+    growGround(0, 0, W, H, outgoing);
+    outgoing.restore();
     const autumnFall = SEASON === 2 && GROW.leaf && GROW.leafSeason === SEASON;
     TRANS.prevSPR = {
       spruce: SPR.spruce.slice(),
@@ -586,7 +592,7 @@ function applySeason(s, smooth) {
     TRANS.prevSPR = null;
     TRANS.prevSeason = s;
   }
-  const oldA = smooth ? ANIMALS.filter(a => a.life === undefined) : [];
+  for (const p of perches) if (p.type === 'tree') p.leafBefore = p.foliage ?? (p.cover ? 1 : 0);
   SEASON = s;
   if (smooth) {
     BG_JOB = seasonVisualsGen(s); // stepped a little each frame in update() instead of all at once here
@@ -596,7 +602,6 @@ function applySeason(s, smooth) {
     while (!it.next().done);
   }
   for (const p of perches) {
-    if (p.type === 'tree') p.cover = s !== 3 || p.tt === 'spruce';
     if (p.type === 'bale') p.off = !(s === 2 || s === 3);
     if (p.type === 'feeder') p.off = s !== 3;
     if (p.off && p.occ) {
@@ -608,16 +613,7 @@ function applySeason(s, smooth) {
       }
     }
   }
-  growSeason();
-  spawnAnimals();
-  if (smooth) {
-    for (const a of ANIMALS) a.fade = 0;
-    for (const a of oldA) {
-      a.dying = true;
-      a.fade = a.fade ?? 1;
-      ANIMALS.push(a);
-    }
-  }
+  spawnAnimals(!!smooth);
 }
 function seasonBanner() {
   const el = $('banner');

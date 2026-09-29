@@ -64,18 +64,25 @@ function fieldAlpha(i, s, p) {
 }
 const fieldHarvested = i => SEASON !== 2 || !fieldStage(FIELDS[i], 2) || GROW.fa[i] < 0.5;
 // one small canvas per field rather than one the size of the ground: much cheaper to draw from every frame
-function paintFieldStages() {
+function* paintFieldStagesGen() {
   const keep = R;
-  GROW.fc = FIELDS.map((f, fi) => {
+  const fields = [];
+  for (const [fi, f] of FIELDS.entries()) {
     const kind = fieldStage(f, SEASON);
-    if (!kind) return null;
+    if (!kind) {
+      fields.push(null);
+      continue;
+    }
     const c = mk(Math.ceil(f.w * S) + 2, Math.ceil(f.h * S) + 2),
       q = c.getContext('2d');
     R = mulberry32((SEED ^ 0x3a3) + fi * 7919 + SEASON * 131);
     q.setTransform(S, 0, 0, S, 1 - f.x * S, 1 - f.y * S);
     paintField(q, f, kind, SEASON, false);
-    return c;
-  });
+    fields.push(c);
+    R = keep;
+    yield;
+  }
+  GROW.fc = fields;
   R = keep;
   GROW.fsSeason = SEASON;
 }
@@ -208,20 +215,21 @@ function paintMask(s, p, k) {
   c2.drawImage(GROW.MC, 0, 0, GROW.MC2.width, GROW.MC2.height);
 }
 function maskState() {
-  // spring and winter start from where the season before left the ground; summer's drying fades out
-  // under autumn's own crossfade instead of vanishing the moment the season turns
+  // Spring and winter start from where the season before left the ground.
+  // Outgoing overlays now travel with the frozen ground snapshot.
   if (SEASON === 1 || SEASON === 0 || SEASON === 3) return [SEASON, GROW.p, 1];
-  if (TRANS.t < 1 && TRANS.prevSeason === 1) return [1, 1, 1 - tEase()];
+  // The outgoing season's mask is baked into TRANS.prevG.
   return null;
 }
 
 /* ---------- trees ---------- */
-function buildLeafStages() {
+function* buildLeafStagesGen() {
   const L2 = { bare: { birch: [], decid: [] }, bud: { birch: [], decid: [] } };
   for (const t of ['birch', 'decid'])
     for (let i = 0; i < NV; i++) {
       L2.bare[t][i] = makeSprite(t, i, SEASON, 'bare');
       if (SEASON === 0) L2.bud[t][i] = makeSprite(t, i, 0, 'bud');
+      yield;
     }
   GROW.leaf = L2;
   GROW.leafSeason = SEASON;
@@ -254,21 +262,42 @@ function growUnder(t, x, y, w, h) {
 }
 
 /* ---------- per season and per frame ---------- */
-function growSeason() {
+function* growSeasonGen() {
   if (GROW.seed !== SEED) {
     GROW.seed = SEED;
     buildCells();
     for (const p of perches) if (p.type === 'bale') p.fi = FIELDS.indexOf(fieldAt(wrapX(p.x), p.y));
     for (const b of BALES) b.fi = FIELDS.indexOf(fieldAt(b.x, b.y));
   }
-  paintFieldStages();
-  if (SEASON === 0 || SEASON === 2) buildLeafStages();
+  yield* paintFieldStagesGen();
+  if (SEASON === 0 || SEASON === 2) yield* buildLeafStagesGen();
   GROW.mKey = '';
   growTick(0);
+}
+function treeFoliage(t, season, progress) {
+  if (t.type === 'spruce') return 1;
+  if (season === 3) return 0;
+  const tree = t.orig || t;
+  const j = jit(Math.round(tree.x * 0.37 + tree.y * 1.3)) * 0.1;
+  if (season === 0) {
+    const late = t.type === 'birch' ? 0 : 0.13;
+    return smooth(0.3 + late + j, 0.6 + late + j, progress);
+  }
+  if (season === 2) return 1 - smooth(0.6 + j, 0.99, progress) * (t.type === 'birch' ? 0.85 : 0.7);
+  return 1;
+}
+function updateTreeCover() {
+  for (const p of perches) {
+    if (p.type !== 'tree' || !p.tree) continue;
+    const incoming = treeFoliage(p.tree, SEASON, GROW.p);
+    p.foliage = TRANS.t < 1 ? lerp(p.leafBefore ?? incoming, incoming, tEase()) : incoming;
+    p.cover = p.foliage >= 0.45;
+  }
 }
 function growTick(dt) {
   if (GROW.seed !== SEED || GROW.fsSeason !== SEASON) return;
   GROW.p = seasonP();
+  updateTreeCover();
   for (let i = 0; i < FIELDS.length; i++)
     GROW.fa[i] = fieldStage(FIELDS[i], SEASON) ? fieldAlpha(i, SEASON, GROW.p) : 0;
   // the mask is small but not free: refresh it a few times a second at most, and only when it has moved
@@ -302,7 +331,8 @@ function growTick(dt) {
 }
 const baleShown = b => SEASON !== 2 || b.fi === undefined || b.fi < 0 || fieldHarvested(b.fi);
 // drawn right after the ground texture, in world units, for the part of it in view
-function growGround(sx, sy, ex, ey) {
+function growGround(sx, sy, ex, ey, ctx = cv.getContext('2d')) {
+  if (BG_JOB) return;
   if (GROW.fsSeason !== SEASON || GROW.seed !== SEED) return;
   FIELDS.forEach((f, i) => {
     const a = GROW.fa[i],
@@ -315,7 +345,7 @@ function growGround(sx, sy, ex, ey) {
         y0 = Math.max(sy, f.y),
         y1 = Math.min(ey, f.y + f.h);
       if (x1 <= x0 || y1 <= y0) continue;
-      ctx.globalAlpha = a;
+      ctx.globalAlpha = a * (SEASON === 2 ? tEase() : 1);
       ctx.drawImage(
         c,
         (x0 - f.x - ox) * S + 1,

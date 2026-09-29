@@ -53,10 +53,13 @@ files; function bodies can use anything, since they run after everything has loa
 | `yard.js` | farmyard props (`PROPS`): flagpole with pennant, woodpile, clothesline, wheelbarrow; `yardSpot` finds open ground |
 | `rail.js` | periodic track, trains: liveries, wagon types, detailed `drawCar` |
 | `traffic.js` | sparse road traffic (car, van, tractor with trailer): `roadAt`, `drawVehicle`, headlights, shadows |
+| `regions.js` | soft lake/valley/highland/town regions, roadside services, and field-access track generation |
+| `routes.js` | road/lane/field-track journeys shared by vehicles, walkers and farm machinery; train-crossing yielding |
 | `game.js` | game state `st`, seam recentring `worldShift`, energy, insects, perch assignment, input, UI overlays, particles |
 | `flight.js` | hawks and owls, flock flight |
 | `update.js` | `update(dt)`: one simulation step |
 | `render.js` | `render()`: draws every copy of the looping world (`KS`), painter sort, shadows |
+| `session.js` | versioned local saves and paused restore of an active flight |
 | `main.js` | HUD, boot, frame loop |
 | `dev.js` | test helpers, loaded only with `?dev` |
 

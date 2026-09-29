@@ -1,0 +1,214 @@
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+const root = path.resolve(__dirname, '..');
+(async () => {
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.goto(pathToFileURL(path.join(root, 'index.html')).href + '?dev');
+    await page.click('#startBtn');
+    const save = await page.evaluate(() => {
+      st.mode = 'pause';
+      st.energy = 0.63;
+      st.food = 2;
+      CAL.t = 70;
+      calUpdate();
+      const p = perches.find(p => p.type === 'tree' && p.tt === 'spruce');
+      L.perch = p;
+      p.occ = L;
+      L.state = 'perch';
+      L.x = p.x;
+      L.y = p.y;
+      L.z = p.h;
+      saveSession();
+      return {
+        seed: SEED,
+        time: CAL.t,
+        energy: st.energy,
+        count: birds.length,
+        x: L.x,
+        bytes: localStorage.getItem(SESSION_KEY)?.length || 0
+      };
+    });
+    assert(save.bytes > 0, 'session is written');
+    await page.reload();
+    const titleLayout = await page.evaluate(() => {
+      const actions = [...document.querySelectorAll('#titleOv .actions .btn:not([hidden])')].map(el =>
+        el.getBoundingClientRect()
+      );
+      const hints = [...document.querySelectorAll('#keysTxt li')].map(el => el.getBoundingClientRect());
+      return {
+        actions: actions.map(r => ({ top: r.top, left: r.left, right: r.right })),
+        hints: hints.map(r => ({ top: r.top, bottom: r.bottom })),
+        label: $('startBtn').textContent
+      };
+    });
+    assert.equal(titleLayout.actions.length, 3);
+    assert(titleLayout.actions[1].top > titleLayout.actions[0].top, 'secondary saved-game actions sit below continue');
+    assert.equal(titleLayout.actions[1].top, titleLayout.actions[2].top, 'new-flight choices share one deliberate row');
+    assert(titleLayout.actions[1].right < titleLayout.actions[2].left, 'new-flight choices do not wrap or overlap');
+    assert(
+      titleLayout.hints.every((r, i, all) => !i || r.top >= all[i - 1].bottom),
+      'gameplay hints form separate rows'
+    );
+    assert.equal(titleLayout.label, 'Start new flight');
+    await page.click('#continueBtn');
+    const restored = await page.evaluate(() => ({
+      seed: SEED,
+      time: CAL.t,
+      energy: st.energy,
+      count: birds.length,
+      x: L.x,
+      mode: st.mode,
+      perch: perches.includes(L.perch),
+      occupied: L.perch?.occ === L
+    }));
+    for (const k of ['seed', 'time', 'energy', 'count', 'x']) assert.equal(restored[k], save[k], k);
+    assert.equal(restored.mode, 'pause');
+    assert(restored.perch && restored.occupied);
+    console.log('session round trip', save.bytes, 'bytes');
+    await page.evaluate(() => {
+      resume();
+      update(0.016);
+      pause();
+    });
+    const resident = await page.evaluate(() => {
+      dev.season(1);
+      const dog = ANIMALS.find(a => a.k === 'dog'),
+        farmer = ANIMALS.find(a => a.role === 'farmer');
+      const x = dog.x;
+      applySeason(2, true);
+      while (BG_JOB) runBgJob();
+      return ANIMALS.includes(dog) && ANIMALS.includes(farmer) && dog.x === x;
+    });
+    assert(resident, 'residents survive season boundary');
+    const report = await page.evaluate(() => {
+      const report = [];
+      for (let seed = 1; seed <= 8; seed++) {
+        genWorld(seed);
+        roadInit();
+        const dest = journeyDestinations(),
+          route = makeJourney(dest[0].point, dest[1].point);
+        const bad = route.points
+          .filter(p => inWater(wrapX(p[0]), p[1], 0) || inBuild(p[0], p[1], -2))
+          .map(p => ({ p, water: inWater(wrapX(p[0]), p[1], 0), building: buildAt(p[0], p[1], -2)?.kind }));
+        const hazards = bad.length;
+        const shallow = CROSSINGS.filter(c => c.x >= 0 && c.x < W && Math.abs(Math.sin(c.ang - c.rang)) < 0.45).length;
+        const paths = [...ACCESS_TRUNKS, ...LANES, ...FIELD_TRACKS.flatMap(t => [t.path, t.network])],
+          seamJumps = [];
+        let longestSegment = 0;
+        for (const path of paths)
+          for (let i = 1; i < path.length; i++) {
+            const dx = path[i][0] - path[i - 1][0],
+              dy = path[i][1] - path[i - 1][1];
+            longestSegment = Math.max(longestSegment, Math.hypot(dx, dy));
+            if (Math.abs(dx) > W / 2) seamJumps.push([path[i - 1], path[i]]);
+          }
+        const missing = FIELDS.filter(f => f.t !== 'sty' && !f.track).map(f => ({
+          x: Math.round(f.x),
+          y: Math.round(f.y),
+          w: Math.round(f.w),
+          h: Math.round(f.h),
+          type: f.t
+        }));
+        report.push({
+          seed,
+          worldWidth: W,
+          services: BUILDS.filter(b => b.service).map(b => b.service),
+          hazards,
+          bad,
+          shallow,
+          seamJumps: seamJumps.length,
+          longestSegment: Math.round(longestSegment),
+          trunks: ACCESS_TRUNKS.length,
+          fields: FIELDS.filter(f => f.t !== 'sty').length,
+          tracks: FIELD_TRACKS.length,
+          missing,
+          route: route.length
+        });
+      }
+      return report;
+    });
+    console.log('layout survey', JSON.stringify(report));
+    assert(
+      report.every(r => r.hazards === 0),
+      'routes stay on dry open ground'
+    );
+    assert(
+      report.every(r => r.shallow === 0),
+      'crossings have safe approach angles'
+    );
+    assert(
+      report.every(r => r.seamJumps === 0),
+      'tracks never take the long way across the world seam'
+    );
+    assert(
+      report.every(r => r.longestSegment < r.worldWidth / 2),
+      'track segments remain locally connected'
+    );
+    assert(
+      report.some(r => r.trunks > 0),
+      'nearby destinations share hierarchical access-road trunks'
+    );
+    assert(
+      report.every(r => r.tracks === r.fields),
+      'every workable field has an access track'
+    );
+    const traffic = await page.evaluate(() => {
+      genWorld(17);
+      roadInit();
+      const destination = journeyDestinations();
+      const route = makeJourney(destination[0].point, destination[1].point);
+      const c = { x: railAt(RAIL_S0 + 300).x, y: railAt(RAIL_S0 + 300).y, s: 200 };
+      TRAIN = { s: railSAtX(wrapX(c.x)) - 100, dir: 1, v: 160, vmax: 200, tot: 160 };
+      const blocked = crossingRoom({ crossings: [c] }, 140, 15);
+      TRAIN = null;
+      const open = crossingRoom({ crossings: [c] }, 140, 15);
+      const a = mkA('deer', 100, 100);
+      groundStep(a, 100, 0, 100, 60, 0);
+      const finite = Number.isFinite(a.x) && Number.isFinite(a.vx);
+      const fields = FIELDS.filter(f => f.track && ['plow', 'stubble', 'crop'].includes(f.t));
+      const tractorRoute = fields.length > 1 ? makeJourney(ptIn(fields[0], 30), ptIn(fields[1], 30)) : null;
+      const usesRoad = tractorRoute && tractorRoute.points.some(p => roadDist(wrapX(p[0]), p[1]) < 20);
+      const usesTrack =
+        tractorRoute && tractorRoute.points.some(p => FIELD_TRACKS.some(t => polyDist(wrapX(p[0]), p[1], t.path) < 12));
+      return { blocked, open: open === Infinity, finite, journey: route.length > 0, usesRoad, usesTrack };
+    });
+    assert(
+      traffic.blocked < 60 && traffic.open && traffic.finite && traffic.journey && traffic.usesRoad && traffic.usesTrack
+    );
+    console.log('traffic checks', traffic);
+    fs.mkdirSync(path.join(root, 'tools/out/polish'), { recursive: true });
+    for (const target of ['farmstore', 'fuel']) {
+      await page.evaluate(kind => {
+        st.mode = 'pause';
+        $('pauseOv').hidden = true;
+        $('titleOv').hidden = true;
+        dev.season(1, 13);
+        const b = BUILDS.find(b => b.service === kind);
+        if (b) dev.to(b.cx, b.cy, 2);
+        render();
+      }, target);
+      await page.screenshot({ path: path.join(root, `tools/out/polish/${target}.png`) });
+    }
+    await page.evaluate(() => {
+      st.mode = 'title';
+      clearSession();
+      localStorage.setItem(SESSION_KEY, '{broken');
+    });
+    await page.reload();
+    assert(await page.locator('#continueBtn').isHidden());
+    assert.deepEqual(errors, []);
+    console.log('polish checks passed');
+  } finally {
+    await browser.close();
+  }
+})().catch(e => {
+  console.error(e);
+  process.exitCode = 1;
+});

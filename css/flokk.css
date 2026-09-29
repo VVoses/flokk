@@ -401,7 +401,14 @@ body.no-hud .hud {
   text-shadow: var(--text-glow-tight), var(--text-glow-soft);
 }
 .keys {
+  display: grid;
+  gap: 7px;
+  justify-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   font-size: 12px;
+  line-height: 1.35;
   letter-spacing: 0.14em;
   text-transform: lowercase;
   text-shadow: var(--text-glow-tight), var(--text-glow-soft);
@@ -412,6 +419,28 @@ body.no-hud .hud {
   gap: var(--space-10);
   flex-wrap: wrap;
   justify-content: center;
+}
+#titleOv .actions {
+  width: min(100%, 330px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#titleOv #saveNote,
+#titleOv #continueBtn {
+  grid-column: 1 / -1;
+}
+#titleOv #continueBtn {
+  width: 100%;
+}
+#titleOv #startBtn,
+#titleOv #newLandBtn {
+  padding-inline: var(--space-14);
+}
+#saveNote:not(:empty) {
+  flex-basis: 100%;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 .btn {
   font: inherit;

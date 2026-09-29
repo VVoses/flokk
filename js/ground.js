@@ -234,8 +234,9 @@ function* paintGroundGen(season) {
       r = lerp(r, c2[0], yy);
       gg = lerp(gg, c2[1], yy);
       b = lerp(b, c2[2], yy);
-      const heath = pfbm(x, y, 380, 17, 3),
-        rock = pfbm(x, y, 230, 71, 29),
+      const regional = regionWeights(x, y),
+        heath = pfbm(x, y, 380, 17, 3) + regional.highland * 0.09,
+        rock = pfbm(x, y, 230, 71, 29) + regional.highland * 0.1,
         moss = pfbm(x, y, 120, 5, 50),
         bog = pfbm(x, y, 300, 23, 41);
       const f = forestness(x, y),
@@ -625,7 +626,7 @@ function* paintGroundGen(season) {
     strokePoly(g, ROAD, 26, '#E3E8EC');
     strokePoly(g, offsetPoly(ROAD, 6), 4, 'rgba(165,175,188,.7)');
     strokePoly(g, offsetPoly(ROAD, -6), 4, 'rgba(165,175,188,.7)');
-    for (const P of LANES)
+    for (const P of [...ACCESS_TRUNKS, ...LANES])
       for (const ox of edgeOffs(Math.min(...P.map(q => q[0])), Math.max(...P.map(q => q[0])))) {
         g.save();
         g.translate(ox, 0);
@@ -641,7 +642,7 @@ function* paintGroundGen(season) {
     strokePoly(g, ROAD, 23, '#BDAF8A');
     strokePoly(g, offsetPoly(ROAD, 6), 4, 'rgba(150,136,104,.55)');
     strokePoly(g, offsetPoly(ROAD, -6), 4, 'rgba(150,136,104,.55)');
-    for (const P of LANES)
+    for (const P of [...ACCESS_TRUNKS, ...LANES])
       for (const ox of edgeOffs(Math.min(...P.map(q => q[0])), Math.max(...P.map(q => q[0])))) {
         g.save();
         g.translate(ox, 0);
@@ -652,6 +653,16 @@ function* paintGroundGen(season) {
       }
   }
   yield;
+  // Narrow wheel-worn access tracks, with grass between the ruts.
+  for (const track of FIELD_TRACKS) {
+    const P = track.path;
+    for (const ox of edgeOffs(Math.min(...P.map(p => p[0])), Math.max(...P.map(p => p[0])))) {
+      g.save(); g.translate(ox, 0);
+      strokePoly(g, P, 13, winter ? '#D9E0E4' : 'rgba(105,92,65,.35)');
+      for (const side of [-3.5, 3.5]) strokePoly(g, offsetPoly(P, side), 3.2, winter ? '#B9C3CC' : '#AD9C78');
+      g.restore();
+    }
+  }
   paintCrossings(winter);
   paintRailSteel();
   function water(c, rf, R0) {

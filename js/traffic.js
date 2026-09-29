@@ -70,34 +70,46 @@ function spawnVehicle() {
     y: 0,
     ang: 0
   };
-  v.v = v.vmax * 0.8;
+  v.v = 0;
   v.bales = v.trailer && SEASON === 2;
+  const destinations = journeyDestinations();
+  const origins = destinations.filter(d => !inView(...d.point, 220));
+  if (!origins.length || destinations.length < 2) return;
+  const origin = pickP(origins), target = pickP(destinations.filter(d => d !== origin));
+  v.route = makeJourney(origin.point, target.point);
+  v.destination = target.point; v.stopKind = target.name; v.s = 0;
   TRAFFIC.push(v);
   placeVehicle(v, 0);
 }
 function placeVehicle(v, dt) {
-  // ease off a little on sharp bends
-  const ahead = roadAt(v.s + v.dir * 40),
-    here = roadAt(v.s),
-    bend = Math.abs(angDiff(ahead.ang, here.ang));
-  const want = v.vmax * (1 - clamp(bend * 1.6, 0, 0.45));
-  v.v += (want - v.v) * Math.min(1, dt * 1.2);
-  v.s += v.dir * v.v * dt;
-  v.dist += v.v * dt;
-  const p = roadAt(v.s),
-    lane = v.kind === 'tractor' ? 3 : 4;
-  // keep to the right: the right-hand normal of the travel direction
-  const hx = Math.cos(p.ang) * v.dir,
-    hy = Math.sin(p.ang) * v.dir;
-  v.x = p.x - hy * lane;
-  v.y = p.y + hx * lane;
-  v.ang = Math.atan2(hy, hx);
+  if (!v.route) return;
+  if (v.parkT > 0) { v.parkT -= dt; v.v = 0; return; }
+  if (v.s >= v.route.length - 0.2) {
+    const choices = journeyDestinations().filter(d => Math.hypot(wdx(d.point[0], v.destination[0]), d.point[1] - v.destination[1]) > 30);
+    if (!choices.length) return;
+    const target = pickP(choices);
+    v.route = makeJourney(v.destination, target.point);
+    v.destination = target.point; v.stopKind = target.name; v.s = 0;
+    v.parkT = rr(8, 22); v.v = 0;
+    return;
+  }
+  const here = journeyAt(v.route, v.s), ahead = journeyAt(v.route, v.s + 45),
+    bend = Math.abs(angDiff(ahead.ang, here.ang)),
+    room = Math.min(v.route.length - v.s, crossingRoom(v.route, v.s, v.len / 2)),
+    onRoad = roadDist(wrapX(here.x), here.y) < 20,
+    want = Math.min(onRoad ? v.vmax : 25, Math.sqrt(2 * 60 * Math.max(0, room))) * (1 - clamp(bend, 0, 0.8));
+  v.v = Math.max(0, v.v + clamp(want - v.v, -100 * dt, 32 * dt));
+  const step = Math.min(v.v * dt, room);
+  v.s += step; v.dist += step;
+  const p = journeyAt(v.route, v.s), lane = onRoad ? 4 : 1.5;
+  v.x = wrapX(p.x - Math.sin(p.ang) * lane); v.y = p.y + Math.cos(p.ang) * lane;
+  v.ang = p.ang;
   if (v.trailer) {
-    const q = roadAt(v.s - v.dir * (v.len / 2 + 20)),
-      th = Math.atan2(Math.sin(q.ang) * v.dir, Math.cos(q.ang) * v.dir);
-    v.tr = { x: q.x - Math.sin(th) * lane, y: q.y + Math.cos(th) * lane, ang: th };
+    const q = journeyAt(v.route, Math.max(0, v.s - (v.len / 2 + 20)));
+    v.tr = { x: v.x + wdx(q.x, v.x), y: q.y, ang: q.ang };
   }
 }
+
 function updateTraffic(dt) {
   if (!ROAD) return;
   if (RD.ref !== ROAD) {
