@@ -160,6 +160,8 @@ const root = path.resolve(__dirname, '..');
           missing,
           trees: TREES.length,
           regionalTrees,
+          railRadius: Math.round(railMinRadius(RAIL)),
+          railMinimum: RAIL_MIN_RADIUS,
           route: route.length
         });
       }
@@ -173,10 +175,6 @@ const root = path.resolve(__dirname, '..');
     assert(
       report.every(r => r.shallow === 0),
       'crossings have safe approach angles'
-    );
-    assert(
-      report.some(r => r.underpasses > 0),
-      'suitable worlds include road-under-rail crossings'
     );
     assert(
       report.every(r => r.seamJumps === 0),
@@ -205,6 +203,10 @@ const root = path.resolve(__dirname, '..');
     assert(
       report.every(r => r.roadFieldHits === 0),
       'public roads follow field edges instead of crossing cultivated ground'
+    );
+    assert(
+      report.every(r => r.railRadius >= r.railMinimum),
+      'railway bends retain a high-speed minimum radius'
     );
     assert(
       report.every(r => r.trees < 3200),

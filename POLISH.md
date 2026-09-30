@@ -33,6 +33,7 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Shared gravel branches form a road hierarchy before splitting into individual approaches.
 - [x] Merge field tracks before courtyards, keep minor tracks out of yards and water, and leave readable forest verges.
 - [x] Mix signed level crossings with road-under-rail cuttings where the crossing angle allows it.
+- [x] Enforce broad minimum-radius railway curves suitable for train speed and carriage length.
 - [x] Farm tractors travel between yards and fields; delivery and visitor journeys.
 - [x] Paint shared intersections once, gate every field approach, and keep destination traffic visibly parked.
 - [x] Keep public roads on field verges rather than through cultivated ground.
