@@ -101,7 +101,7 @@ function placeVehicle(v, dt) {
     v.destination = target.point;
     v.stopKind = target.name;
     v.s = 0;
-    v.parkT = rr(8, 22);
+    v.parkT = rr(18, 38);
     v.v = 0;
     return;
   }
@@ -148,7 +148,7 @@ function updateTraffic(dt) {
     }
   }
   // gone once it has done most of a lap and nobody can see it
-  TRAFFIC = TRAFFIC.filter(v => !(v.dist > W * 0.9 && (!L || Math.abs(wdx(v.x, L.x)) > 1700)));
+  TRAFFIC = TRAFFIC.filter(v => !(v.parkT <= 0 && v.dist > W * 0.9 && (!L || Math.abs(wdx(v.x, L.x)) > 1700)));
 }
 function trafficNear(x, y, r) {
   for (const v of TRAFFIC) if (Math.abs(wdx(v.x, x)) < r && Math.abs(v.y - y) < r) return v;

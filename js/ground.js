@@ -626,7 +626,7 @@ function* paintGroundGen(season) {
     strokePoly(g, ROAD, 26, '#E3E8EC');
     strokePoly(g, offsetPoly(ROAD, 6), 4, 'rgba(165,175,188,.7)');
     strokePoly(g, offsetPoly(ROAD, -6), 4, 'rgba(165,175,188,.7)');
-    for (const P of [...ACCESS_TRUNKS, ...LANES])
+    for (const P of accessPaintPaths())
       for (const ox of edgeOffs(Math.min(...P.map(q => q[0])), Math.max(...P.map(q => q[0])))) {
         g.save();
         g.translate(ox, 0);
@@ -649,7 +649,7 @@ function* paintGroundGen(season) {
     strokePoly(g, ROAD, 23, '#BDAF8A');
     strokePoly(g, offsetPoly(ROAD, 6), 4, 'rgba(150,136,104,.55)');
     strokePoly(g, offsetPoly(ROAD, -6), 4, 'rgba(150,136,104,.55)');
-    for (const P of [...ACCESS_TRUNKS, ...LANES])
+    for (const P of accessPaintPaths())
       for (const ox of edgeOffs(Math.min(...P.map(q => q[0])), Math.max(...P.map(q => q[0])))) {
         g.save();
         g.translate(ox, 0);

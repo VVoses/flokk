@@ -8,6 +8,7 @@ let LAKE,
   ROAD,
   LANES,
   ACCESS_TRUNKS = [],
+  FIELD_GATES = [],
   FIELDS,
   DIVIDES = [], // the balks, ditches and hedges between neighbouring plots: {t, w, pts}
   YARD,
@@ -1383,6 +1384,7 @@ function genWorld(seed) {
   REGIONS = [];
   FIELD_TRACKS = [];
   ACCESS_TRUNKS = [];
+  FIELD_GATES = [];
   genLayout();
   // trees: forest by noise and zones, hedgerows along fields, birches on the shores
   for (let gx = 0; gx < W; gx += 46)

@@ -1211,6 +1211,24 @@ function drawFence(sg) {
   ctx.lineTo(p.x, PY(p.y, POST_H));
   ctx.stroke();
 }
+function drawFieldGate(gate) {
+  const { p, q } = gate;
+  ctx.strokeStyle = '#665039';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  for (const post of [p, q]) {
+    ctx.moveTo(post.x, post.y * TILT);
+    ctx.lineTo(post.x, PY(post.y, POST_H * 1.15));
+  }
+  for (const h of [0.12, 0.26]) {
+    ctx.moveTo(p.x, PY(p.y, h));
+    ctx.lineTo(q.x, PY(q.y, h));
+  }
+  ctx.moveTo(p.x, PY(p.y, 0.12));
+  ctx.lineTo(q.x, PY(q.y, 0.26));
+  ctx.stroke();
+}
 function drawWires() {
   // wires stay light: they are everywhere, and should read as lines in the air, not ink. In deep winter
   // they whiten with rime and sag a touch further, as if carrying a little snow load
@@ -1766,6 +1784,7 @@ function render() {
       for (const p of line) if (!p.ghost && visU(p.x, p.y, 14, POLE_H * HZ)) items.push([p.y, 2, p, k]);
     if (SEASON >= 2) for (const b of BALES) if (baleShown(b) && visU(b.x, b.y, 14, 16)) items.push([b.y, 3, b, k]);
     for (const f of FSEG) if (visU(f.p.x, f.p.y, 40, 16)) items.push([f.k, 4, f, k]);
+    for (const gate of FIELD_GATES) if (visU(gate.p.x, gate.p.y, 40, 18)) items.push([gate.k, 17, gate, k]);
     for (const b of BOULDERS) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 6, b, k]);
     for (const b of BUSHES) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 13, b, k]);
     if (TRAIN) for (const c of TRAIN.cars) if (visU(c.x, c.y, 40, 40)) items.push([c.y, 10, c, k]);
@@ -1820,6 +1839,7 @@ function render() {
     else if (kind === 11) drawVehicle(o);
     else if (kind === 12) drawProp(o);
     else if (kind === 14) drawXSign(o);
+    else if (kind === 17) drawFieldGate(o);
     else if (kind === 7) drawAnimal(o);
     else if (kind === 16)
       drawWeatherBand(o); // 15 and 16 belong to weather.js (weatherItems)

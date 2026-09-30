@@ -125,6 +125,9 @@ const root = path.resolve(__dirname, '..');
             }
           }
         const roadShoreHits = ROAD.filter(p => p[0] >= 0 && p[0] < W && inWater(p[0], p[1], 60)).length;
+        const roadFieldHits = ROAD.filter(
+          p => p[0] >= 0 && p[0] < W && FIELDS.some(f => f.t !== 'sty' && inField(f, p[0], p[1], 8))
+        ).length;
         const missing = FIELDS.filter(f => f.t !== 'sty' && !f.track).map(f => ({
           x: Math.round(f.x),
           y: Math.round(f.y),
@@ -150,6 +153,7 @@ const root = path.resolve(__dirname, '..');
           longestSegment: Math.round(longestSegment),
           minorIntrusions,
           roadShoreHits,
+          roadFieldHits,
           trunks: ACCESS_TRUNKS.length,
           fields: FIELDS.filter(f => f.t !== 'sty').length,
           tracks: FIELD_TRACKS.length,
@@ -199,6 +203,10 @@ const root = path.resolve(__dirname, '..');
       'public roads retain a stable lake-shore verge'
     );
     assert(
+      report.every(r => r.roadFieldHits === 0),
+      'public roads follow field edges instead of crossing cultivated ground'
+    );
+    assert(
       report.every(r => r.trees < 3200),
       'regional vegetation remains within the reviewed scene-density budget'
     );
@@ -240,6 +248,29 @@ const root = path.resolve(__dirname, '..');
       const usesRoad = tractorRoute && tractorRoute.points.some(p => roadDist(wrapX(p[0]), p[1]) < 20);
       const usesTrack =
         tractorRoute && tractorRoute.points.some(p => FIELD_TRACKS.some(t => polyDist(wrapX(p[0]), p[1], t.path) < 12));
+      const stops = journeyDestinations(),
+        parkedRoute = makeJourney(stops[0].point, stops[1].point),
+        parkedPoint = journeyAt(parkedRoute, parkedRoute.length),
+        parkedVehicle = {
+          kind: 'car',
+          route: parkedRoute,
+          destination: stops[1].point,
+          s: parkedRoute.length,
+          dist: W,
+          v: 40,
+          vmax: 110,
+          col: '#2E4A6E',
+          len: 38,
+          hd: 8.5,
+          x: wrapX(parkedPoint.x),
+          y: parkedPoint.y,
+          ang: parkedPoint.ang,
+          scareT: 1
+        };
+      TRAFFIC = [parkedVehicle];
+      placeVehicle(parkedVehicle, 0.1);
+      updateTraffic(0.1);
+      const parkedRetained = TRAFFIC.includes(parkedVehicle) && parkedVehicle.parkT > 0 && parkedVehicle.v === 0;
       return {
         blocked,
         underpassOpen: underpassOpen === Infinity,
@@ -248,7 +279,10 @@ const root = path.resolve(__dirname, '..');
         feedingReaction,
         journey: route.length > 0,
         usesRoad,
-        usesTrack
+        usesTrack,
+        parkedRetained,
+        gates: FIELD_GATES.length,
+        trackedFields: FIELD_TRACKS.length
       };
     });
     assert(
@@ -259,7 +293,9 @@ const root = path.resolve(__dirname, '..');
         traffic.feedingReaction &&
         traffic.journey &&
         traffic.usesRoad &&
-        traffic.usesTrack
+        traffic.usesTrack &&
+        traffic.parkedRetained &&
+        traffic.gates === traffic.trackedFields
     );
     console.log('traffic checks', traffic);
     const animalMovement = await page.evaluate(() => {

@@ -206,7 +206,7 @@ function buildFieldTracks() {
         gate = [p[0] + (dx / d) * 12, p[1] + (dy / d) * 12];
       for (const source of sources) {
         const distance = Math.hypot(wdx(source.p[0], gate[0]), source.p[1] - gate[1]);
-        if (distance < 2700) candidates.push({ gate, source, distance });
+        if (distance < 2700) candidates.push({ gate, edge: p.slice(), source, distance });
       }
     }
     candidates.sort((a, b) => a.distance - b.distance);
@@ -216,6 +216,7 @@ function buildFieldTracks() {
       const crosses = findCrossings(path, RAIL);
       if (crosses.some(x => Math.abs(Math.sin(x.ang - x.rang)) < 0.55)) continue;
       f.gate = c.gate;
+      f.gateEdge = c.edge;
       f.track = { path, network: continuousPath([...c.source.prefix, ...path.slice(1)]) };
       FIELD_TRACKS.push(f.track);
       registerTrack(f.track);
@@ -235,12 +236,56 @@ function buildFieldTracks() {
         if (!track) continue;
         f.track = track;
         f.gate = candidate.gate;
+        f.gateEdge = candidate.edge;
         FIELD_TRACKS.push(track);
         registerTrack(track);
         break;
       }
     }
   }
+  FIELD_GATES = FIELDS.filter(f => f.gateEdge).map(f => {
+    const c = f.gateEdge;
+    let best = null;
+    for (let i = 0; i < f.poly.length; i++) {
+      const a = f.poly[i],
+        b = f.poly[(i + 1) % f.poly.length],
+        d = segDist(c[0], c[1], a[0], a[1], b[0], b[1]);
+      if (!best || d < best.d) best = { a, b, d };
+    }
+    const dx = best.b[0] - best.a[0],
+      dy = best.b[1] - best.a[1],
+      d = Math.hypot(dx, dy) || 1,
+      ux = dx / d,
+      uy = dy / d,
+      p = { x: c[0] - ux * 9, y: c[1] - uy * 9 },
+      q = { x: c[0] + ux * 9, y: c[1] + uy * 9 };
+    return { p, q, k: Math.max(p.y, q.y), field: f };
+  });
+}
+
+// Routing lanes keep their shared trunk as a prefix. Painting those complete routes would draw that
+// prefix once per destination and make a junction look like several roads stacked on top of each other.
+// Paint each trunk once, then only the unique tail of each branch. The road-end trim stops gravel from
+// running over the public-road surface while its round cap still meets the verge cleanly.
+function accessPaintPaths() {
+  const same = (a, b) => Math.hypot(wdx(a[0], b[0]), a[1] - b[1]) < 0.5;
+  const trimRoadEnd = path => {
+    let i = 0;
+    while (i < path.length - 1 && roadDist(wrapX(path[i][0]), path[i][1]) < 13) i++;
+    return path.slice(i);
+  };
+  const out = ACCESS_TRUNKS.map(trimRoadEnd).filter(p => p.length > 1);
+  for (const lane of LANES) {
+    let cut = 0;
+    for (const trunk of ACCESS_TRUNKS) {
+      let i = 0;
+      while (i < lane.length && i < trunk.length && same(lane[i], trunk[i])) i++;
+      if (i > cut) cut = i;
+    }
+    const unique = cut > 1 ? lane.slice(cut - 1) : trimRoadEnd(lane);
+    if (unique.length > 1) out.push(unique);
+  }
+  return out;
 }
 
 // A short path around neighbouring plots for fields without a direct roadside frontage.
