@@ -53,11 +53,12 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Separate public road, gravel lane, and field-track weight at whole-world zoom.
 - [x] Give the public road a soft verge so it sits in the landscape instead of reading as a flat ribbon.
 - [x] Route directly across shared access-road trunks instead of detouring to the public road and back.
-- [ ] Reduce repeated driveway teeth by sharing more farm and hamlet approaches where geometry permits.
-- [ ] Make junction mouths and courtyard arrivals read clearly without gravel blobs or stacked strokes.
+- [x] Reduce repeated driveway teeth by sharing close farm and hamlet approaches where geometry permits.
+- [x] Make junction mouths and courtyard arrivals read clearly without gravel blobs or stacked strokes.
 - [ ] Break up dense road, rail, and service clusters during world generation.
-- [ ] Add occasional drainage, culverts, passing places, and roadside markers.
-- [ ] Review indirect field approaches and shorten routes that wander around unrelated plots.
+- [x] Add occasional drainage, passing places, and roadside markers.
+- [x] Carry verge drainage through access junctions with visible culverts.
+- [x] Score field approaches by total distance back to the road so nearby network points cannot hide a large detour.
 - [ ] Keep roads farther from sensitive lake shores, churchyards, and dense woodland where alternatives exist.
 - [x] Reserve access-road corridors before placing fields and reject unrelated roads through churchyards.
 - [ ] Vary the main-road alignment with terrain while preserving smooth, fast vehicle travel.

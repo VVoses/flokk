@@ -200,13 +200,28 @@ function trackPathClear(path, field) {
 }
 function buildFieldTracks() {
   FIELD_TRACKS = [];
-  const sources = ROAD.filter((p, i) => p[0] >= 0 && p[0] < W && i % 2 === 0).map(p => ({ p, prefix: [p] }));
+  const pathLength = path => {
+      let length = 0;
+      for (let i = 1; i < path.length; i++)
+        length += Math.hypot(wdx(path[i][0], path[i - 1][0]), path[i][1] - path[i - 1][1]);
+      return length;
+    },
+    sources = [];
+  for (let i = 0; i < ROAD.length; i += 2) {
+    const p = ROAD[i];
+    if (p[0] >= 0 && p[0] < W) sources.push({ p, prefix: [p], cost: 0 });
+  }
   const registerTrack = track => {
-    for (let i = 2; i < track.network.length; i += 3)
-      sources.push({ p: track.network[i], prefix: track.network.slice(0, i + 1) });
+    for (let i = 2; i < track.network.length; i += 3) {
+      const prefix = track.network.slice(0, i + 1);
+      sources.push({ p: track.network[i], prefix, cost: pathLength(prefix) });
+    }
   };
   for (const lane of LANES)
-    for (let i = 0; i < lane.length; i += 2) sources.push({ p: lane[i], prefix: lane.slice(0, i + 1) });
+    for (let i = 0; i < lane.length; i += 2) {
+      const prefix = lane.slice(0, i + 1);
+      sources.push({ p: lane[i], prefix, cost: pathLength(prefix) });
+    }
   for (const f of FIELDS) {
     if (f.t === 'sty') continue;
     const poly = f.poly,
@@ -220,10 +235,11 @@ function buildFieldTracks() {
         gate = [p[0] + (dx / d) * 12, p[1] + (dy / d) * 12];
       for (const source of sources) {
         const distance = Math.hypot(wdx(source.p[0], gate[0]), source.p[1] - gate[1]);
-        if (distance < 2700) candidates.push({ gate, edge: p.slice(), source, distance });
+        if (distance < 2700)
+          candidates.push({ gate, edge: p.slice(), source, distance, score: distance + source.cost });
       }
     }
-    candidates.sort((a, b) => a.distance - b.distance);
+    candidates.sort((a, b) => a.score - b.score);
     for (const c of candidates) {
       const path = countryCurve(c.source.p, c.gate, f.x + f.y);
       if (!trackPathClear(path, f)) continue;
@@ -298,6 +314,22 @@ function accessPaintPaths() {
     }
     const unique = cut > 1 ? lane.slice(cut - 1) : trimRoadEnd(lane);
     if (unique.length > 1) out.push(unique);
+  }
+  return out;
+}
+function accessJunctions() {
+  const out = [];
+  for (const path of [...ACCESS_TRUNKS, ...LANES]) {
+    if (path.length < 2) continue;
+    const root = path[0];
+    if (out.some(j => Math.hypot(wdx(j.root[0], root[0]), j.root[1] - root[1]) < 24)) continue;
+    let i = 1;
+    while (i < path.length - 1 && roadDist(wrapX(path[i][0]), path[i][1]) < 24) i++;
+    const tip = path[i],
+      dx = wdx(tip[0], root[0]),
+      dy = tip[1] - root[1],
+      d = Math.hypot(dx, dy) || 1;
+    out.push({ root, tip: [root[0] + (dx / d) * Math.min(32, d), root[1] + (dy / d) * Math.min(32, d)] });
   }
   return out;
 }
@@ -443,19 +475,25 @@ function clearAccessLanes() {
   });
   ACCESS_TRUNKS = [];
   const groups = [],
-    farmLanes = new Set(FARMS.map(farm => farm.lane));
+    farmLanes = new Set();
+  for (const farm of FARMS) farmLanes.add(farm.lane);
   for (let i = 0; i < LANES.length; i++) {
-    // A farm lane must leave the public road at the point nearest its gate.
-    // Grouping it with a distant entrance makes it run along the road first.
-    // Houses, services and other hamlet destinations can still share a stem.
-    if (farmLanes.has(i)) continue;
     const lane = LANES[i],
       root = lane[0],
       end = lane[lane.length - 1],
       ang = roadAng(wrapX(root[0]), 70),
-      side = Math.sign(-Math.sin(ang) * wdx(end[0], root[0]) + Math.cos(ang) * (end[1] - root[1])) || 1;
-    let group = groups.find(g => g.side === side && Math.hypot(wdx(root[0], g.root[0]), root[1] - g.root[1]) < 620);
-    if (!group) groups.push((group = { side, root, lanes: [] }));
+      side = Math.sign(-Math.sin(ang) * wdx(end[0], root[0]) + Math.cos(ang) * (end[1] - root[1])) || 1,
+      farm = farmLanes.has(i);
+    let group = null;
+    for (const candidate of groups) {
+      const limit = farm || candidate.farm ? 280 : 620;
+      if (candidate.side === side && Math.hypot(wdx(root[0], candidate.root[0]), root[1] - candidate.root[1]) < limit) {
+        group = candidate;
+        break;
+      }
+    }
+    if (!group) groups.push((group = { side, root, lanes: [], farm }));
+    group.farm ||= farm;
     group.lanes.push(i);
   }
   for (const group of groups) {

@@ -653,6 +653,62 @@ function* paintGroundGen(season) {
     strokePoly(g, ROAD, 23, '#BDAF8A');
     strokePoly(g, offsetPoly(ROAD, 6), 4, 'rgba(150,136,104,.55)');
     strokePoly(g, offsetPoly(ROAD, -6), 4, 'rgba(150,136,104,.55)');
+    // Sparse passing bays break up the road's uniform ribbon and give oncoming traffic a believable
+    // place to yield. Keep them on quiet stretches, away from junctions, crossings and sensitive edges.
+    const junctions = accessJunctions();
+    for (let x = 620; x < W - 300; x += 860) {
+      let best = ROAD[0],
+        bestDx = Infinity,
+        bestIndex = 0;
+      for (let i = 1; i < ROAD.length - 1; i++) {
+        const dx = Math.abs(ROAD[i][0] - x);
+        if (dx < bestDx) {
+          best = ROAD[i];
+          bestDx = dx;
+          bestIndex = i;
+        }
+      }
+      let busy = best[0] < 0 || best[0] >= W || inWater(best[0], best[1], 90) || inChurchyard(best[0], best[1], 130);
+      for (const j of junctions)
+        if (Math.hypot(wdx(j.root[0], best[0]), j.root[1] - best[1]) < 150) {
+          busy = true;
+          break;
+        }
+      if (!busy)
+        for (const c of CROSSINGS)
+          if (Math.hypot(wdx(c.x, best[0]), c.y - best[1]) < 170) {
+            busy = true;
+            break;
+          }
+      if (busy) continue;
+      const a = ROAD[bestIndex - 1],
+        b = ROAD[bestIndex + 1],
+        ang = Math.atan2(b[1] - a[1], b[0] - a[0]),
+        side = hash2(x * 0.01, best[1] * 0.01) < 0.5 ? -1 : 1,
+        nx = -Math.sin(ang) * side,
+        ny = Math.cos(ang) * side,
+        bx = best[0] + nx * 13,
+        by = best[1] + ny * 13;
+      g.save();
+      g.translate(bx, by);
+      g.rotate(ang);
+      g.fillStyle = '#A69A77';
+      g.beginPath();
+      g.ellipse(0, 0, 42, 12, 0, 0, TAU);
+      g.fill();
+      g.fillStyle = '#BDAF8A';
+      g.beginPath();
+      g.ellipse(0, 0, 36, 8, 0, 0, TAU);
+      g.fill();
+      // Paired delineators make the bay visible in rain and snow without turning it into a car park.
+      for (const px of [-34, 34]) {
+        g.fillStyle = 'rgba(238,236,218,.9)';
+        g.fillRect(px - 1.2, side * 8 - 4, 2.4, 8);
+        g.fillStyle = 'rgba(52,54,48,.85)';
+        g.fillRect(px - 1.2, side * 8 - 1, 2.4, 2.5);
+      }
+      g.restore();
+    }
     for (const P of accessPaintPaths())
       for (const ox of edgeOffs(Math.min(...P.map(q => q[0])), Math.max(...P.map(q => q[0])))) {
         g.save();
@@ -668,6 +724,40 @@ function* paintGroundGen(season) {
       g.beginPath();
       g.ellipse(p[0], p[1], 22, 15, farm.yard.ang, 0, TAU);
       g.fill();
+    }
+  }
+  // One tapered apron per physical entrance keeps a T-junction from looking like two round-capped
+  // roads laid on top of one another. The paired dark strokes are the culvert carrying the verge ditch.
+  for (const junction of accessJunctions()) {
+    const root = junction.root,
+      tip = junction.tip,
+      ra = roadAng(wrapX(root[0]), 45),
+      rnx = -Math.sin(ra),
+      rny = Math.cos(ra),
+      la = Math.atan2(tip[1] - root[1], wdx(tip[0], root[0])),
+      lnx = -Math.sin(la),
+      lny = Math.cos(la),
+      tx = root[0] + wdx(tip[0], root[0]),
+      ty = tip[1];
+    g.beginPath();
+    g.moveTo(root[0] + rnx * 13, root[1] + rny * 13);
+    g.lineTo(root[0] - rnx * 13, root[1] - rny * 13);
+    g.lineTo(tx - lnx * 9, ty - lny * 9);
+    g.lineTo(tx + lnx * 9, ty + lny * 9);
+    g.closePath();
+    g.fillStyle = winter ? '#E6EAEE' : '#AFA27E';
+    g.fill();
+    if (!winter) {
+      g.strokeStyle = 'rgba(66,70,48,.48)';
+      g.lineWidth = 1.5;
+      for (const k of [-1, 1]) {
+        const cx = lerp(root[0], tx, 0.58) + Math.cos(la) * k * 2.2,
+          cy = lerp(root[1], ty, 0.58) + Math.sin(la) * k * 2.2;
+        g.beginPath();
+        g.moveTo(cx - lnx * 10, cy - lny * 10);
+        g.lineTo(cx + lnx * 10, cy + lny * 10);
+        g.stroke();
+      }
     }
   }
   // Small, deliberate stopping bays make destination traffic read as parked rather than abandoned at
