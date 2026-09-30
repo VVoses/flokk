@@ -1400,11 +1400,16 @@ function genWorld(seed) {
       if (R() > p) continue;
       let r = rnd(17, 29);
       if (blocked(x, y, r)) continue;
-      const u = R();
+      const u = R(),
+        regional = regionWeights(x, y);
       // mixed forest even at its thickest - solid spruce reads as a wall of clones, so birch and
-      // deciduous trees keep breaking up the canopy all the way to the northern edge
+      // deciduous trees keep breaking up the canopy all the way to the northern edge. Regional
+      // character shifts the mix without drawing a hard biome boundary.
       let type;
-      if (nb > 0.55) type = u < 0.55 ? 'spruce' : u < 0.8 ? 'birch' : 'decid';
+      if (regional.town > 0.45) type = u < 0.1 ? 'spruce' : u < 0.42 ? 'birch' : 'decid';
+      else if (regional.lake > 0.58) type = u < 0.1 ? 'spruce' : u < 0.72 ? 'birch' : 'decid';
+      else if (regional.highland > 0.52) type = u < 0.62 ? 'spruce' : u < 0.87 ? 'birch' : 'decid';
+      else if (nb > 0.55) type = u < 0.55 ? 'spruce' : u < 0.8 ? 'birch' : 'decid';
       else if (f > 0.72) type = u < 0.5 ? 'spruce' : u < 0.78 ? 'birch' : 'decid';
       else if (f > 0.56) type = u < 0.3 ? 'spruce' : u < 0.7 ? 'birch' : 'decid';
       else type = u < 0.55 ? 'birch' : 'decid';

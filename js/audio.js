@@ -1558,12 +1558,14 @@ function audioTick(dt) {
   if (!muted) {
     const nf = LIGHT.night,
       hr = CAL.hour,
-      dawn = hr > 3.5 && hr < 9 && nf < 0.8;
+      dawn = hr > 3.5 && hr < 9 && nf < 0.8,
+      regional = L ? regionWeights(L.x, L.y) : { town: 0 },
+      ruralQuiet = 1 - regional.town * 0.55;
     amb.cricketT -= dt;
     if (amb.cricketT <= 0) {
       // crickets build through summer and die back with the autumn frosts
       const ck = SEASON === 1 ? 0.5 + 0.6 * GROW.p : SEASON === 2 ? 1 - 0.75 * GROW.p : 0;
-      if (Math.random() < (0.35 + 0.65 * nf) * ck) cricket();
+      if (Math.random() < (0.35 + 0.65 * nf) * ck * ruralQuiet) cricket();
       amb.cricketT = rr(0.5, 2.2) * (st.settled ? 0.7 : 1);
     }
     amb.hopperT -= dt;
@@ -1577,7 +1579,7 @@ function audioTick(dt) {
       const bl = birdLife(),
         chorus = dawn && SEASON < 2 ? 1 + 2 * Math.min(1, bl) : 1; // the dawn chorus swells with the season
       if (nf < 0.6 && (SEASON < 3 || Math.random() < 0.3)) {
-        songbird(0.6 + 0.35 * Math.min(1.3, bl));
+        songbird((0.6 + 0.35 * Math.min(1.3, bl)) * ruralQuiet);
         if (chorus > 2.4 && Math.random() < 0.4) songbird(0.45);
       }
       amb.songT = rr(3, 9) / Math.max(0.2, SEASON === 3 ? 1 : bl * chorus);

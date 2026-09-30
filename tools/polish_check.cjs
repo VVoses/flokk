@@ -132,6 +132,12 @@ const root = path.resolve(__dirname, '..');
           h: Math.round(f.h),
           type: f.t
         }));
+        const regionalTrees = {};
+        for (const tree of TREES) {
+          const region = regionAt(tree.x, tree.y),
+            counts = (regionalTrees[region] ||= { spruce: 0, birch: 0, decid: 0 });
+          counts[tree.type]++;
+        }
         report.push({
           seed,
           worldWidth: W,
@@ -148,6 +154,8 @@ const root = path.resolve(__dirname, '..');
           fields: FIELDS.filter(f => f.t !== 'sty').length,
           tracks: FIELD_TRACKS.length,
           missing,
+          trees: TREES.length,
+          regionalTrees,
           route: route.length
         });
       }
@@ -189,6 +197,18 @@ const root = path.resolve(__dirname, '..');
     assert(
       report.every(r => r.roadShoreHits === 0),
       'public roads retain a stable lake-shore verge'
+    );
+    assert(
+      report.every(r => r.trees < 3200),
+      'regional vegetation remains within the reviewed scene-density budget'
+    );
+    assert(
+      report.every(r => r.regionalTrees.highland.spruce > r.regionalTrees.highland.birch),
+      'highland woodland keeps a spruce-led canopy'
+    );
+    assert(
+      report.every(r => !r.regionalTrees.lake || r.regionalTrees.lake.birch > r.regionalTrees.lake.spruce),
+      'lake woodland keeps a birch-led canopy'
     );
     const traffic = await page.evaluate(() => {
       genWorld(17);
@@ -261,12 +281,46 @@ const root = path.resolve(__dirname, '..');
           const min = SEP_R[grounded[i].k] + SEP_R[grounded[j].k];
           if (near2(grounded[i], grounded[j]) < (min * 0.35) ** 2) severeOverlaps++;
         }
-      return { count: grounded.length, invalid: invalid.map(a => a.k), severeOverlaps };
+      const deer = ANIMALS.filter(a => a.k === 'deer'),
+        moose = ANIMALS.filter(a => a.k === 'moose');
+      return {
+        count: grounded.length,
+        invalid: invalid.map(a => a.k),
+        severeOverlaps,
+        deerValley: deer.map(a => regionWeights(a.x, a.y).valley),
+        mooseHighland: moose.map(a => regionWeights(a.x, a.y).highland)
+      };
     });
     assert(animalMovement.count > 10, 'ground movement simulation includes a mixed population');
     assert.deepEqual(animalMovement.invalid, [], 'ground animals respect habitat boundaries while moving');
     assert.equal(animalMovement.severeOverlaps, 0, 'herd spacing prevents stacked animal sprites');
+    assert(
+      animalMovement.deerValley.some(weight => weight > 0.35),
+      'deer inhabit the valley woodland edge'
+    );
+    assert(
+      !animalMovement.mooseHighland.length || animalMovement.mooseHighland.some(weight => weight > 0.35),
+      'moose inhabit the highland woodland edge'
+    );
     console.log('animal movement checks', animalMovement);
+    const renderBudget = await page.evaluate(() => {
+      const samples = [];
+      for (let i = 0; i < 30; i++) {
+        const start = performance.now();
+        render();
+        samples.push(performance.now() - start);
+      }
+      samples.sort((a, b) => a - b);
+      return {
+        median: samples[Math.floor(samples.length * 0.5)],
+        p95: samples[Math.floor(samples.length * 0.95)],
+        max: samples.at(-1),
+        trees: TREES.length,
+        animals: ANIMALS.length
+      };
+    });
+    assert(renderBudget.p95 < 80, 'representative full-scene rendering stays within the reviewed frame budget');
+    console.log('render budget', renderBudget);
     fs.mkdirSync(path.join(root, 'tools/out/polish'), { recursive: true });
     for (const target of ['farmstore', 'fuel']) {
       await page.evaluate(kind => {

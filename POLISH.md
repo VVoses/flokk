@@ -47,8 +47,8 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 
 - [x] Region rules for lake, valley, highland, and town; smooth boundaries.
 - [x] Farm store and gas station with access, stopping places, and actual visitors.
-- [ ] Regional wildlife, vegetation, building distributions, and ambience.
-- [ ] Review density and performance before expanding world dimensions.
+- [x] Regional wildlife, vegetation, building distributions, and ambience.
+- [x] Review density and performance before expanding world dimensions.
 
 ## Verification
 

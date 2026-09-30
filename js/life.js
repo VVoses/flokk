@@ -60,24 +60,31 @@ function spawnAnimals(preserve = false) {
       const n = rr(2, 3) | 0;
       for (let j = 0; j < n; j++) ANIMALS.push(mkA('pig', ...ptIn(fm.sty, 14), { rect: fm.sty }));
     }
-  const edgeSpot = () => {
+  const edgeSpot = preferred => {
+    let fallback = null,
+      fallbackWeight = -1;
     for (let i = 0; i < 120; i++) {
       const x = rr(250, W - 250),
         y = rr(200, H - 400);
       const fo = forestness(x, y);
-      if (fo > 0.4 && fo < 0.58 && openLand(x, y) && roadDist(x, y) > 80 && !inFence(x, y, 60)) return [x, y];
+      if (fo <= 0.4 || fo >= 0.58 || !openLand(x, y) || roadDist(x, y) <= 80 || inFence(x, y, 60)) continue;
+      const weight = preferred ? regionWeights(x, y)[preferred] : 1;
+      if (weight > fallbackWeight) ((fallback = [x, y]), (fallbackWeight = weight));
+      if (!preferred || weight > 0.46) return [x, y];
     }
-    return null;
+    return fallback;
   };
   for (let g = 0; g < 2; g++) {
-    const p = edgeSpot();
+    // Deer use the broken woodland around the cultivated valley; the larger, shyer moose belongs
+    // farther upslope. The weighted fallback still lets sparse generated worlds contain both.
+    const p = edgeSpot('valley');
     if (!p) continue;
     const n = rr(1, 3) | 0;
     for (let j = 0; j < n; j++)
       ANIMALS.push(mkA('deer', p[0] + rr(-40, 40), p[1] + rr(-30, 30), { hx: p[0], hy: p[1], hr: 240 }));
   }
   if (Math.random() < 0.5) {
-    const p = edgeSpot();
+    const p = edgeSpot('highland');
     if (p) ANIMALS.push(mkA('moose', p[0], p[1], { hx: p[0], hy: p[1], hr: 380, bull: Math.random() < 0.6 }));
   }
   const openF = FIELDS.filter(f => f.t !== 'pasture');
@@ -120,7 +127,7 @@ function spawnAnimals(preserve = false) {
   );
   {
     // a fox denned at the forest edge - unseen by day, an occasional prowler once the light fades
-    const p = edgeSpot();
+    const p = edgeSpot('highland');
     if (p) ANIMALS.push(mkA('fox', p[0], p[1], { hx: p[0], hy: p[1], hr: 230, hide: true }));
   }
   for (const l of ANIMALS) if (l.lamb) l.mom = herdMate(l);
@@ -404,7 +411,18 @@ function updateAnimals(dt) {
       case 'pig': {
         if (a.st === 'walk') {
           a.graze = false;
-          if (walkTo(a, dt, a.k === 'sheep' ? 16 : a.k === 'pig' ? 9 : 11)) {
+          const ox = a.x,
+            oy = a.y,
+            arrived = walkTo(a, dt, a.k === 'sheep' ? 16 : a.k === 'pig' ? 9 : 11);
+          // A destination can be inside an irregular field while the straight step toward it clips
+          // a concave corner. Keep the animal on its side of the fence and choose another graze spot.
+          if (!inField(a.rect, a.x, a.y, -2)) {
+            a.x = ox;
+            a.y = oy;
+            a.vx = a.vy = 0;
+            a.st = 'idle';
+            a.t = rr(0.4, 1.2);
+          } else if (arrived) {
             a.st = 'idle';
             a.t = rr(3, 10);
           }
