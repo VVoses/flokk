@@ -18,6 +18,7 @@ function placeServices() {
     { kind: 'highland', x: W / 2, y: 350 },
     { kind: 'valley', x: FARMS[0].cx, y: FARMS[0].cy }
   ];
+  const railCrossings = findCrossings(ROAD, RAIL);
   for (const service of ['farmstore', 'fuel']) {
     for (let attempt = 0; attempt < 500; attempt++) {
       const x = rnd(220, W - 220),
@@ -29,6 +30,13 @@ function placeServices() {
         cx = p[0] + nx * 112,
         cy = p[1] + ny * 112,
         stop = [p[0] + nx * 63, p[1] + ny * 63];
+      let crowdedCrossing = false;
+      for (const c of railCrossings)
+        if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 260) {
+          crowdedCrossing = true;
+          break;
+        }
+      if (crowdedCrossing) continue;
       let clear = true;
       for (let dx = -65; dx <= 65; dx += 13)
         for (let dy = -48; dy <= 48; dy += 12) {
@@ -87,6 +95,13 @@ function placeServices() {
           YARDS.some(y => inYard(y, cx, cy, 65))
         )
           continue;
+        let crowdedCrossing = false;
+        for (const c of railCrossings)
+          if (Math.hypot(wdx(c.x, cx), c.y - cy) < 240) {
+            crowdedCrossing = true;
+            break;
+          }
+        if (crowdedCrossing) continue;
         const b = {
           cx,
           cy,

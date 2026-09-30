@@ -480,7 +480,10 @@ function blocked(x, y, r) {
   for (const Y of YARDS) if (inYard(Y, x, y, r * 0.4)) return true;
   if (inChurchyard(x, y, r * 0.4)) return true;
   if (inBuild(x, y, r * 0.6 + 12)) return true;
-  if (roadDist(x, y) < 62 + r) return true;
+  // Dense woodland pulls farther back from the road than isolated trees do. A little deterministic
+  // variation keeps the clearing from becoming a ruler-straight corridor.
+  const forestSetback = smooth(0.45, 0.76, forestness(x, y)) * (22 + hash2(x * 0.015, y * 0.015) * 24);
+  if (roadDist(x, y) < 62 + r + forestSetback) return true;
   if (FIELD_TRACKS.some(t => polyDist(x, y, t.path) < 20 + r)) return true;
   if (railDist(x, y) < 34 + r * 0.85) return true;
   for (const P of LANES) if (polyDist(x, y, P) < 34 + r * 0.8) return true;
@@ -591,7 +594,10 @@ function genLayout() {
       ys = [];
     let ry = rnd(1050, H - 650);
     for (let i = 0; i < xs.length; i++) {
-      ry = clamp(ry + rnd(-230, 230), 950, H - 420);
+      // Broad coherent land warp supplies the long bends; a smaller local variation keeps successive
+      // stretches from looking surveyed with a ruler. Catmull interpolation then preserves vehicle speed.
+      const terrainPull = (pfbm(xs[i], ry, 1050, 43, 79) - 0.5) * 190;
+      ry = clamp(ry + terrainPull + rnd(-110, 110), 950, H - 420);
       ys.push(ry);
     }
     const e = ys[0] - ys[ys.length - 1],
@@ -622,6 +628,7 @@ function genLayout() {
     break;
   }
   genRail();
+  const roadRailCrossings = findCrossings(ROAD, RAIL);
   // farmsteads beside the road: a main farm and a second, differently laid-out one further along
   LANES = [];
   BUILDS = [];
@@ -645,6 +652,13 @@ function genLayout() {
     for (let i = 0; i < 1200; i++) {
       const p = pick(ROAD);
       if (p[0] < 480 || p[0] > W - 480) continue;
+      let crossingCrowded = false;
+      for (const c of roadRailCrossings)
+        if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 320) {
+          crossingCrowded = true;
+          break;
+        }
+      if (crossingCrowded) continue;
       if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < 1350)) continue;
       const small = !main && R() < 0.45,
         horiz = !main && R() < 0.5,
@@ -1105,6 +1119,13 @@ function genLayout() {
     for (let i = 0; i < 1500; i++) {
       const p = pick(ROAD);
       if (p[0] < 480 || p[0] > W - 480) continue;
+      let crossingCrowded = false;
+      for (const c of roadRailCrossings)
+        if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 260) {
+          crossingCrowded = true;
+          break;
+        }
+      if (crossingCrowded) continue;
       if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < (i < 400 ? 900 : i < 900 ? 640 : 380))) continue;
       const side = R() < 0.5 ? 1 : -1,
         ang = roadAng(p[0]) + rnd(-0.08, 0.08),

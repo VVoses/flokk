@@ -55,13 +55,13 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Route directly across shared access-road trunks instead of detouring to the public road and back.
 - [x] Reduce repeated driveway teeth by sharing close farm and hamlet approaches where geometry permits.
 - [x] Make junction mouths and courtyard arrivals read clearly without gravel blobs or stacked strokes.
-- [ ] Break up dense road, rail, and service clusters during world generation.
+- [x] Reserve clear approaches around public road–rail crossings before placing farms, churches, services, and hamlets.
 - [x] Add occasional drainage, passing places, and roadside markers.
 - [x] Carry verge drainage through access junctions with visible culverts.
 - [x] Score field approaches by total distance back to the road so nearby network points cannot hide a large detour.
-- [ ] Keep roads farther from sensitive lake shores, churchyards, and dense woodland where alternatives exist.
+- [x] Keep roads clear of lake shores and churchyards, and widen their clearing through dense woodland.
 - [x] Reserve access-road corridors before placing fields and reject unrelated roads through churchyards.
-- [ ] Vary the main-road alignment with terrain while preserving smooth, fast vehicle travel.
+- [x] Shape the main road with broad coherent land warp while preserving smooth, fast vehicle travel.
 - [x] Brake before access-road junctions and other sharp turns.
 - [x] Animate arrival: engine shutdown, occupant exit, and walk away from the parked car.
 - [x] Give more residents owned cars and marked home parking spaces.
