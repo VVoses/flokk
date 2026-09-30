@@ -216,11 +216,18 @@ function update(dt) {
         h.t = 0;
       }
     if (kind) {
-      const active = hawks.filter(h => h.kind === kind && h.state !== 'carry' && h.state !== 'leave').length;
+      let active = 0;
+      for (const h of hawks) if (h.kind === kind && h.state !== 'carry' && h.state !== 'leave') active++;
       let want = st.grace > 0 ? 0 : Math.min(7, Math.max(1, 1 + Math.floor((birds.length - 5) / 6)));
       if (kind === 'owl') want = Math.min(2, want);
       if (SEASON === 3 && kind === 'hawk') want = Math.min(2, want);
-      if (active < want && st.hawkT <= 0 && birds.some(exposed)) {
+      let birdExposed = false;
+      for (const b of birds)
+        if (exposed(b)) {
+          birdExposed = true;
+          break;
+        }
+      if (active < want && st.hawkT <= 0 && birdExposed) {
         spawnHawk(kind);
         st.hawkT = rr(7, 13);
         // hawk or owl plays the same from the flock's side, so one shared tip rather than two
@@ -230,20 +237,27 @@ function update(dt) {
     // a white-tailed eagle: a rare, once-in-a-while sight rather than a standing threat like the
     // hawk/owl rotation above - huge, slower to commit, and much harder to shake off once it does
     st.eagleT -= dt;
-    if (
-      dayNow &&
-      st.grace <= 0 &&
-      st.eagleT <= 0 &&
-      birds.length >= 3 &&
-      birds.some(exposed) &&
-      !hawks.some(h => h.kind === 'eagle' && h.state !== 'leave')
-    ) {
+    let eagleActive = false,
+      birdExposed = false;
+    for (const h of hawks)
+      if (h.kind === 'eagle' && h.state !== 'leave') {
+        eagleActive = true;
+        break;
+      }
+    for (const b of birds)
+      if (exposed(b)) {
+        birdExposed = true;
+        break;
+      }
+    if (dayNow && st.grace <= 0 && st.eagleT <= 0 && birds.length >= 3 && birdExposed && !eagleActive) {
       spawnHawk('eagle');
       st.eagleT = rr(700, 1200);
     }
   }
   for (const h of hawks) updateHawk(h, dt);
-  if (hawks.some(h => h.alpha <= 0)) hawks = hawks.filter(h => h.alpha > 0);
+  let hawkWrite = 0;
+  for (const h of hawks) if ((h.alpha ?? 1) > 0) hawks[hawkWrite++] = h;
+  hawks.length = hawkWrite;
   for (const s of swarms) {
     stepSwarm(s, dt);
     if (s.moth) continue;
@@ -316,20 +330,28 @@ function update(dt) {
       }
     }
   }
-  const keepSwarm = s => s.m.length > 0 && !(s.moth && LIGHT.night < 0.3);
-  if (swarms.some(s => !keepSwarm(s))) swarms = swarms.filter(keepSwarm);
+  let swarmWrite = 0,
+    daySwarms = 0,
+    mothSwarms = 0;
+  for (const s of swarms) {
+    if (!s.m.length || (s.moth && LIGHT.night < 0.3)) continue;
+    swarms[swarmWrite++] = s;
+    if (s.moth) mothSwarms++;
+    else daySwarms++;
+  }
+  swarms.length = swarmWrite;
   {
     // insects follow the season and the hour; moths gather at the yard lamp at night
     const nightNow = LIGHT.night > 0.5,
       want = insectTarget(),
       target = want.swarms,
-      cnt = swarms.filter(s => !s.moth).length;
+      cnt = daySwarms;
     if (cnt < target && Math.random() < dt * 1.2) spawnSwarm(false);
     if (cnt > target + 3) {
       const i = swarms.findIndex(s => !s.moth && !inView(s.x, s.y, 100));
       if (i >= 0 && Math.random() < dt * 2) swarms.splice(i, 1);
     }
-    if (nightNow && SEASON < 3 && LAMPS.length && swarms.filter(s => s.moth).length < 2 && Math.random() < dt * 0.5) {
+    if (nightNow && SEASON < 3 && LAMPS.length && mothSwarms < 2 && Math.random() < dt * 0.5) {
       const l = LAMPS[0];
       const m = [];
       for (let i = 0; i < 7; i++) m.push(mkMote('moth', rr(8, 22)));
@@ -358,7 +380,9 @@ function update(dt) {
       p.vz -= 3.5 * dt;
     } else if (p.k === 'd') p.z += dt * 0.2;
   }
-  if (parts.some(p => p.life <= 0)) parts = parts.filter(p => p.life > 0);
+  let partWrite = 0;
+  for (const p of parts) if (p.life > 0) parts[partWrite++] = p;
+  parts.length = partWrite;
   updateAnimals(dt);
   animalPost(dt);
   updateTrain(dt);

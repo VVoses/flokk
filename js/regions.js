@@ -404,11 +404,8 @@ function clearAccessLanes() {
       for (let j = 0; j <= n; j++) {
         const x = lerp(a[0], b[0], j / n),
           y = lerp(a[1], b[1], j / n);
-        if (
-          FIELDS.some(f => f.t !== 'sty' && inField(f, wrapX(x), y, 8)) ||
-          (!allowChurch && inChurchyard(wrapX(x), y, 16))
-        )
-          return false;
+        for (const f of FIELDS) if (f.t !== 'sty' && inField(f, wrapX(x), y, 8)) return false;
+        if (!allowChurch && inChurchyard(wrapX(x), y, 16)) return false;
       }
     }
     return true;

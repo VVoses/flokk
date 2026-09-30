@@ -187,13 +187,20 @@ function updateTraffic(dt) {
     TRAFFIC = [];
     spawnResidentCars();
   }
-  if (!TRAFFIC.some(v => !v.resident)) {
+  let moving = false;
+  for (const v of TRAFFIC)
+    if (!v.resident) {
+      moving = true;
+      break;
+    }
+  if (!moving) {
     TRAFFIC_T -= dt;
     if (TRAFFIC_T <= 0 && st.mode !== 'pause') {
       spawnVehicle();
       TRAFFIC_T = rr(35, 80) * (LIGHT.night > 0.6 ? 1.8 : 1);
     }
   }
+  let write = 0;
   for (const v of TRAFFIC) {
     placeVehicle(v, dt);
     v.scareT -= dt;
@@ -201,9 +208,10 @@ function updateTraffic(dt) {
       v.scareT = 0.25;
       if (!v.resident && v.engineOn) scatterFlock(v.x, v.y, v.kind === 'tractor' ? 45 : 55);
     }
+    if (!(v.parkT <= 0 && v.dist > W * 0.9 && (!L || Math.abs(wdx(v.x, L.x)) > 1700))) TRAFFIC[write++] = v;
   }
   // gone once it has done most of a lap and nobody can see it
-  TRAFFIC = TRAFFIC.filter(v => !(v.parkT <= 0 && v.dist > W * 0.9 && (!L || Math.abs(wdx(v.x, L.x)) > 1700)));
+  TRAFFIC.length = write;
 }
 function trafficNear(x, y, r) {
   for (const v of TRAFFIC) if (Math.abs(wdx(v.x, x)) < r && Math.abs(v.y - y) < r) return v;

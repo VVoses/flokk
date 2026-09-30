@@ -158,17 +158,15 @@ function travelAnimal(a, route, speed, dt) {
   return a.routeS >= route.length - 0.5;
 }
 function journeyDestinations() {
-  const out = FARMS.map(f => ({ name: 'farm', point: f.yard.gate }));
+  const out = [];
+  for (const f of FARMS) if (f.yard.gate) out.push({ name: 'farm', point: f.yard.gate });
   if (CHURCH) out.push({ name: 'church', point: CHURCH.yard.gate });
   for (const b of BUILDS) if (b.service) out.push({ name: b.service, point: b.stop });
-  return out.filter(d => d.point);
+  return out;
 }
 function vehicleDestinations() {
-  const out = FARMS.map(f => ({
-    name: 'farm',
-    point: yardClamp(f.yard, ...f.yard.gate, 28),
-    ang: f.yard.ang
-  }));
+  const out = [];
+  for (const f of FARMS) out.push({ name: 'farm', point: yardClamp(f.yard, ...f.yard.gate, 28), ang: f.yard.ang });
   for (const b of BUILDS) if (b.service && b.stop) out.push({ name: b.service, point: b.stop, ang: b.ang });
   return out;
 }
