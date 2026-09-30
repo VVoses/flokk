@@ -34,7 +34,7 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Merge field tracks before courtyards, keep minor tracks out of yards and water, and leave readable forest verges.
 - [x] Mix signed level crossings with road-under-rail cuttings where the crossing angle allows it.
 - [x] Farm tractors travel between yards and fields; delivery and visitor journeys.
-- [ ] Multi-seed geometry and traffic regression checks.
+- [x] Multi-seed geometry and traffic regression checks.
 
 ## 5. Predator visuals and sound
 

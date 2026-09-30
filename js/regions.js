@@ -348,8 +348,13 @@ function clearAccessLanes() {
     return continuousPath(out);
   });
   ACCESS_TRUNKS = [];
-  const groups = [];
+  const groups = [],
+    farmLanes = new Set(FARMS.map(farm => farm.lane));
   for (let i = 0; i < LANES.length; i++) {
+    // A farm lane must leave the public road at the point nearest its gate.
+    // Grouping it with a distant entrance makes it run along the road first.
+    // Houses, services and other hamlet destinations can still share a stem.
+    if (farmLanes.has(i)) continue;
     const lane = LANES[i],
       root = lane[0],
       end = lane[lane.length - 1],
