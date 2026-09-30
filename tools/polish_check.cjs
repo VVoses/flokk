@@ -66,9 +66,11 @@ const root = path.resolve(__dirname, '..');
     );
     await page.click('#startBtn');
     assert(await page.locator('#newFlightOv').isVisible(), 'saved flight opens a confirmation dialog');
+    assert(await page.locator('#titleOv').isHidden(), 'confirmation replaces the title card instead of overlapping it');
     assert(await page.evaluate(() => !!readSession()), 'opening confirmation preserves the saved flight');
     await page.click('#cancelNewFlightBtn');
     assert(await page.locator('#newFlightOv').isHidden(), 'confirmation can be cancelled');
+    assert(await page.locator('#titleOv').isVisible(), 'cancelling restores the title card');
     await page.click('#continueBtn');
     const restored = await page.evaluate(() => ({
       seed: SEED,

@@ -726,10 +726,12 @@ function gameOver() {
 }
 function closeNewFlightConfirm() {
   $('newFlightOv').hidden = true;
+  $('titleOv').hidden = false;
   $('startBtn').focus();
 }
 function requestNewFlight() {
   if (!readSession()) return startGame();
+  $('titleOv').hidden = true;
   $('newFlightOv').hidden = false;
   $('cancelNewFlightBtn').focus();
 }
