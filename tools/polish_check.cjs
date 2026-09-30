@@ -46,7 +46,8 @@ const root = path.resolve(__dirname, '..');
         actions: actions.map(r => ({ top: r.top, left: r.left, right: r.right })),
         hints: hints.map(r => ({ top: r.top, bottom: r.bottom })),
         label: $('startBtn').textContent,
-        destructive: $('startBtn').classList.contains('danger')
+        destructive: $('startBtn').classList.contains('danger'),
+        inlineWarning: getComputedStyle($('startBtn'), '::after').content
       };
     });
     assert.equal(titleLayout.actions.length, 3);
@@ -59,6 +60,15 @@ const root = path.resolve(__dirname, '..');
     );
     assert.equal(titleLayout.label, 'Start new flight');
     assert(titleLayout.destructive, 'starting over is visually marked as destructive');
+    assert(
+      ['none', 'normal'].includes(titleLayout.inlineWarning),
+      'destructive copy is not permanently attached to the button'
+    );
+    await page.click('#startBtn');
+    assert(await page.locator('#newFlightOv').isVisible(), 'saved flight opens a confirmation dialog');
+    assert(await page.evaluate(() => !!readSession()), 'opening confirmation preserves the saved flight');
+    await page.click('#cancelNewFlightBtn');
+    assert(await page.locator('#newFlightOv').isHidden(), 'confirmation can be cancelled');
     await page.click('#continueBtn');
     const restored = await page.evaluate(() => ({
       seed: SEED,
@@ -250,13 +260,14 @@ const root = path.resolve(__dirname, '..');
       const usesRoad = tractorRoute && tractorRoute.points.some(p => roadDist(wrapX(p[0]), p[1]) < 20);
       const usesTrack =
         tractorRoute && tractorRoute.points.some(p => FIELD_TRACKS.some(t => polyDist(wrapX(p[0]), p[1], t.path) < 12));
-      const stops = journeyDestinations(),
+      const stops = vehicleDestinations(),
         parkedRoute = makeJourney(stops[0].point, stops[1].point),
         parkedPoint = journeyAt(parkedRoute, parkedRoute.length),
         parkedVehicle = {
           kind: 'car',
           route: parkedRoute,
           destination: stops[1].point,
+          stop: stops[1],
           s: parkedRoute.length,
           dist: W,
           v: 40,
@@ -272,7 +283,10 @@ const root = path.resolve(__dirname, '..');
       TRAFFIC = [parkedVehicle];
       placeVehicle(parkedVehicle, 0.1);
       updateTraffic(0.1);
-      const parkedRetained = TRAFFIC.includes(parkedVehicle) && parkedVehicle.parkT > 0 && parkedVehicle.v === 0;
+      const parkedRetained = TRAFFIC.includes(parkedVehicle) && parkedVehicle.parkT > 0 && parkedVehicle.v === 0,
+        parkingAligned =
+          Math.hypot(wdx(parkedVehicle.x, stops[1].point[0]), parkedVehicle.y - stops[1].point[1]) < 1 &&
+          Math.abs(angDiff(parkedVehicle.ang, stops[1].ang)) < 0.01;
       return {
         blocked,
         underpassOpen: underpassOpen === Infinity,
@@ -283,6 +297,8 @@ const root = path.resolve(__dirname, '..');
         usesRoad,
         usesTrack,
         parkedRetained,
+        parkingAligned,
+        parkingSpaces: stops.length,
         gates: FIELD_GATES.length,
         trackedFields: FIELD_TRACKS.length
       };
@@ -297,12 +313,38 @@ const root = path.resolve(__dirname, '..');
         traffic.usesRoad &&
         traffic.usesTrack &&
         traffic.parkedRetained &&
+        traffic.parkingAligned &&
+        traffic.parkingSpaces >= 4 &&
         traffic.gates === traffic.trackedFields
     );
     console.log('traffic checks', traffic);
     const animalMovement = await page.evaluate(() => {
       spawnAnimals();
       st.mode = 'play';
+      const tractor = ANIMALS.find(a => a.k === 'tractor'),
+        tractorTarget =
+          tractor && FIELDS.find(f => f.track && f !== tractor.rect && ['plow', 'stubble', 'crop'].includes(f.t));
+      let tractorClearsRoadAtNight = true;
+      if (tractor && tractorTarget) {
+        const row = rowStart(tractorTarget, tractor.x, tractor.y),
+          oldNight = LIGHT.night;
+        tractor.next = tractorTarget;
+        tractor.go = [row.x, row.y];
+        tractor.route = makeJourney([tractor.x, tractor.y], tractor.go);
+        tractor.routeS = 0;
+        LIGHT.night = 1;
+        updateAnimals(1 / 60);
+        tractorClearsRoadAtNight = tractor.routeS > 0;
+        LIGHT.night = oldNight;
+      }
+      const fleeing = ANIMALS.find(a => a.k === 'deer');
+      let fleeAligned = true;
+      if (fleeing) {
+        Object.assign(fleeing, { st: 'flee', t: 1, chk: 1, fx: 0, fy: 1, graze: true, moveHeading: 0 });
+        updateAnimals(1 / 60);
+        fleeAligned =
+          !fleeing.graze && Math.abs(angDiff(fleeing.moveHeading, Math.atan2(fleeing.vy, fleeing.vx))) < 0.01;
+      }
       for (let i = 0; i < 1200; i++) updateAnimals(1 / 60);
       const grounded = ANIMALS.filter(a => SEP_R[a.k] && !a.migrating && !a.dying),
         invalid = grounded.filter(a => {
@@ -325,6 +367,8 @@ const root = path.resolve(__dirname, '..');
         count: grounded.length,
         invalid: invalid.map(a => a.k),
         severeOverlaps,
+        fleeAligned,
+        tractorClearsRoadAtNight,
         deerValley: deer.map(a => regionWeights(a.x, a.y).valley),
         mooseHighland: moose.map(a => regionWeights(a.x, a.y).highland)
       };
@@ -332,6 +376,11 @@ const root = path.resolve(__dirname, '..');
     assert(animalMovement.count > 10, 'ground movement simulation includes a mixed population');
     assert.deepEqual(animalMovement.invalid, [], 'ground animals respect habitat boundaries while moving');
     assert.equal(animalMovement.severeOverlaps, 0, 'herd spacing prevents stacked animal sprites');
+    assert(animalMovement.fleeAligned, 'fleeing deer raise their heads and face their actual movement');
+    assert(
+      animalMovement.tractorClearsRoadAtNight,
+      'tractors finish reaching a field instead of parking on a road at night'
+    );
     assert(
       animalMovement.deerValley.some(weight => weight > 0.35),
       'deer inhabit the valley woodland edge'

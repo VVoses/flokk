@@ -35,7 +35,8 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Mix signed level crossings with road-under-rail cuttings where the crossing angle allows it.
 - [x] Enforce broad minimum-radius railway curves suitable for train speed and carriage length.
 - [x] Farm tractors travel between yards and fields; delivery and visitor journeys.
-- [x] Paint shared intersections once, gate every field approach, and keep destination traffic visibly parked.
+- [x] Let tractors finish reaching a field at dusk instead of stopping on a public road.
+- [x] Paint shared intersections once, gate every field approach, and park destination traffic in marked bays.
 - [x] Keep public roads on field verges rather than through cultivated ground.
 - [x] Multi-seed geometry and traffic regression checks.
 

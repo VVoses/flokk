@@ -666,6 +666,23 @@ function* paintGroundGen(season) {
       g.fill();
     }
   }
+  // Small, deliberate stopping bays make destination traffic read as parked rather than abandoned at
+  // a gate. Farm bays sit just inside the courtyard; roadside services mark theirs more clearly.
+  for (const spot of vehicleDestinations()) {
+    const service = spot.name !== 'farm';
+    g.save();
+    g.translate(spot.point[0], spot.point[1]);
+    g.rotate(spot.ang);
+    g.strokeStyle = winter ? 'rgba(140,150,160,.55)' : service ? 'rgba(226,220,194,.72)' : 'rgba(92,80,58,.42)';
+    g.lineWidth = service ? 1.8 : 1.2;
+    g.setLineDash(service ? [] : [5, 5]);
+    g.strokeRect(-25, -12, 50, 24);
+    g.beginPath();
+    g.moveTo(-18, -12);
+    g.lineTo(-18, 12);
+    g.stroke();
+    g.restore();
+  }
   yield;
   // Narrow wheel-worn access tracks, with grass between the ruts.
   for (const track of FIELD_TRACKS) {

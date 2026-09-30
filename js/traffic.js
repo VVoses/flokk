@@ -72,13 +72,14 @@ function spawnVehicle() {
   };
   v.v = 0;
   v.bales = v.trailer && SEASON === 2;
-  const destinations = journeyDestinations();
+  const destinations = vehicleDestinations();
   const origins = destinations.filter(d => !inView(...d.point, 220));
   if (!origins.length || destinations.length < 2) return;
   const origin = pickP(origins),
     target = pickP(destinations.filter(d => d !== origin));
   v.route = makeJourney(origin.point, target.point);
   v.destination = target.point;
+  v.stop = target;
   v.stopKind = target.name;
   v.s = 0;
   TRAFFIC.push(v);
@@ -92,13 +93,18 @@ function placeVehicle(v, dt) {
     return;
   }
   if (v.s >= v.route.length - 0.2) {
-    const choices = journeyDestinations().filter(
+    const arrived = v.stop;
+    v.x = wrapX(v.destination[0]);
+    v.y = v.destination[1];
+    if (arrived?.ang !== undefined) v.ang = arrived.ang;
+    const choices = vehicleDestinations().filter(
       d => Math.hypot(wdx(d.point[0], v.destination[0]), d.point[1] - v.destination[1]) > 30
     );
     if (!choices.length) return;
     const target = pickP(choices);
     v.route = makeJourney(v.destination, target.point);
     v.destination = target.point;
+    v.stop = target;
     v.stopKind = target.name;
     v.s = 0;
     v.parkT = rr(18, 38);
@@ -116,13 +122,19 @@ function placeVehicle(v, dt) {
   v.s += step;
   v.dist += step;
   const p = journeyAt(v.route, v.s),
+    ta = journeyAt(v.route, Math.max(0, v.s - 8)),
+    tb = journeyAt(v.route, Math.min(v.route.length, v.s + 8)),
+    tangent = Math.atan2(tb.y - ta.y, wdx(tb.x, ta.x)),
     lane = onRoad ? 4 : 1.5;
-  v.x = wrapX(p.x - Math.sin(p.ang) * lane);
-  v.y = p.y + Math.cos(p.ang) * lane;
-  v.ang = p.ang;
+  v.x = wrapX(p.x - Math.sin(tangent) * lane);
+  v.y = p.y + Math.cos(tangent) * lane;
+  v.ang = tangent;
   if (v.trailer) {
-    const q = journeyAt(v.route, Math.max(0, v.s - (v.len / 2 + 20)));
-    v.tr = { x: v.x + wdx(q.x, v.x), y: q.y, ang: q.ang };
+    const ts = Math.max(0, v.s - (v.len / 2 + 20)),
+      q = journeyAt(v.route, ts),
+      qa = journeyAt(v.route, Math.max(0, ts - 8)),
+      qb = journeyAt(v.route, Math.min(v.route.length, ts + 8));
+    v.tr = { x: v.x + wdx(q.x, v.x), y: q.y, ang: Math.atan2(qb.y - qa.y, wdx(qb.x, qa.x)) };
   }
 }
 

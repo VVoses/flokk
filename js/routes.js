@@ -139,3 +139,12 @@ function journeyDestinations() {
   for (const b of BUILDS) if (b.service) out.push({ name: b.service, point: b.stop });
   return out.filter(d => d.point);
 }
+function vehicleDestinations() {
+  const out = FARMS.map(f => ({
+    name: 'farm',
+    point: yardClamp(f.yard, ...f.yard.gate, 28),
+    ang: f.yard.ang
+  }));
+  for (const b of BUILDS) if (b.service && b.stop) out.push({ name: b.service, point: b.stop, ang: b.ang });
+  return out;
+}

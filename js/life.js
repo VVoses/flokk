@@ -462,6 +462,7 @@ function updateAnimals(dt) {
           }
         }
         if (a.st === 'flee') {
+          a.graze = false;
           const sp = hare ? 170 : 140,
             nx = a.x + a.fx * sp * dt,
             ny = a.y + a.fy * sp * dt;
@@ -480,6 +481,7 @@ function updateAnimals(dt) {
             a.y = ny;
             a.vx = a.fx * sp;
             a.vy = a.fy * sp;
+            a.moveHeading = Math.atan2(a.vy, a.vx);
             if (Math.abs(a.fx) > 0.1) a.f = a.fx > 0 ? 1 : -1;
           }
           if (a.t <= 0) {
@@ -722,7 +724,9 @@ function updateAnimals(dt) {
         break;
       }
       case 'tractor': {
-        if (LIGHT.night > 0.4) break;
+        // Once it has left a field, finish the journey before stopping for the night. Freezing this
+        // branch above the route logic left tractors parked in the middle of public roads at dusk.
+        if (LIGHT.night > 0.4 && !a.go) break;
         if (a.go) {
           // on the way to the next field, in a higher gear than when working it
           a.route ||= makeJourney([a.x, a.y], a.go);

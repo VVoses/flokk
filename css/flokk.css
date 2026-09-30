@@ -469,14 +469,8 @@ body.no-hud .hud {
   background: rgba(142, 42, 33, 0.5);
   border-color: #ffd4cc;
 }
-#startBtn.danger::after {
-  content: 'erases save';
-  display: block;
-  margin-top: 2px;
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.76;
+.confirm-card {
+  gap: var(--space-20);
 }
 .btn:hover {
   border-color: var(--ink);

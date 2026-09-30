@@ -424,7 +424,8 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if ((e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) dash();
   if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) {
-    if (st.mode === 'play') pause();
+    if (!$('newFlightOv').hidden) closeNewFlightConfirm();
+    else if (st.mode === 'play') pause();
     else if (st.mode === 'pause') resume();
   }
 });
@@ -723,7 +724,21 @@ function gameOver() {
   syncHud();
   $('againBtn').focus();
 }
-$('startBtn').onclick = startGame;
+function closeNewFlightConfirm() {
+  $('newFlightOv').hidden = true;
+  $('startBtn').focus();
+}
+function requestNewFlight() {
+  if (!readSession()) return startGame();
+  $('newFlightOv').hidden = false;
+  $('cancelNewFlightBtn').focus();
+}
+$('startBtn').onclick = requestNewFlight;
+$('cancelNewFlightBtn').onclick = closeNewFlightConfirm;
+$('confirmNewFlightBtn').onclick = () => {
+  $('newFlightOv').hidden = true;
+  startGame();
+};
 $('keepBtn').onclick = keepFlying;
 $('wonNewBtn').onclick = e => newLand(e.currentTarget, startGame);
 $('againBtn').onclick = startGame;
