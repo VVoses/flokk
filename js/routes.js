@@ -166,7 +166,18 @@ function journeyDestinations() {
 }
 function vehicleDestinations() {
   const out = [];
-  for (const f of FARMS) out.push({ name: 'farm', point: yardClamp(f.yard, ...f.yard.gate, 28), ang: f.yard.ang });
+  for (const f of FARMS) {
+    const Y = f.yard,
+      dx = wdx(Y.cx, Y.gate[0]),
+      dy = Y.cy - Y.gate[1],
+      d = Math.max(1, Math.hypot(dx, dy)),
+      inset = Math.min(110, Math.max(0, d - 32));
+    out.push({
+      name: 'farm',
+      point: [wrapX(Y.gate[0] + (dx / d) * inset), Y.gate[1] + (dy / d) * inset],
+      ang: Y.ang
+    });
+  }
   for (const b of BUILDS) if (b.service && b.stop) out.push({ name: b.service, point: b.stop, ang: b.ang });
   return out;
 }

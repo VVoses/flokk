@@ -65,6 +65,8 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Brake before access-road junctions and other sharp turns.
 - [x] Animate arrival: engine shutdown, occupant exit, and walk away from the parked car.
 - [x] Give more residents owned cars and marked home parking spaces.
+- [x] Reject access-road reversals, self-intersections, and excessive detours; preserve valid direct farm and church lanes.
+- [x] Silence parked vehicle engines and place parking bays deeper inside destinations.
 
 ## 6. Regional expansion
 

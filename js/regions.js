@@ -29,7 +29,7 @@ function placeServices() {
         ny = Math.cos(ang) * side,
         cx = p[0] + nx * 112,
         cy = p[1] + ny * 112,
-        stop = [p[0] + nx * 63, p[1] + ny * 63];
+        stop = [p[0] + nx * 92, p[1] + ny * 92];
       let crowdedCrossing = false;
       for (const c of railCrossings)
         if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 260) {
@@ -443,6 +443,26 @@ function indirectTrack(gate, field, sources) {
 }
 
 function clearAccessLanes() {
+  const farmLanes = new Set();
+  for (const farm of FARMS) farmLanes.add(farm.lane);
+  const pathSane = path => {
+    let length = 0,
+      maxTurn = 0;
+    for (let i = 1; i < path.length; i++) {
+      length += Math.hypot(wdx(path[i][0], path[i - 1][0]), path[i][1] - path[i - 1][1]);
+      if (i < path.length - 1) {
+        const a = Math.atan2(path[i][1] - path[i - 1][1], wdx(path[i][0], path[i - 1][0])),
+          b = Math.atan2(path[i + 1][1] - path[i][1], wdx(path[i + 1][0], path[i][0]));
+        maxTurn = Math.max(maxTurn, Math.abs(angDiff(b, a)));
+      }
+    }
+    const direct = Math.hypot(wdx(path[path.length - 1][0], path[0][0]), path[path.length - 1][1] - path[0][1]);
+    if (maxTurn > 1.45 || length > Math.max(120, direct * 1.85)) return false;
+    for (let i = 0; i < path.length - 1; i++)
+      for (let j = i + 2; j < path.length - 1; j++)
+        if (!(i === 0 && j === path.length - 2) && segX(path[i], path[i + 1], path[j], path[j + 1])) return false;
+    return true;
+  };
   const accessPathClear = (path, allowChurch = false) => {
     for (let i = 1; i < path.length; i++) {
       const a = path[i - 1],
@@ -476,6 +496,9 @@ function clearAccessLanes() {
     return candidates.filter(p => accessPathClear(p)).sort((p, q) => length(p) - length(q))[0] || path;
   };
   LANES = LANES.map((lane, laneIndex) => {
+    // These approaches already reserve their own clear corridor. Pushing every sampled point away
+    // from nearby buildings can fold a short, valid route back on itself.
+    if (farmLanes.has(laneIndex) || laneIndex === CHURCH?.lane) return continuousPath(lane);
     const out = [pushOut(...lane[0], 16)];
     for (const p of lane.slice(1)) {
       const q = pushOut(...p, 16),
@@ -489,9 +512,7 @@ function clearAccessLanes() {
     return laneIndex === CHURCH?.lane ? original : continuousPath(aroundChurch(original));
   });
   ACCESS_TRUNKS = [];
-  const groups = [],
-    farmLanes = new Set();
-  for (const farm of FARMS) farmLanes.add(farm.lane);
+  const groups = [];
   for (let i = 0; i < LANES.length; i++) {
     const lane = LANES[i],
       root = lane[0],
@@ -547,8 +568,27 @@ function clearAccessLanes() {
           accessPathClear(curved, i === CHURCH?.lane),
         branch = curveClear ? curved.slice(1) : segClear(...junction, ...q) ? [q] : navPlan(...junction, ...q);
       const joined = branch && continuousPath([...trunk, ...branch]);
-      if (joined && accessPathClear(joined, i === CHURCH?.lane)) LANES[i] = joined;
+      if (joined && pathSane(joined) && accessPathClear(joined, i === CHURCH?.lane)) LANES[i] = joined;
     }
+  }
+  for (let i = 0; i < LANES.length; i++) {
+    if (pathSane(LANES[i])) continue;
+    const lane = LANES[i],
+      direct = countryCurve(lane[0], lane[lane.length - 1], i + 71);
+    let dry = true;
+    for (const p of direct)
+      if (inWater(wrapX(p[0]), p[1], 12)) {
+        dry = false;
+        break;
+      }
+    if (
+      dry &&
+      pathSane(direct) &&
+      accessPathClear(direct, i === CHURCH?.lane) &&
+      !findCrossings(direct, RAIL).some(c => Math.abs(Math.sin(c.ang - c.rang)) < 0.55)
+    )
+      LANES[i] = direct;
+    else if (!farmLanes.has(i) && i !== CHURCH?.lane) LANES[i] = [lane[lane.length - 1]];
   }
   for (const farm of FARMS) farm.yard.gate = LANES[farm.lane][LANES[farm.lane].length - 1];
 }

@@ -116,7 +116,8 @@ const root = path.resolve(__dirname, '..');
         const underpasses = CROSSINGS.filter(c => c.x >= 0 && c.x < W && c.underpass).length;
         const paths = [...ACCESS_TRUNKS, ...LANES, ...FIELD_TRACKS.flatMap(t => [t.path, t.network])],
           seamJumps = [];
-        let longestSegment = 0;
+        let longestSegment = 0,
+          malformedLanes = 0;
         for (const path of paths)
           for (let i = 1; i < path.length; i++) {
             const dx = path[i][0] - path[i - 1][0],
@@ -124,6 +125,25 @@ const root = path.resolve(__dirname, '..');
             longestSegment = Math.max(longestSegment, Math.hypot(dx, dy));
             if (Math.abs(dx) > W / 2) seamJumps.push([path[i - 1], path[i]]);
           }
+        for (const path of LANES) {
+          if (path.length < 2) continue;
+          let length = 0,
+            maxTurn = 0,
+            self = false;
+          for (let i = 1; i < path.length; i++) {
+            length += Math.hypot(wdx(path[i][0], path[i - 1][0]), path[i][1] - path[i - 1][1]);
+            if (i < path.length - 1) {
+              const a = Math.atan2(path[i][1] - path[i - 1][1], wdx(path[i][0], path[i - 1][0])),
+                b = Math.atan2(path[i + 1][1] - path[i][1], wdx(path[i + 1][0], path[i][0]));
+              maxTurn = Math.max(maxTurn, Math.abs(angDiff(b, a)));
+            }
+          }
+          for (let i = 0; i < path.length - 1 && !self; i++)
+            for (let j = i + 2; j < path.length - 1; j++)
+              if (!(i === 0 && j === path.length - 2) && segX(path[i], path[i + 1], path[j], path[j + 1])) self = true;
+          const direct = Math.hypot(wdx(path.at(-1)[0], path[0][0]), path.at(-1)[1] - path[0][1]);
+          if (self || maxTurn > 1.45 || length > Math.max(120, direct * 1.85)) malformedLanes++;
+        }
         let minorIntrusions = 0;
         for (const track of FIELD_TRACKS)
           for (let i = 1; i < track.path.length; i++) {
@@ -178,6 +198,7 @@ const root = path.resolve(__dirname, '..');
           underpasses,
           seamJumps: seamJumps.length,
           longestSegment: Math.round(longestSegment),
+          malformedLanes,
           minorIntrusions,
           roadShoreHits,
           roadFieldHits,
@@ -213,6 +234,10 @@ const root = path.resolve(__dirname, '..');
     assert(
       report.every(r => r.longestSegment < r.worldWidth / 2),
       'track segments remain locally connected'
+    );
+    assert(
+      report.every(r => r.malformedLanes === 0),
+      'access roads avoid reversals, self-intersections and excessive detours'
     );
     assert(
       report.some(r => r.trunks > 0),
@@ -331,6 +356,14 @@ const root = path.resolve(__dirname, '..');
       spawnResidentCars();
       const residentCars = TRAFFIC.filter(v => v.resident),
         residentCarsParked = residentCars.length > 0 && residentCars.every(v => !v.engineOn && v.v === 0);
+      let farmParkingInset = true,
+        farmStopIndex = 0;
+      for (const s of stops) {
+        if (s.name !== 'farm') continue;
+        const f = FARMS[farmStopIndex++],
+          gateDistance = Math.hypot(wdx(s.point[0], f.yard.gate[0]), s.point[1] - f.yard.gate[1]);
+        if (gateDistance <= 80) farmParkingInset = false;
+      }
       const arrivalsBefore = ANIMALS.filter(a => a.role === 'arrival').length;
       parkedVehicle.driverOut = false;
       driverExit(parkedVehicle);
@@ -349,12 +382,14 @@ const root = path.resolve(__dirname, '..');
         parkingAligned,
         residentCars: residentCars.length,
         residentCarsParked,
+        farmParkingInset,
         arrivalAnimated,
         parkingSpaces: stops.length,
         gates: FIELD_GATES.length,
         trackedFields: FIELD_TRACKS.length
       };
     });
+    console.log('traffic checks', traffic);
     assert(
       traffic.blocked < 60 &&
         traffic.underpassOpen &&
@@ -367,11 +402,11 @@ const root = path.resolve(__dirname, '..');
         traffic.parkedRetained &&
         traffic.parkingAligned &&
         traffic.residentCarsParked &&
+        traffic.farmParkingInset &&
         traffic.arrivalAnimated &&
         traffic.parkingSpaces >= 4 &&
         traffic.gates === traffic.trackedFields
     );
-    console.log('traffic checks', traffic);
     const animalMovement = await page.evaluate(() => {
       spawnAnimals();
       st.mode = 'play';

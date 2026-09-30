@@ -1737,6 +1737,7 @@ function audioTick(dt) {
     car = null;
   if (L)
     for (const v of TRAFFIC) {
+      if (!v.engineOn) continue;
       const d = Math.hypot(wdx(v.x, L.x), v.y - L.y);
       if (v.kind === 'tractor') td = Math.min(td, d);
       else if (d < cd) {
