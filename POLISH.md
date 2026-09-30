@@ -67,6 +67,7 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Give more residents owned cars and marked home parking spaces.
 - [x] Reject access-road reversals, self-intersections, and excessive detours; preserve valid direct farm and church lanes.
 - [x] Silence parked vehicle engines and place parking bays deeper inside destinations.
+- [x] Remove unused shared-road stubs and keep service parking clear of storefront walls.
 
 ## 6. Regional expansion
 
@@ -83,3 +84,4 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - Seasonal regression: `node tools/transition_check.cjs` (requires Playwright).
   Set PLAYWRIGHT_MODULE and CHROMIUM_PATH to use existing local installations.
 - Existing syntax, flow, seam, growth, and road checks remain relevant.
+- Seeded visual smoke: `python3 tools/visual_smoke.py` captures whole-world, farm, and service views and checks shared-road connections, parking clearance, and rendered frame content.

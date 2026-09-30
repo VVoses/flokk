@@ -50,6 +50,9 @@ jobs:
       - name: farms meet the road cleanly
         run: python3 tools/road_check.py
 
+      - name: seeded visual smoke
+        run: python3 tools/visual_smoke.py
+
       - name: full flow (title, play, pause, game over, full year, resize, night, phone)
         run: python3 tools/flows.py
 
@@ -58,5 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flow-screenshots
-          path: tools/out/*.png
+          path: |
+            tools/out/*.png
+            tools/out/visual-smoke/*.png
           if-no-files-found: ignore

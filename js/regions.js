@@ -27,9 +27,9 @@ function placeServices() {
         side = R() < 0.5 ? -1 : 1,
         nx = -Math.sin(ang) * side,
         ny = Math.cos(ang) * side,
-        cx = p[0] + nx * 112,
-        cy = p[1] + ny * 112,
-        stop = [p[0] + nx * 92, p[1] + ny * 92];
+        cx = p[0] + nx * 155,
+        cy = p[1] + ny * 155,
+        stop = [p[0] + nx * 100, p[1] + ny * 100];
       let crowdedCrossing = false;
       for (const c of railCrossings)
         if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 260) {
@@ -557,7 +557,7 @@ function clearAccessLanes() {
       findCrossings(trunk, RAIL).some(c => Math.abs(Math.sin(c.ang - c.rang)) < 0.55)
     )
       continue;
-    ACCESS_TRUNKS.push(trunk);
+    const joinedBranches = [];
     for (const i of group.lanes) {
       const end = LANES[i][LANES[i].length - 1],
         q = [junction[0] + wdx(end[0], junction[0]), end[1]],
@@ -568,8 +568,13 @@ function clearAccessLanes() {
           accessPathClear(curved, i === CHURCH?.lane),
         branch = curveClear ? curved.slice(1) : segClear(...junction, ...q) ? [q] : navPlan(...junction, ...q);
       const joined = branch && continuousPath([...trunk, ...branch]);
-      if (joined && pathSane(joined) && accessPathClear(joined, i === CHURCH?.lane)) LANES[i] = joined;
+      if (joined && pathSane(joined) && accessPathClear(joined, i === CHURCH?.lane)) joinedBranches.push([i, joined]);
     }
+    // A common entrance only makes sense when at least two destinations use it. Otherwise the
+    // painted stem is a dead-end spur beside an unchanged driveway.
+    if (joinedBranches.length < 2) continue;
+    ACCESS_TRUNKS.push(trunk);
+    for (const [i, joined] of joinedBranches) LANES[i] = joined;
   }
   for (let i = 0; i < LANES.length; i++) {
     if (pathSane(LANES[i])) continue;
