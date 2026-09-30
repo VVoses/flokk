@@ -47,6 +47,24 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [ ] Listen to each sound in isolation and in the mix; identify weak voices.
 - [x] Refine envelopes, timbre, distance filtering, variation, and mix balance.
 
+## Road visual audit
+
+- [x] Remove spline overshoot that made short access roads curl or hook at their ends.
+- [x] Separate public road, gravel lane, and field-track weight at whole-world zoom.
+- [x] Give the public road a soft verge so it sits in the landscape instead of reading as a flat ribbon.
+- [x] Route directly across shared access-road trunks instead of detouring to the public road and back.
+- [ ] Reduce repeated driveway teeth by sharing more farm and hamlet approaches where geometry permits.
+- [ ] Make junction mouths and courtyard arrivals read clearly without gravel blobs or stacked strokes.
+- [ ] Break up dense road, rail, and service clusters during world generation.
+- [ ] Add occasional drainage, culverts, passing places, and roadside markers.
+- [ ] Review indirect field approaches and shorten routes that wander around unrelated plots.
+- [ ] Keep roads farther from sensitive lake shores, churchyards, and dense woodland where alternatives exist.
+- [x] Reserve access-road corridors before placing fields and reject unrelated roads through churchyards.
+- [ ] Vary the main-road alignment with terrain while preserving smooth, fast vehicle travel.
+- [x] Brake before access-road junctions and other sharp turns.
+- [x] Animate arrival: engine shutdown, occupant exit, and walk away from the parked car.
+- [x] Give more residents owned cars and marked home parking spaces.
+
 ## 6. Regional expansion
 
 - [x] Region rules for lake, valley, highland, and town; smooth boundaries.

@@ -45,6 +45,21 @@ function roadDist(x, y) {
   if (y < ROADBOX[0] - 300 || y > ROADBOX[1] + 300) return 1e9;
   return polyDist(x, y, ROAD);
 }
+function laneDist(x, y) {
+  let d = 1e9;
+  for (const lane of LANES) d = Math.min(d, polyDist(x, y, lane));
+  return d;
+}
+function pathHitsYard(path, yard, margin = 0) {
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1],
+      b = path[i],
+      n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 10));
+    for (let j = 0; j <= n; j++)
+      if (inYard(yard, lerp(a[0], b[0], j / n), lerp(a[1], b[1], j / n), margin)) return true;
+  }
+  return false;
+}
 function inBuild(x, y, m = 0) {
   return buildAt(x, y, m) !== null;
 }
@@ -831,7 +846,7 @@ function genLayout() {
     for (let x = r.x - 20; x <= r.x + r.w + 20; x += 50)
       for (let y = r.y - 20; y <= r.y + r.h + 20; y += 50) {
         if (inWater(x, y, 40)) return false;
-        if (roadDist(x, y) < 42 || railDist(x, y) < 48) return false;
+        if (roadDist(x, y) < 42 || laneDist(x, y) < 28 || railDist(x, y) < 48) return false;
       }
     return true;
   };
@@ -845,7 +860,8 @@ function genLayout() {
   const plotBad = (P, own) => {
     for (const p of P) if (p[1] < NORTH || p[1] > H - 440 || p[0] < 130 || p[0] > W - 130) return p;
     const bad = (x, y) => {
-      if (inWater(x, y, 40) || roadDist(x, y) < 42 || railDist(x, y) < 48 || inBuild(x, y, 24)) return true;
+      if (inWater(x, y, 40) || roadDist(x, y) < 42 || laneDist(x, y) < 28 || railDist(x, y) < 48 || inBuild(x, y, 24))
+        return true;
       for (const Y of YARDS) if (inYard(Y, x, y, 40)) return true;
       if (inChurchyard(x, y, 40)) return true;
       for (const o of FIELDS) if (!own.has(o) && inField(o, x, y, 24)) return true;
@@ -1101,6 +1117,7 @@ function genLayout() {
         cy = p[1] + Ay * (lh / 2 + back),
         yard = mkYard(cx, cy, ang, lw, lh);
       if (yard.y < NORTH || yard.y + yard.h > H - 440 || !yardFree(yard, 160)) continue;
+      if (pathHitsYard(ROAD, yard, 24) || LANES.some(lane => pathHitsYard(lane, yard, 18))) continue;
       let bad = false;
       for (let gx = yard.x - 60; gx <= yard.x + yard.w + 60 && !bad; gx += 40)
         for (let gy = yard.y - 60; gy <= yard.y + yard.h + 60 && !bad; gy += 40)
@@ -1179,7 +1196,7 @@ function genLayout() {
       yard.door = at(u0 - 12);
       yard.side = side;
       BUILDS.push(b);
-      CHURCH = { b, yard, px: p[0], py: p[1] };
+      CHURCH = { b, yard, px: p[0], py: p[1], lane: LANES.length };
       if (kind === 'stave') {
         // a stave church keeps its bells in a free-standing tarred bell tower, off to one side of the gate
         const [bu, bv] = [rnd(0.26, 0.34) * yard.lw * (R() < 0.5 ? 1 : -1), -side * (lh / 2 - 44)],

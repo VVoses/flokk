@@ -245,6 +245,15 @@ function walkerLife(a, dt) {
     }
   }
 }
+function arrivalLife(a, dt) {
+  a.st = 'walk';
+  a.hide = false;
+  if (steerA(a, a.arrivalGo[0], a.arrivalGo[1], 10, dt) < 3) {
+    a.st = 'idle';
+    a.fade = Math.max(0, (a.fade ?? 1) - dt * 1.4);
+    if (a.fade <= 0) a.dying = true;
+  }
+}
 function spawnWalker() {
   if (!ROAD) return;
   if (RD.ref !== ROAD) roadInit();
@@ -281,6 +290,7 @@ function updatePeople(dt) {
     if (a.role === 'farmer') farmerLife(a, dt);
     else if (a.role === 'fisher') fisherLife(a, dt);
     else if (a.role === 'walker') walkerLife(a, dt);
+    else if (a.role === 'arrival') arrivalLife(a, dt);
     // anyone on foot sends sparrows resting on the ground up as they pass
     if (!a.hide && a.st === 'walk') {
       a.scare = (a.scare || 0) - dt;

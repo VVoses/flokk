@@ -70,6 +70,7 @@ function spawnVehicle() {
     y: 0,
     ang: 0
   };
+  v.engineOn = true;
   v.v = 0;
   v.bales = v.trailer && SEASON === 2;
   const destinations = vehicleDestinations();
@@ -85,10 +86,45 @@ function spawnVehicle() {
   TRAFFIC.push(v);
   placeVehicle(v, 0);
 }
+function spawnResidentCars() {
+  const homes = vehicleDestinations().filter(d => d.name === 'farm');
+  for (let i = 0; i < homes.length; i++) {
+    if (i > 0 && hash2(i + 17, homes[i].point[0] * 0.01) > 0.72) continue;
+    const x = homes[i].point[0] - Math.sin(homes[i].ang) * 22,
+      y = homes[i].point[1] + Math.cos(homes[i].ang) * 22;
+    TRAFFIC.push({
+      kind: 'car',
+      resident: true,
+      engineOn: false,
+      parkT: Infinity,
+      x: wrapX(x),
+      y,
+      ang: homes[i].ang,
+      col: CAR_COLS[(hash2(i, homes[i].point[1]) * CAR_COLS.length) | 0],
+      len: 38,
+      hd: 8.5,
+      v: 0,
+      scareT: Infinity
+    });
+  }
+}
+function driverExit(v) {
+  if (v.kind === 'tractor' || v.driverOut) return;
+  v.driverOut = true;
+  v.doorT = 2.2;
+  const side = hash2(v.x * 0.01, v.y * 0.01) < 0.5 ? -1 : 1,
+    cs = Math.cos(v.ang),
+    sn = Math.sin(v.ang),
+    x = v.x - sn * side * (v.hd + 4),
+    y = v.y + cs * side * (v.hd + 4),
+    away = [x - sn * side * 30 - cs * 8, y + cs * side * 30 - sn * 8];
+  ANIMALS.push(mkPerson('walker', x, y, { role: 'arrival', arrivalGo: away, fade: 1 }));
+}
 function placeVehicle(v, dt) {
-  if (!v.route) return;
+  if (v.resident || !v.route) return;
   if (v.parkT > 0) {
     v.parkT -= dt;
+    v.doorT = Math.max(0, (v.doorT || 0) - dt);
     v.v = 0;
     return;
   }
@@ -109,14 +145,20 @@ function placeVehicle(v, dt) {
     v.s = 0;
     v.parkT = rr(18, 38);
     v.v = 0;
+    v.engineOn = false;
+    v.driverOut = false;
+    driverExit(v);
     return;
   }
   const here = journeyAt(v.route, v.s),
-    ahead = journeyAt(v.route, v.s + 45),
-    bend = Math.abs(angDiff(ahead.ang, here.ang)),
+    near = journeyAt(v.route, v.s + 32),
+    ahead = journeyAt(v.route, v.s + Math.max(70, v.v * 1.25)),
+    bend = Math.max(Math.abs(angDiff(near.ang, here.ang)), Math.abs(angDiff(ahead.ang, here.ang)) * 0.72),
     room = Math.min(v.route.length - v.s, crossingRoom(v.route, v.s, v.len / 2)),
     onRoad = roadDist(wrapX(here.x), here.y) < 20,
-    want = Math.min(onRoad ? v.vmax : 25, Math.sqrt(2 * 60 * Math.max(0, room))) * (1 - clamp(bend, 0, 0.8));
+    curveSpeed = bend > 0.08 ? clamp(48 / Math.sqrt(bend + 0.04), 18, 70) : v.vmax,
+    want = Math.min(onRoad ? v.vmax : 25, curveSpeed, Math.sqrt(2 * 60 * Math.max(0, room)));
+  v.engineOn = true;
   v.v = Math.max(0, v.v + clamp(want - v.v, -100 * dt, 32 * dt));
   const step = Math.min(v.v * dt, room);
   v.s += step;
@@ -143,8 +185,9 @@ function updateTraffic(dt) {
   if (RD.ref !== ROAD) {
     roadInit();
     TRAFFIC = [];
+    spawnResidentCars();
   }
-  if (!TRAFFIC.length) {
+  if (!TRAFFIC.some(v => !v.resident)) {
     TRAFFIC_T -= dt;
     if (TRAFFIC_T <= 0 && st.mode !== 'pause') {
       spawnVehicle();
@@ -156,7 +199,7 @@ function updateTraffic(dt) {
     v.scareT -= dt;
     if (v.scareT <= 0) {
       v.scareT = 0.25;
-      scatterFlock(v.x, v.y, v.kind === 'tractor' ? 45 : 55);
+      if (!v.resident && v.engineOn) scatterFlock(v.x, v.y, v.kind === 'tractor' ? 45 : 55);
     }
   }
   // gone once it has done most of a lap and nobody can see it
@@ -255,8 +298,19 @@ function drawVehicle(v) {
   else vBox(v, -hl * 0.55, hl * 0.3, hd * 0.9, 0.2, 0.34, v.col, true);
   wheel(P, -hl * 0.62, side * hd, 3.4);
   wheel(P, hl * 0.62, side * hd, 3.4);
+  if (v.doorT > 0) {
+    const open = Math.sin(clamp(v.doorT / 2.2, 0, 1) * Math.PI),
+      hinge = P(-hl * 0.25, side * hd, 0.19),
+      tip = P(-hl * 0.25 - 13 * open, side * (hd + 8 * open), 0.19);
+    ctx.strokeStyle = shade(v.col, 0.72);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(hinge[0], hinge[1]);
+    ctx.lineTo(tip[0], tip[1]);
+    ctx.stroke();
+  }
   // headlamps glow on the nose at dusk and night
-  if (LIGHT.night > 0.25) {
+  if (v.engineOn && LIGHT.night > 0.25) {
     for (const s2 of [-1, 1]) {
       const c = P(hl, s2 * hd * 0.6, 0.15);
       ctx.fillStyle = `rgba(255,236,180,${0.4 + 0.6 * LIGHT.night})`;
@@ -301,14 +355,15 @@ function trafficLights() {
   const out = [];
   if (LIGHT.night < 0.05) return out;
   for (const v of TRAFFIC)
-    out.push({
-      x: v.x + Math.cos(v.ang) * (v.len / 2),
-      y: v.y + Math.sin(v.ang) * (v.len / 2),
-      h: 0.15,
-      r: 170,
-      i: 0.9,
-      fl: 0,
-      dir: v.ang
-    });
+    if (v.engineOn)
+      out.push({
+        x: v.x + Math.cos(v.ang) * (v.len / 2),
+        y: v.y + Math.sin(v.ang) * (v.len / 2),
+        h: 0.15,
+        r: 170,
+        i: 0.9,
+        fl: 0,
+        dir: v.ang
+      });
   return out;
 }

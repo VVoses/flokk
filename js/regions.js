@@ -39,6 +39,7 @@ function placeServices() {
             inBuild(xx, yy, 28) ||
             railDist(xx, yy) < 60 ||
             roadDist(xx, yy) < 36 ||
+            inChurchyard(xx, yy, 45) ||
             FIELDS.some(f => inField(f, xx, yy, 15)) ||
             YARDS.some(y => inYard(y, xx, yy, 15))
           )
@@ -81,6 +82,7 @@ function placeServices() {
           railDist(cx, cy) < 110 ||
           roadDist(cx, cy) < 80 ||
           roadDist(cx, cy) > 200 ||
+          inChurchyard(cx, cy, 80) ||
           FIELDS.some(f => inField(f, cx, cy, 65)) ||
           YARDS.some(y => inYard(y, cx, cy, 65))
         )
@@ -110,7 +112,8 @@ function placeServices() {
           const t = k / 12,
             x = road[0] + wdx(door[0], road[0]) * t,
             y = lerp(road[1], door[1], t);
-          if (inWater(x, y, 12) || inBuild(x, y, 8) || FIELDS.some(f => inField(f, x, y, 5))) clear = false;
+          if (inWater(x, y, 12) || inBuild(x, y, 8) || inChurchyard(x, y, 16) || FIELDS.some(f => inField(f, x, y, 5)))
+            clear = false;
         }
         if (!clear) continue;
         BUILDS.push(b);
@@ -160,10 +163,21 @@ function countryCurve(a, b, salt = 0) {
     d = Math.hypot(dx, dy) || 1,
     nx = -dy / d,
     ny = dx / d,
-    bend = clamp(d * 0.07, 7, 48) * (hash2(a[0] * 0.02 + salt, a[1] * 0.02) < 0.5 ? -1 : 1),
-    p1 = [lerp(a[0], end[0], 0.34) + nx * bend, lerp(a[1], end[1], 0.34) + ny * bend],
-    p2 = [lerp(a[0], end[0], 0.68) + nx * bend * 0.45, lerp(a[1], end[1], 0.68) + ny * bend * 0.45];
-  return continuousPath(catmull([a, p1, p2, end]));
+    bend = clamp(d * 0.055, 5, 38) * (hash2(a[0] * 0.02 + salt, a[1] * 0.02) < 0.5 ? -1 : 1),
+    // A sampled cubic stays inside its control hull. Catmull splines could overshoot the first or last
+    // point, leaving a little hook at otherwise sensible road and field entrances.
+    c1 = [a[0] + dx * 0.3 + nx * bend, a[1] + dy * 0.3 + ny * bend],
+    c2 = [a[0] + dx * 0.7 + nx * bend * 0.55, a[1] + dy * 0.7 + ny * bend * 0.55],
+    steps = clamp(Math.ceil(d / 18), 5, 36),
+    out = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps,
+      u = 1 - t,
+      x = u ** 3 * a[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t ** 3 * end[0],
+      y = u ** 3 * a[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t ** 3 * end[1];
+    out.push([x, y]);
+  }
+  return continuousPath(out);
 }
 function trackClear(a, b, field) {
   const dx = wdx(b[0], a[0]),
@@ -382,7 +396,42 @@ function indirectTrack(gate, field, sources) {
 }
 
 function clearAccessLanes() {
-  LANES = LANES.map(lane => {
+  const accessPathClear = (path, allowChurch = false) => {
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1],
+        b = path[i],
+        n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 10));
+      for (let j = 0; j <= n; j++) {
+        const x = lerp(a[0], b[0], j / n),
+          y = lerp(a[1], b[1], j / n);
+        if (
+          FIELDS.some(f => f.t !== 'sty' && inField(f, wrapX(x), y, 8)) ||
+          (!allowChurch && inChurchyard(wrapX(x), y, 16))
+        )
+          return false;
+      }
+    }
+    return true;
+  };
+  const aroundChurch = path => {
+    if (!CHURCH || accessPathClear(path)) return path;
+    const Y = CHURCH.yard,
+      m = 34,
+      corners = [
+        yardWorld(Y, -Y.lw / 2 - m, -Y.lh / 2 - m),
+        yardWorld(Y, Y.lw / 2 + m, -Y.lh / 2 - m),
+        yardWorld(Y, Y.lw / 2 + m, Y.lh / 2 + m),
+        yardWorld(Y, -Y.lw / 2 - m, Y.lh / 2 + m)
+      ],
+      a = path[0],
+      b = path[path.length - 1],
+      candidates = [];
+    for (const c of corners) candidates.push([a, c, b]);
+    for (let i = 0; i < corners.length; i++) candidates.push([a, corners[i], corners[(i + 1) % corners.length], b]);
+    const length = p => p.slice(1).reduce((sum, q, i) => sum + Math.hypot(wdx(q[0], p[i][0]), q[1] - p[i][1]), 0);
+    return candidates.filter(p => accessPathClear(p)).sort((p, q) => length(p) - length(q))[0] || path;
+  };
+  LANES = LANES.map((lane, laneIndex) => {
     const out = [pushOut(...lane[0], 16)];
     for (const p of lane.slice(1)) {
       const q = pushOut(...p, 16),
@@ -390,7 +439,10 @@ function clearAccessLanes() {
       const route = segClear(...a, ...q) ? [q] : navPlan(...a, ...q);
       out.push(...(route || [q]));
     }
-    return continuousPath(out);
+    const routed = continuousPath(out);
+    if (accessPathClear(routed, laneIndex === CHURCH?.lane)) return routed;
+    const original = continuousPath(lane);
+    return laneIndex === CHURCH?.lane ? original : continuousPath(aroundChurch(original));
   });
   ACCESS_TRUNKS = [];
   const groups = [],
@@ -430,6 +482,7 @@ function clearAccessLanes() {
       trunk = countryCurve(root, junction, group.lanes.length);
     if (
       trunk.some(p => inWater(wrapX(p[0]), p[1], 14) || inBuild(p[0], p[1], 10)) ||
+      !accessPathClear(trunk) ||
       findCrossings(trunk, RAIL).some(c => Math.abs(Math.sin(c.ang - c.rang)) < 0.55)
     )
       continue;
@@ -440,9 +493,11 @@ function clearAccessLanes() {
         curved = countryCurve(junction, q, i),
         curveClear =
           curved.slice(1).every((p, k) => segClear(...curved[k], ...p)) &&
-          !curved.some(p => inWater(wrapX(p[0]), p[1], 10)),
+          !curved.some(p => inWater(wrapX(p[0]), p[1], 10)) &&
+          accessPathClear(curved, i === CHURCH?.lane),
         branch = curveClear ? curved.slice(1) : segClear(...junction, ...q) ? [q] : navPlan(...junction, ...q);
-      if (branch) LANES[i] = continuousPath([...trunk, ...branch]);
+      const joined = branch && continuousPath([...trunk, ...branch]);
+      if (joined && accessPathClear(joined, i === CHURCH?.lane)) LANES[i] = joined;
     }
   }
   for (const farm of FARMS) farm.yard.gate = LANES[farm.lane][LANES[farm.lane].length - 1];

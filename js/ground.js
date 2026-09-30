@@ -642,6 +642,10 @@ function* paintGroundGen(season) {
       g.fill();
     }
   } else {
+    // A soft, irregular verge keeps the public road from reading as a hard strip laid over the map.
+    // The darker outer line also gives access lanes a clear visual hierarchy when they join it.
+    strokePoly(g, offsetPoly(ROAD, 23), 5, 'rgba(72,82,48,.16)');
+    strokePoly(g, offsetPoly(ROAD, -23), 5, 'rgba(72,82,48,.16)');
     strokePoly(g, ROAD, 58, 'rgba(160,150,110,.09)');
     strokePoly(g, ROAD, 44, 'rgba(160,150,110,.13)');
     strokePoly(g, ROAD, 36, 'rgba(60,62,38,.22)');
@@ -681,17 +685,27 @@ function* paintGroundGen(season) {
     g.moveTo(-18, -12);
     g.lineTo(-18, 12);
     g.stroke();
+    if (!service) {
+      g.translate(0, 22);
+      g.strokeRect(-25, -12, 50, 24);
+      g.beginPath();
+      g.moveTo(-18, -12);
+      g.lineTo(-18, 12);
+      g.stroke();
+    }
     g.restore();
   }
   yield;
-  // Narrow wheel-worn access tracks, with grass between the ruts.
+  // Narrow wheel-worn access tracks, with grass between the ruts. They stay subordinate to the
+  // gravel access lanes at a zoomed-out gameplay scale.
   for (const track of FIELD_TRACKS) {
     const P = track.path;
     for (const ox of edgeOffs(Math.min(...P.map(p => p[0])), Math.max(...P.map(p => p[0])))) {
       g.save();
       g.translate(ox, 0);
-      strokePoly(g, P, 13, winter ? '#D9E0E4' : 'rgba(105,92,65,.35)');
-      for (const side of [-3.5, 3.5]) strokePoly(g, offsetPoly(P, side), 3.2, winter ? '#B9C3CC' : '#AD9C78');
+      strokePoly(g, P, 10, winter ? 'rgba(217,224,228,.76)' : 'rgba(105,92,65,.24)');
+      for (const side of [-2.8, 2.8])
+        strokePoly(g, offsetPoly(P, side), 2.2, winter ? 'rgba(185,195,204,.82)' : 'rgba(153,136,98,.78)');
       g.restore();
     }
   }

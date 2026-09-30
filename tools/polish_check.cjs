@@ -138,8 +138,23 @@ const root = path.resolve(__dirname, '..');
           }
         const roadShoreHits = ROAD.filter(p => p[0] >= 0 && p[0] < W && inWater(p[0], p[1], 60)).length;
         const roadFieldHits = ROAD.filter(
-          p => p[0] >= 0 && p[0] < W && FIELDS.some(f => f.t !== 'sty' && inField(f, p[0], p[1], 8))
-        ).length;
+            p => p[0] >= 0 && p[0] < W && FIELDS.some(f => f.t !== 'sty' && inField(f, p[0], p[1], 8))
+          ).length,
+          laneFieldHits = LANES.reduce(
+            (sum, lane) =>
+              sum + lane.filter(p => FIELDS.some(f => f.t !== 'sty' && inField(f, wrapX(p[0]), p[1], 8))).length,
+            0
+          ),
+          churchRoadHits = CHURCH
+            ? ROAD.filter(p => p[0] >= 0 && p[0] < W && inYard(CHURCH.yard, p[0], p[1], 18)).length
+            : 0,
+          churchLaneHits = CHURCH
+            ? LANES.reduce(
+                (sum, lane, i) =>
+                  sum + (i === CHURCH.lane ? 0 : lane.filter(p => inYard(CHURCH.yard, wrapX(p[0]), p[1], 12)).length),
+                0
+              )
+            : 0;
         const missing = FIELDS.filter(f => f.t !== 'sty' && !f.track).map(f => ({
           x: Math.round(f.x),
           y: Math.round(f.y),
@@ -166,6 +181,9 @@ const root = path.resolve(__dirname, '..');
           minorIntrusions,
           roadShoreHits,
           roadFieldHits,
+          laneFieldHits,
+          churchRoadHits,
+          churchLaneHits,
           trunks: ACCESS_TRUNKS.length,
           fields: FIELDS.filter(f => f.t !== 'sty').length,
           tracks: FIELD_TRACKS.length,
@@ -217,6 +235,14 @@ const root = path.resolve(__dirname, '..');
       'public roads follow field edges instead of crossing cultivated ground'
     );
     assert(
+      report.every(r => r.laneFieldHits === 0),
+      'access roads follow field edges instead of crossing cultivated ground'
+    );
+    assert(
+      report.every(r => r.churchRoadHits === 0 && r.churchLaneHits === 0),
+      'unrelated roads stay outside churchyards'
+    );
+    assert(
       report.every(r => r.railRadius >= r.railMinimum),
       'railway bends retain a high-speed minimum radius'
     );
@@ -258,7 +284,19 @@ const root = path.resolve(__dirname, '..');
         L.vx === leaderV[0] &&
         L.vy === leaderV[1];
       const fields = FIELDS.filter(f => f.track && ['plow', 'stubble', 'crop'].includes(f.t));
-      const tractorRoute = fields.length > 1 ? makeJourney(ptIn(fields[0], 30), ptIn(fields[1], 30)) : null;
+      let fieldPair = fields.length > 1 ? [fields[0], fields[1]] : null,
+        fieldSeparation = -1;
+      for (let i = 0; i < fields.length; i++)
+        for (let j = i + 1; j < fields.length; j++) {
+          const sa = nearestRoad(...fields[i].track.network[0]).s,
+            sb = nearestRoad(...fields[j].track.network[0]).s,
+            separation = Math.abs(((sb - sa + RD.P * 1.5) % RD.P) - RD.P / 2);
+          if (separation > fieldSeparation) {
+            fieldSeparation = separation;
+            fieldPair = [fields[i], fields[j]];
+          }
+        }
+      const tractorRoute = fieldPair ? makeJourney(ptIn(fieldPair[0], 30), ptIn(fieldPair[1], 30)) : null;
       const usesRoad = tractorRoute && tractorRoute.points.some(p => roadDist(wrapX(p[0]), p[1]) < 20);
       const usesTrack =
         tractorRoute && tractorRoute.points.some(p => FIELD_TRACKS.some(t => polyDist(wrapX(p[0]), p[1], t.path) < 12));
@@ -289,6 +327,15 @@ const root = path.resolve(__dirname, '..');
         parkingAligned =
           Math.hypot(wdx(parkedVehicle.x, stops[1].point[0]), parkedVehicle.y - stops[1].point[1]) < 1 &&
           Math.abs(angDiff(parkedVehicle.ang, stops[1].ang)) < 0.01;
+      TRAFFIC = [];
+      spawnResidentCars();
+      const residentCars = TRAFFIC.filter(v => v.resident),
+        residentCarsParked = residentCars.length > 0 && residentCars.every(v => !v.engineOn && v.v === 0);
+      const arrivalsBefore = ANIMALS.filter(a => a.role === 'arrival').length;
+      parkedVehicle.driverOut = false;
+      driverExit(parkedVehicle);
+      const arrivalAnimated =
+        parkedVehicle.doorT > 0 && ANIMALS.filter(a => a.role === 'arrival').length === arrivalsBefore + 1;
       return {
         blocked,
         underpassOpen: underpassOpen === Infinity,
@@ -300,6 +347,9 @@ const root = path.resolve(__dirname, '..');
         usesTrack,
         parkedRetained,
         parkingAligned,
+        residentCars: residentCars.length,
+        residentCarsParked,
+        arrivalAnimated,
         parkingSpaces: stops.length,
         gates: FIELD_GATES.length,
         trackedFields: FIELD_TRACKS.length
@@ -316,6 +366,8 @@ const root = path.resolve(__dirname, '..');
         traffic.usesTrack &&
         traffic.parkedRetained &&
         traffic.parkingAligned &&
+        traffic.residentCarsParked &&
+        traffic.arrivalAnimated &&
         traffic.parkingSpaces >= 4 &&
         traffic.gates === traffic.trackedFields
     );

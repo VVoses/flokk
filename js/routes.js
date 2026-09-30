@@ -58,12 +58,36 @@ function makeJourney(from, to) {
   const a = accessRoad(from),
     b = accessRoad(to),
     delta = ((b.s - a.s + RD.P * 1.5) % RD.P) - RD.P / 2,
-    pts = a.path.slice();
+    roadPts = a.path.slice();
   for (let i = 1, n = Math.max(1, Math.ceil(Math.abs(delta) / 24)); i <= n; i++) {
     const p = roadAt(a.s + (delta * i) / n);
-    pts.push([p.x, p.y]);
+    roadPts.push([p.x, p.y]);
   }
-  pts.push(...b.path.slice().reverse());
+  roadPts.push(...b.path.slice().reverse());
+  // Two destinations can sit on branches of the same access road. Going all the way to the public
+  // road and immediately returning along that shared stem produces the conspicuous GPS detours seen
+  // around hamlets. Meet at the cheapest common waypoint instead.
+  let shared = null;
+  const aLen = [0],
+    bLen = [0];
+  for (let i = 1; i < a.path.length; i++)
+    aLen.push(aLen[i - 1] + Math.hypot(wdx(a.path[i][0], a.path[i - 1][0]), a.path[i][1] - a.path[i - 1][1]));
+  for (let i = 1; i < b.path.length; i++)
+    bLen.push(bLen[i - 1] + Math.hypot(wdx(b.path[i][0], b.path[i - 1][0]), b.path[i][1] - b.path[i - 1][1]));
+  for (let i = 0; i < a.path.length; i++)
+    for (let j = 0; j < b.path.length; j++) {
+      if (Math.hypot(wdx(a.path[i][0], b.path[j][0]), a.path[i][1] - b.path[j][1]) > 1) continue;
+      const length = aLen[i] + bLen[j];
+      if (!shared || length < shared.length) shared = { i, j, length };
+    }
+  const polyLength = path => {
+    let length = 0;
+    for (let i = 1; i < path.length; i++)
+      length += Math.hypot(wdx(path[i][0], path[i - 1][0]), path[i][1] - path[i - 1][1]);
+    return length;
+  };
+  const shortcut = shared ? [...a.path.slice(0, shared.i + 1), ...b.path.slice(0, shared.j).reverse()] : null;
+  const pts = shortcut && polyLength(shortcut) + 1 < polyLength(roadPts) ? shortcut : roadPts;
   const points = [],
     lengths = [0];
   for (const p of pts) {
