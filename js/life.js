@@ -319,6 +319,17 @@ function inRectPt(r, m) {
 }
 // half the footprint each kind needs to itself, so two of them never stand drawn on top of one another
 const SEP_R = { sheep: 6, pig: 6, cow: 9, deer: 6, moose: 11, hare: 3, duck: 4, heron: 5 };
+// Separation is the final movement applied in a frame, so it must respect the same habitat limits as
+// the animal's own routine. Otherwise two bodies near an edge can quietly push one another through a
+// pasture fence or leave a duck stranded on the bank after its swimming code has already run.
+function animalSpaceClear(a, x, y) {
+  if (a.rect && !inField(a.rect, x, y, -2)) return false;
+  if (a.k === 'duck' && !inBlob(x, y, a.pool, a.prf, -2)) return false;
+  if (a.k === 'heron') return !inBuild(x, y, 8) && !inWater(x, y, -18);
+  if (a.k === 'deer' || a.k === 'moose')
+    return !inWater(x, y, 8) && !inBuild(x, y, 10) && (!inFence(x, y, 2) || inFence(a.x, a.y, 2));
+  return !inBuild(x, y, 6);
+}
 // a gentle nudge apart for any pair of grazing/wading animals overlapping this frame; too mild to
 // fight a deliberate walk toward a herd-mate or a flee target, just enough that bodies don't stack
 function separateAnimals() {
@@ -343,10 +354,12 @@ function separateAnimals() {
         push = ((min - d) / d) * 0.5;
       const nx = dx * push,
         ny = dy * push;
-      a.x -= nx;
-      a.y -= ny;
-      b.x += nx;
-      b.y += ny;
+      const ax = a.x - nx,
+        ay = a.y - ny,
+        bx = b.x + nx,
+        by = b.y + ny;
+      if (animalSpaceClear(a, ax, ay)) ((a.x = ax), (a.y = ay));
+      if (animalSpaceClear(b, bx, by)) ((b.x = bx), (b.y = by));
     }
   }
 }

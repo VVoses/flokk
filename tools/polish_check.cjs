@@ -242,6 +242,31 @@ const root = path.resolve(__dirname, '..');
         traffic.usesTrack
     );
     console.log('traffic checks', traffic);
+    const animalMovement = await page.evaluate(() => {
+      spawnAnimals();
+      st.mode = 'play';
+      for (let i = 0; i < 1200; i++) updateAnimals(1 / 60);
+      const grounded = ANIMALS.filter(a => SEP_R[a.k] && !a.migrating && !a.dying),
+        invalid = grounded.filter(a => {
+          if (!Number.isFinite(a.x) || !Number.isFinite(a.y) || !Number.isFinite(a.vx) || !Number.isFinite(a.vy))
+            return true;
+          if (a.rect && !inField(a.rect, a.x, a.y, -3)) return true;
+          if (a.k === 'duck' && !inBlob(a.x, a.y, a.pool, a.prf, -3)) return true;
+          if ((a.k === 'deer' || a.k === 'moose') && (inWater(a.x, a.y, 4) || inBuild(a.x, a.y, 6))) return true;
+          return false;
+        });
+      let severeOverlaps = 0;
+      for (let i = 0; i < grounded.length; i++)
+        for (let j = i + 1; j < grounded.length; j++) {
+          const min = SEP_R[grounded[i].k] + SEP_R[grounded[j].k];
+          if (near2(grounded[i], grounded[j]) < (min * 0.35) ** 2) severeOverlaps++;
+        }
+      return { count: grounded.length, invalid: invalid.map(a => a.k), severeOverlaps };
+    });
+    assert(animalMovement.count > 10, 'ground movement simulation includes a mixed population');
+    assert.deepEqual(animalMovement.invalid, [], 'ground animals respect habitat boundaries while moving');
+    assert.equal(animalMovement.severeOverlaps, 0, 'herd spacing prevents stacked animal sprites');
+    console.log('animal movement checks', animalMovement);
     fs.mkdirSync(path.join(root, 'tools/out/polish'), { recursive: true });
     for (const target of ['farmstore', 'fuel']) {
       await page.evaluate(kind => {

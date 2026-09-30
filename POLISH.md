@@ -17,13 +17,13 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Versioned localStorage save: seed, calendar, flock, resources, positions, and simulation state.
 - [x] Continue / new game choice; restore paused and resume audio on user input.
 - [x] Periodic and page-hide saves; handle invalid saves and unavailable storage.
-- [ ] Verify reload, closed-window return, death, and new-land behavior.
+- [x] Verify reload, closed-window return, death, and new-land behavior.
 
 ## 3. Ground movement
 
 - [x] Acceleration, braking, turn limits, and gait synchronized with actual movement.
-- [ ] Species-specific idle, grazing, vigilance, and flight responses.
-- [ ] Test corners, fences, water, herd spacing, and the looping seam.
+- [x] Species-specific idle, grazing, vigilance, and flight responses.
+- [x] Test corners, fences, water, herd spacing, and the looping seam.
 
 ## 4. Roads and rail
 
