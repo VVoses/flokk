@@ -762,6 +762,15 @@ function* paintGroundGen(season) {
   }
   // Small, deliberate stopping bays make destination traffic read as parked rather than abandoned at
   // a gate. Farm bays sit just inside the courtyard; roadside services mark theirs more clearly.
+  for (const b of BUILDS)
+    if (b.service === 'farmstore' && b.parkingStops) {
+      g.save();
+      g.translate(b.stop[0], b.stop[1]);
+      g.rotate(b.ang);
+      g.fillStyle = winter ? '#A3A29A' : '#B6AA88';
+      g.fillRect(-48, -29, 96, 58);
+      g.restore();
+    }
   for (const spot of vehicleDestinations()) {
     const service = spot.name !== 'farm';
     g.save();

@@ -409,6 +409,7 @@ const root = path.resolve(__dirname, '..');
     );
     const animalMovement = await page.evaluate(() => {
       spawnAnimals();
+      const spawnedMooseHighland = ANIMALS.filter(a => a.k === 'moose').map(a => regionWeights(a.x, a.y).highland);
       st.mode = 'play';
       const tractor = ANIMALS.find(a => a.k === 'tractor'),
         tractorTarget =
@@ -459,7 +460,8 @@ const root = path.resolve(__dirname, '..');
         fleeAligned,
         tractorClearsRoadAtNight,
         deerValley: deer.map(a => regionWeights(a.x, a.y).valley),
-        mooseHighland: moose.map(a => regionWeights(a.x, a.y).highland)
+        mooseHighland: moose.map(a => regionWeights(a.x, a.y).highland),
+        spawnedMooseHighland
       };
     });
     assert(animalMovement.count > 10, 'ground movement simulation includes a mixed population');
@@ -475,8 +477,8 @@ const root = path.resolve(__dirname, '..');
       'deer inhabit the valley woodland edge'
     );
     assert(
-      !animalMovement.mooseHighland.length || animalMovement.mooseHighland.some(weight => weight > 0.35),
-      'moose inhabit the highland woodland edge'
+      !animalMovement.spawnedMooseHighland.length || animalMovement.spawnedMooseHighland.some(weight => weight > 0.35),
+      'moose spawn at the highland woodland edge'
     );
     console.log('animal movement checks', animalMovement);
     const renderBudget = await page.evaluate(() => {

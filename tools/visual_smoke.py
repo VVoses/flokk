@@ -41,16 +41,26 @@ with sync_playwright() as playwright:
             inYard(FARMS[i].yard, ...stop.point, -8) &&
             Math.hypot(wdx(stop.point[0], FARMS[i].yard.gate[0]), stop.point[1] - FARMS[i].yard.gate[1]) > 80
           );
-          const serviceParking = BUILDS.filter(b => b.service).every(b =>
-            !inBuild(b.stop[0], b.stop[1], 12) &&
-            Math.hypot(wdx(b.stop[0], b.cx), b.stop[1] - b.cy) > b.dep / 2 + 15 &&
-            roadDist(b.stop[0], b.stop[1]) > 60
-          );
+          const serviceParking = BUILDS.filter(b => b.service).every(b => {
+            const spaces = b.parkingStops || [b.stop];
+            return (b.service !== 'farmstore' || spaces.length === 3) && spaces.every(p =>
+              !inBuild(p[0], p[1], 12) &&
+              Math.hypot(wdx(p[0], b.cx), p[1] - b.cy) > b.dep / 2 + 15 &&
+              roadDist(p[0], p[1]) > 60
+            );
+          });
+          const storeRoutes = stops.filter(s => s.name === 'farmstore').every(s => {
+            const route = makeJourney(FARMS[0].yard.gate, s.point);
+            const end = route.points[route.points.length - 1];
+            return Number.isFinite(route.length) && route.length > 0 &&
+              Math.hypot(wdx(end[0], s.point[0]), end[1] - s.point[1]) < 1 &&
+              !route.points.some(p => inBuild(p[0], p[1], -2) || inWater(wrapX(p[0]), p[1], 0));
+          });
           const service = BUILDS.find(b => b.service);
-          return {orphan, parking, serviceParking, trunks: ACCESS_TRUNKS.length, lanes: LANES.length,
+          return {orphan, parking, serviceParking, storeRoutes, trunks: ACCESS_TRUNKS.length, lanes: LANES.length,
             farm: [FARMS[0].cx, FARMS[0].cy], service: service && [service.cx, service.cy]};
         }''', seed)
-        if state['orphan'] or not state['parking'] or not state['serviceParking']:
+        if state['orphan'] or not state['parking'] or not state['serviceParking'] or not state['storeRoutes']:
             raise AssertionError(f'seed {seed}: {state}')
         views = [('world', [2100, 1900], 0.34), ('farm', state['farm'], 0.9)]
         if state['service']:

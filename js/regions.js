@@ -69,6 +69,11 @@ function placeServices() {
         service,
         stop
       };
+      if (service === 'farmstore')
+        b.parkingStops = [-30, 0, 30].map(offset => [
+          stop[0] + Math.cos(ang) * offset,
+          stop[1] + Math.sin(ang) * offset
+        ]);
       BUILDS.push(b);
       LANES.push([p.slice(), stop]);
       if (service === 'farmstore') REGIONS.push({ kind: 'town', x: cx, y: cy });

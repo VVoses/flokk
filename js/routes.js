@@ -178,6 +178,9 @@ function vehicleDestinations() {
       ang: Y.ang
     });
   }
-  for (const b of BUILDS) if (b.service && b.stop) out.push({ name: b.service, point: b.stop, ang: b.ang });
+  for (const b of BUILDS)
+    if (b.service && b.stop)
+      for (const point of b.parkingStops || [b.stop])
+        out.push({ name: b.service, point, ang: b.parkingStops ? b.ang + Math.PI / 2 : b.ang });
   return out;
 }

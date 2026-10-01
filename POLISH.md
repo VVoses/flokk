@@ -68,6 +68,7 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Reject access-road reversals, self-intersections, and excessive detours; preserve valid direct farm and church lanes.
 - [x] Silence parked vehicle engines and place parking bays deeper inside destinations.
 - [x] Remove unused shared-road stubs and keep service parking clear of storefront walls.
+- [x] Give the farm store three marked, reachable parking spaces on a gravel apron.
 
 ## 6. Regional expansion
 
