@@ -77,7 +77,11 @@ function spawnVehicle() {
   const origins = destinations.filter(d => !inView(...d.point, 220));
   if (!origins.length || destinations.length < 2) return;
   const origin = pickP(origins),
-    target = pickP(destinations.filter(d => d !== origin));
+    targets = destinations.filter(
+      d => Math.hypot(wdx(d.point[0], origin.point[0]), d.point[1] - origin.point[1]) > 120
+    );
+  if (!targets.length) return;
+  const target = pickP(targets);
   v.route = makeJourney(origin.point, target.point);
   v.destination = target.point;
   v.stop = target;
@@ -134,7 +138,7 @@ function placeVehicle(v, dt) {
     v.y = v.destination[1];
     if (arrived?.ang !== undefined) v.ang = arrived.ang;
     const choices = vehicleDestinations().filter(
-      d => Math.hypot(wdx(d.point[0], v.destination[0]), d.point[1] - v.destination[1]) > 30
+      d => Math.hypot(wdx(d.point[0], v.destination[0]), d.point[1] - v.destination[1]) > 120
     );
     if (!choices.length) return;
     const target = pickP(choices);

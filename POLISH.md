@@ -18,6 +18,7 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Continue / new game choice; restore paused and resume audio on user input.
 - [x] Periodic and page-hide saves; handle invalid saves and unavailable storage.
 - [x] Verify reload, closed-window return, death, and new-land behavior.
+- [x] Detect newer saves from another tab, validate generated-world references, and warn when storage fails.
 
 ## 3. Ground movement
 

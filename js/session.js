@@ -1,8 +1,12 @@
 /* Local, versioned session snapshots. Static world objects are rebuilt from the seed;
    graph references preserve perches, herd relationships, prey, and ongoing journeys. */
 'use strict';
-const SESSION_KEY = 'flokk-session-v1';
-let sessionClock = 0;
+const SESSION_KEY = 'flokk-session-v1',
+  SESSION_VERSION = 2,
+  SESSION_MAX_BYTES = 12000000;
+let sessionClock = 0,
+  sessionLastRaw = null,
+  sessionConflict = false;
 function sessionRegistry() {
   const values = [],
     ids = new Map();
@@ -16,6 +20,34 @@ function sessionRegistry() {
   for (const b of BUILDS) for (const p of b.parts || []) add(p);
   for (const v of [LAKE, POND, JET, BOAT, CHURCH, lakeR, pondR]) add(v);
   return { values, ids };
+}
+// References in the snapshot point into sessionRegistry by index. Record the generated world's
+// geometry in that same order so a later world-generator change cannot silently remap them.
+function worldSignature() {
+  const { values } = sessionRegistry(),
+    keys = ['x', 'y', 'cx', 'cy', 'z', 'h', 'w', 'r', 'lw', 'lh', 'len', 'dep', 'ang', 'type', 'kind', 'tt', 't'],
+    signature = values.map(v => {
+      if (Array.isArray(v)) return v;
+      const out = {};
+      for (const key of keys) if (typeof v[key] === 'number' || typeof v[key] === 'string') out[key] = v[key];
+      if (v.poly) out.poly = v.poly;
+      return out;
+    });
+  const raw = JSON.stringify(signature);
+  let hash = 2166136261;
+  for (let i = 0; i < raw.length; i++) hash = Math.imul(hash ^ raw.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(16);
+}
+function sessionWarning(message) {
+  const warning = $('sessionWarning');
+  if (warning) {
+    warning.textContent = message;
+    warning.hidden = !message;
+  }
+}
+function sessionChangedElsewhere() {
+  sessionConflict = true;
+  sessionWarning('Another tab changed this save. This tab will not overwrite it. Reload to continue the newer flight.');
 }
 function packSession(root) {
   const { ids: statics } = sessionRegistry(),
@@ -61,16 +93,31 @@ function unpackSession(data) {
 function readSession() {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw || raw.length > 12000000) return null;
+    if (!raw || raw.length > SESSION_MAX_BYTES) return null;
     const s = JSON.parse(raw);
-    return s.version === 1 && Number.isInteger(s.seed) && Number.isFinite(s.time) && s.time >= 0 && s.data ? s : null;
+    return s.version === SESSION_VERSION &&
+      typeof s.worldSignature === 'string' &&
+      Number.isInteger(s.seed) &&
+      Number.isFinite(s.time) &&
+      s.time >= 0 &&
+      s.data
+      ? s
+      : null;
   } catch {
     return null;
   }
 }
-function saveSession() {
-  if (!['play', 'pause', 'won'].includes(st.mode) || !birds.length) return;
+function hasStoredSession() {
   try {
+    return !!localStorage.getItem(SESSION_KEY);
+  } catch {
+    return false;
+  }
+}
+function saveSession() {
+  if (!['play', 'pause', 'won'].includes(st.mode) || !birds.length || sessionConflict) return;
+  try {
+    if (localStorage.getItem(SESSION_KEY) !== sessionLastRaw) return sessionChangedElsewhere();
     const data = packSession({
       st,
       cal: CAL,
@@ -95,14 +142,29 @@ function saveSession() {
       WX,
       muted
     });
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ version: 1, seed: SEED, time: CAL.t, data }));
-  } catch {
-    // Storage can be disabled or full. Playing must remain possible.
+    const raw = JSON.stringify({
+      version: SESSION_VERSION,
+      seed: SEED,
+      time: CAL.t,
+      worldSignature: worldSignature(),
+      data
+    });
+    if (raw.length > SESSION_MAX_BYTES) throw new Error('Save exceeds storage limit');
+    localStorage.setItem(SESSION_KEY, raw);
+    sessionLastRaw = raw;
+    sessionWarning('');
+  } catch (error) {
+    sessionWarning('This flight could not be saved. Check available browser storage.');
+    console.warn('Flokk session save failed:', error);
   }
 }
 function clearSession() {
   try {
+    if (localStorage.getItem(SESSION_KEY) !== sessionLastRaw) return sessionChangedElsewhere();
     localStorage.removeItem(SESSION_KEY);
+    sessionLastRaw = null;
+    sessionConflict = false;
+    sessionWarning('');
   } catch {
     /* unavailable storage */
   }
@@ -118,6 +180,7 @@ function restoreSession() {
     genWorld(saved.seed);
     applySeason(CAL.season);
     roadInit();
+    if (worldSignature() !== saved.worldSignature) throw new Error('Saved world no longer matches this version');
     const s = unpackSession(saved.data);
     if (
       !s.st ||
@@ -172,7 +235,6 @@ function restoreSession() {
     else pause();
     return true;
   } catch {
-    clearSession();
     // Rebuild a clean title world if a stale or damaged snapshot cannot be restored.
     CAL.t = 0;
     CAL.year = 1;
@@ -183,7 +245,9 @@ function restoreSession() {
     landLabels();
     st.mode = 'title';
     syncHud();
-    $('saveNote').textContent = 'That saved flight could not be restored. You can start a new one.';
+    $('continueBtn').hidden = true;
+    $('saveNote').textContent =
+      'That saved flight could not be restored safely. It is still stored; starting a new flight will replace it.';
     return false;
   }
 }
@@ -196,13 +260,33 @@ function sessionTick(dt) {
   }
 }
 function initSession() {
-  const hasSession = !!readSession();
+  try {
+    sessionLastRaw = localStorage.getItem(SESSION_KEY);
+    if (sessionLastRaw && !readSession())
+      $('saveNote').textContent = 'An older saved flight cannot be restored safely after this world update.';
+  } catch {
+    sessionLastRaw = null;
+  }
+  const hasSession = !!readSession(),
+    hasStored = hasStoredSession();
   $('continueBtn').hidden = !hasSession;
-  $('startBtn').textContent = hasSession ? 'Start new flight' : 'Take off';
-  $('startBtn').classList.toggle('danger', hasSession);
+  $('startBtn').textContent = hasStored ? 'Start new flight' : 'Take off';
+  $('startBtn').classList.toggle('danger', hasStored);
   $('startBtn').title = '';
   $('continueBtn').onclick = restoreSession;
   window.addEventListener('pagehide', saveSession);
+  window.addEventListener('storage', e => {
+    if (e.key === SESSION_KEY && e.newValue !== sessionLastRaw && ['play', 'pause', 'won'].includes(st.mode))
+      sessionChangedElsewhere();
+    else if (e.key === SESSION_KEY && st.mode === 'title') {
+      sessionLastRaw = e.newValue;
+      const available = !!readSession(),
+        stored = !!e.newValue;
+      $('continueBtn').hidden = !available;
+      $('startBtn').textContent = stored ? 'Start new flight' : 'Take off';
+      $('startBtn').classList.toggle('danger', stored);
+    }
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) saveSession();
   });

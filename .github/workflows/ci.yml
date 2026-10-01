@@ -47,6 +47,9 @@ jobs:
       - name: syntax check + headless smoke
         run: npm run check
 
+      - name: saved flight coordination
+        run: python3 tools/session_check.py
+
       - name: farms meet the road cleanly
         run: python3 tools/road_check.py
 

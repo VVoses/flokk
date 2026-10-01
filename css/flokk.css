@@ -281,6 +281,21 @@ body.no-hud .hud {
   pointer-events: none;
   opacity: 0;
 }
+.session-warning:not([hidden]) {
+  position: fixed;
+  z-index: 3;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(90vw, 520px);
+  padding: 10px 15px;
+  border: 1px solid rgba(242, 197, 130, 0.7);
+  border-radius: 8px;
+  background: rgba(35, 28, 21, 0.92);
+  color: #fff4df;
+  text-align: center;
+  font-size: 13px;
+}
 .banner.show {
   animation: bannerIn 5s ease forwards;
 }

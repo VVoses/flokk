@@ -730,7 +730,7 @@ function closeNewFlightConfirm() {
   $('startBtn').focus();
 }
 function requestNewFlight() {
-  if (!readSession()) return startGame();
+  if (!hasStoredSession()) return startGame();
   $('titleOv').hidden = true;
   $('newFlightOv').hidden = false;
   $('cancelNewFlightBtn').focus();
