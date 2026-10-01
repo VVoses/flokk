@@ -234,8 +234,9 @@ function* paintGroundGen(season) {
       r = lerp(r, c2[0], yy);
       gg = lerp(gg, c2[1], yy);
       b = lerp(b, c2[2], yy);
-      const heath = pfbm(x, y, 380, 17, 3),
-        rock = pfbm(x, y, 230, 71, 29),
+      const regional = regionWeights(x, y),
+        heath = pfbm(x, y, 380, 17, 3) + regional.highland * 0.09,
+        rock = pfbm(x, y, 230, 71, 29) + regional.highland * 0.1,
         moss = pfbm(x, y, 120, 5, 50),
         bog = pfbm(x, y, 300, 23, 41);
       const f = forestness(x, y),
@@ -625,7 +626,7 @@ function* paintGroundGen(season) {
     strokePoly(g, ROAD, 26, '#E3E8EC');
     strokePoly(g, offsetPoly(ROAD, 6), 4, 'rgba(165,175,188,.7)');
     strokePoly(g, offsetPoly(ROAD, -6), 4, 'rgba(165,175,188,.7)');
-    for (const P of LANES)
+    for (const P of accessPaintPaths())
       for (const ox of edgeOffs(Math.min(...P.map(q => q[0])), Math.max(...P.map(q => q[0])))) {
         g.save();
         g.translate(ox, 0);
@@ -633,7 +634,18 @@ function* paintGroundGen(season) {
         strokePoly(g, offsetPoly(P, 4), 3, 'rgba(170,180,192,.6)');
         g.restore();
       }
+    g.fillStyle = '#E6EAEE';
+    for (const farm of FARMS) {
+      const p = farm.yard.gate;
+      g.beginPath();
+      g.ellipse(p[0], p[1], 20, 14, farm.yard.ang, 0, TAU);
+      g.fill();
+    }
   } else {
+    // A soft, irregular verge keeps the public road from reading as a hard strip laid over the map.
+    // The darker outer line also gives access lanes a clear visual hierarchy when they join it.
+    strokePoly(g, offsetPoly(ROAD, 23), 5, 'rgba(72,82,48,.16)');
+    strokePoly(g, offsetPoly(ROAD, -23), 5, 'rgba(72,82,48,.16)');
     strokePoly(g, ROAD, 58, 'rgba(160,150,110,.09)');
     strokePoly(g, ROAD, 44, 'rgba(160,150,110,.13)');
     strokePoly(g, ROAD, 36, 'rgba(60,62,38,.22)');
@@ -641,7 +653,63 @@ function* paintGroundGen(season) {
     strokePoly(g, ROAD, 23, '#BDAF8A');
     strokePoly(g, offsetPoly(ROAD, 6), 4, 'rgba(150,136,104,.55)');
     strokePoly(g, offsetPoly(ROAD, -6), 4, 'rgba(150,136,104,.55)');
-    for (const P of LANES)
+    // Sparse passing bays break up the road's uniform ribbon and give oncoming traffic a believable
+    // place to yield. Keep them on quiet stretches, away from junctions, crossings and sensitive edges.
+    const junctions = accessJunctions();
+    for (let x = 620; x < W - 300; x += 860) {
+      let best = ROAD[0],
+        bestDx = Infinity,
+        bestIndex = 0;
+      for (let i = 1; i < ROAD.length - 1; i++) {
+        const dx = Math.abs(ROAD[i][0] - x);
+        if (dx < bestDx) {
+          best = ROAD[i];
+          bestDx = dx;
+          bestIndex = i;
+        }
+      }
+      let busy = best[0] < 0 || best[0] >= W || inWater(best[0], best[1], 90) || inChurchyard(best[0], best[1], 130);
+      for (const j of junctions)
+        if (Math.hypot(wdx(j.root[0], best[0]), j.root[1] - best[1]) < 150) {
+          busy = true;
+          break;
+        }
+      if (!busy)
+        for (const c of CROSSINGS)
+          if (Math.hypot(wdx(c.x, best[0]), c.y - best[1]) < 170) {
+            busy = true;
+            break;
+          }
+      if (busy) continue;
+      const a = ROAD[bestIndex - 1],
+        b = ROAD[bestIndex + 1],
+        ang = Math.atan2(b[1] - a[1], b[0] - a[0]),
+        side = hash2(x * 0.01, best[1] * 0.01) < 0.5 ? -1 : 1,
+        nx = -Math.sin(ang) * side,
+        ny = Math.cos(ang) * side,
+        bx = best[0] + nx * 13,
+        by = best[1] + ny * 13;
+      g.save();
+      g.translate(bx, by);
+      g.rotate(ang);
+      g.fillStyle = '#A69A77';
+      g.beginPath();
+      g.ellipse(0, 0, 42, 12, 0, 0, TAU);
+      g.fill();
+      g.fillStyle = '#BDAF8A';
+      g.beginPath();
+      g.ellipse(0, 0, 36, 8, 0, 0, TAU);
+      g.fill();
+      // Paired delineators make the bay visible in rain and snow without turning it into a car park.
+      for (const px of [-34, 34]) {
+        g.fillStyle = 'rgba(238,236,218,.9)';
+        g.fillRect(px - 1.2, side * 8 - 4, 2.4, 8);
+        g.fillStyle = 'rgba(52,54,48,.85)';
+        g.fillRect(px - 1.2, side * 8 - 1, 2.4, 2.5);
+      }
+      g.restore();
+    }
+    for (const P of accessPaintPaths())
       for (const ox of edgeOffs(Math.min(...P.map(q => q[0])), Math.max(...P.map(q => q[0])))) {
         g.save();
         g.translate(ox, 0);
@@ -650,8 +718,96 @@ function* paintGroundGen(season) {
         strokePoly(g, P, 6, season === 2 ? 'rgba(134,161,93,.55)' : 'rgba(110,150,78,.55)');
         g.restore();
       }
+    g.fillStyle = '#AFA27E';
+    for (const farm of FARMS) {
+      const p = farm.yard.gate;
+      g.beginPath();
+      g.ellipse(p[0], p[1], 22, 15, farm.yard.ang, 0, TAU);
+      g.fill();
+    }
+  }
+  // One tapered apron per physical entrance keeps a T-junction from looking like two round-capped
+  // roads laid on top of one another. The paired dark strokes are the culvert carrying the verge ditch.
+  for (const junction of accessJunctions()) {
+    const root = junction.root,
+      tip = junction.tip,
+      ra = roadAng(wrapX(root[0]), 45),
+      rnx = -Math.sin(ra),
+      rny = Math.cos(ra),
+      la = Math.atan2(tip[1] - root[1], wdx(tip[0], root[0])),
+      lnx = -Math.sin(la),
+      lny = Math.cos(la),
+      tx = root[0] + wdx(tip[0], root[0]),
+      ty = tip[1];
+    g.beginPath();
+    g.moveTo(root[0] + rnx * 13, root[1] + rny * 13);
+    g.lineTo(root[0] - rnx * 13, root[1] - rny * 13);
+    g.lineTo(tx - lnx * 9, ty - lny * 9);
+    g.lineTo(tx + lnx * 9, ty + lny * 9);
+    g.closePath();
+    g.fillStyle = winter ? '#E6EAEE' : '#AFA27E';
+    g.fill();
+    if (!winter) {
+      g.strokeStyle = 'rgba(66,70,48,.48)';
+      g.lineWidth = 1.5;
+      for (const k of [-1, 1]) {
+        const cx = lerp(root[0], tx, 0.58) + Math.cos(la) * k * 2.2,
+          cy = lerp(root[1], ty, 0.58) + Math.sin(la) * k * 2.2;
+        g.beginPath();
+        g.moveTo(cx - lnx * 10, cy - lny * 10);
+        g.lineTo(cx + lnx * 10, cy + lny * 10);
+        g.stroke();
+      }
+    }
+  }
+  // Small, deliberate stopping bays make destination traffic read as parked rather than abandoned at
+  // a gate. Farm bays sit just inside the courtyard; roadside services mark theirs more clearly.
+  for (const b of BUILDS)
+    if (b.service === 'farmstore' && b.parkingStops) {
+      g.save();
+      g.translate(b.stop[0], b.stop[1]);
+      g.rotate(b.ang);
+      g.fillStyle = winter ? '#A3A29A' : '#B6AA88';
+      g.fillRect(-48, -29, 96, 58);
+      g.restore();
+    }
+  for (const spot of vehicleDestinations()) {
+    const service = spot.name !== 'farm';
+    g.save();
+    g.translate(spot.point[0], spot.point[1]);
+    g.rotate(spot.ang);
+    g.strokeStyle = winter ? 'rgba(140,150,160,.55)' : service ? 'rgba(226,220,194,.72)' : 'rgba(92,80,58,.42)';
+    g.lineWidth = service ? 1.8 : 1.2;
+    g.setLineDash(service ? [] : [5, 5]);
+    g.strokeRect(-25, -12, 50, 24);
+    g.beginPath();
+    g.moveTo(-18, -12);
+    g.lineTo(-18, 12);
+    g.stroke();
+    if (!service) {
+      g.translate(0, 22);
+      g.strokeRect(-25, -12, 50, 24);
+      g.beginPath();
+      g.moveTo(-18, -12);
+      g.lineTo(-18, 12);
+      g.stroke();
+    }
+    g.restore();
   }
   yield;
+  // Narrow wheel-worn access tracks, with grass between the ruts. They stay subordinate to the
+  // gravel access lanes at a zoomed-out gameplay scale.
+  for (const track of FIELD_TRACKS) {
+    const P = track.path;
+    for (const ox of edgeOffs(Math.min(...P.map(p => p[0])), Math.max(...P.map(p => p[0])))) {
+      g.save();
+      g.translate(ox, 0);
+      strokePoly(g, P, 10, winter ? 'rgba(217,224,228,.76)' : 'rgba(105,92,65,.24)');
+      for (const side of [-2.8, 2.8])
+        strokePoly(g, offsetPoly(P, side), 2.2, winter ? 'rgba(185,195,204,.82)' : 'rgba(153,136,98,.78)');
+      g.restore();
+    }
+  }
   paintCrossings(winter);
   paintRailSteel();
   function water(c, rf, R0) {
@@ -818,6 +974,22 @@ function* paintGroundGen(season) {
         g.save();
         g.translate(c.x + ox, c.y);
         g.rotate(c.ang);
+        if (c.underpass) {
+          // The road drops into a short dark cutting while the railway stays on
+          // its embankment above. Pale retaining walls make the two levels read.
+          g.fillStyle = winter ? 'rgba(72,78,86,.78)' : 'rgba(48,43,34,.78)';
+          g.fillRect(-hl * 1.15, -hw, hl * 2.3, hw * 2);
+          const wall = g.createLinearGradient(-hl * 1.15, 0, hl * 1.15, 0);
+          wall.addColorStop(0, winter ? '#BCC3CA' : '#8E846E');
+          wall.addColorStop(0.22, winter ? '#737B84' : '#554D40');
+          wall.addColorStop(0.78, winter ? '#737B84' : '#554D40');
+          wall.addColorStop(1, winter ? '#BCC3CA' : '#8E846E');
+          g.fillStyle = wall;
+          g.fillRect(-hl * 1.15, -hw - 4, hl * 2.3, 4);
+          g.fillRect(-hl * 1.15, hw, hl * 2.3, 4);
+          g.restore();
+          continue;
+        }
         g.fillStyle = winter ? 'rgba(213,217,222,.92)' : '#7C6A50';
         g.fillRect(-hl, -hw, hl * 2, hw * 2);
         // worn wheel path down the middle where wheels have crossed it season after season

@@ -217,24 +217,41 @@ const lineEnd = a => [a.x + a.f * (a.ice ? 7 : 30), a.y + (a.ice ? 3 : 10)];
 
 /* ---- a walker on the road ---- */
 function walkerLife(a, dt) {
+  if (!a.route) {
+    const targets = journeyDestinations();
+    if (!targets.length) {
+      a.dying = true;
+      return;
+    }
+    const target = pickP(targets);
+    a.route = makeJourney([a.x, a.y], target.point);
+    a.routeS = 0;
+  }
+  if (a.visitT > 0) {
+    a.visitT -= dt;
+    a.st = 'idle';
+    a.vx = a.vy = 0;
+    return;
+  }
+  if (travelAnimal(a, a.route, 13, dt)) {
+    const targets = journeyDestinations().filter(d => Math.hypot(wdx(d.point[0], a.x), d.point[1] - a.y) > 100);
+    if (!targets.length) return;
+    a.route = makeJourney([a.x, a.y], pickP(targets).point);
+    a.routeS = 0;
+    a.visitT = rr(10, 30);
+    if (!inView(a.x, a.y, 200)) {
+      a.dying = true;
+      a.fade = 0;
+    }
+  }
+}
+function arrivalLife(a, dt) {
   a.st = 'walk';
-  a.s += a.dir * 13 * dt;
-  a.dist += 13 * dt;
-  const p = roadAt(a.s),
-    hx = Math.cos(p.ang) * a.dir,
-    hy = Math.sin(p.ang) * a.dir;
-  const nx = p.x - hy * 13,
-    ny = p.y + hx * 13;
-  a.vx = wdx(nx, a.x) / Math.max(dt, 1e-3);
-  a.vy = (ny - a.y) / Math.max(dt, 1e-3);
-  a.x = nx;
-  a.y = ny;
-  if (Math.abs(hx) > 0.1) a.f = hx > 0 ? 1 : -1;
-  // leave only once well past the edge of the current view, not at a fixed world distance, so a
-  // wide/zoomed-out view (a big flock) never sees them vanish still in frame
-  if (a.dist > 800 && !visG(a.x, a.y, 200) && !a.dying) {
-    a.dying = true;
-    a.fade = 1;
+  a.hide = false;
+  if (steerA(a, a.arrivalGo[0], a.arrivalGo[1], 10, dt) < 3) {
+    a.st = 'idle';
+    a.fade = Math.max(0, (a.fade ?? 1) - dt * 1.4);
+    if (a.fade <= 0) a.dying = true;
   }
 }
 function spawnWalker() {
@@ -246,6 +263,9 @@ function spawnWalker() {
     sx = side > 0 ? V.x1 + margin : V.x0 - margin;
   const a = mkPerson('walker', 0, 0, { s: RD.sAt(sx), dir: 1, dist: 0, fade: 0 });
   a.dir = wdx(L ? L.x : 0, sx) * Math.cos(roadAt(a.s).ang) > 0 ? 1 : -1;
+  const entry = roadAt(a.s);
+  a.x = entry.x;
+  a.y = entry.y;
   walkerLife(a, 0.016);
   ANIMALS.push(a);
 }
@@ -253,9 +273,24 @@ function spawnWalker() {
 function updatePeople(dt) {
   for (const a of ANIMALS) {
     if (a.k !== 'human' || a.dying) continue;
+    if (a.seasonTravel) {
+      const target = a.seasonTravel;
+      // Wait until the ice is visibly established before stepping out onto the lake.
+      if (target.ice && winterW() < 0.95) continue;
+      a.pose = null;
+      a.st = 'walk';
+      a.hide = false;
+      if (steerA(a, target.x, target.y, 13, dt) < 4) {
+        a.ice = !!target.ice;
+        a.pose = target.pose;
+        a.seasonTravel = null;
+      }
+      continue;
+    }
     if (a.role === 'farmer') farmerLife(a, dt);
     else if (a.role === 'fisher') fisherLife(a, dt);
     else if (a.role === 'walker') walkerLife(a, dt);
+    else if (a.role === 'arrival') arrivalLife(a, dt);
     // anyone on foot sends sparrows resting on the ground up as they pass
     if (!a.hide && a.st === 'walk') {
       a.scare = (a.scare || 0) - dt;

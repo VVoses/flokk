@@ -166,13 +166,14 @@ const runStride = (S, sp) => Math.max(S.stride * 1.5, sp / (2.6 * Math.sqrt(11 /
 /* per-frame state for a figure (called from animalPost): which way it faces, turned smoothly, and how
    much it is walking (legs settle rather than snap when it stops) */
 function figPost(a, sp, dt) {
-  if (sp > 1) a.hdT = Math.atan2(a.vy, a.vx);
+  if (sp > 1) a.hdT = a.moveHeading ?? Math.atan2(a.vy, a.vx);
   else if (a.lee !== undefined)
     a.hdT = a.lee; // standing with its back to a hard wind (weather.js)
   else if (a.pose || a.role === 'fisher') a.hdT = a.f > 0 ? 0.35 : Math.PI - 0.35;
   else if (a.hdT === undefined) a.hdT = a.f > 0 ? 0.3 : Math.PI - 0.3;
   // standing still and turning to face the other way: mirror, keeping the same angle to the viewer
   else if (Math.cos(a.hdT) * a.f < -0.05) a.hdT = Math.PI - a.hdT;
+  if (sp > 1 && a.moveHeading !== undefined) a.hd3 = a.moveHeading;
   a.hd3 = a.hd3 === undefined ? a.hdT : a.hd3 + angDiff(a.hdT, a.hd3) * Math.min(1, dt * (sp > 40 ? 9 : 5));
   a.gw = (a.gw || 0) + ((sp > 1 ? 1 : 0) - (a.gw || 0)) * Math.min(1, dt * 6);
 }
@@ -283,8 +284,8 @@ function drawQuad(a) {
     } else if (S.tail === 'brush') {
       const s2 = (bound ? 0 : sw * 1.4) - (walking ? stride * 0.06 : 0),
         tip = [tf - 6.5 + (bound ? -2.5 : 0), s2, tu - 2.4 + (bound ? 2 : 0)];
-      curve([P2(tf, 0, tu), P2(tf - 5, s2 * 0.4, tu - 0.5), P2(...tip)], 2.8, C.body);
-      ellDraw(ello(tip[0] - 1, tip[1], tip[2], 1.6, 1.3, 1.3), '#F4EFE2');
+      ellDraw(ello(tf - 3.5, s2 * 0.4, tu - 1, 4.8, 1.65, 1.8, 0.15), C.body);
+      ellDraw(ello(tip[0] - 0.5, tip[1], tip[2], 2, 1.05, 1.1, 0.15), '#D8D1BE');
     } else if (S.tail === 'curl') {
       const c0 = P2(tf, 0, tu);
       ctx.strokeStyle = tone(C.body, 0.9);
@@ -420,7 +421,17 @@ function drawQuad(a) {
     );
     // muzzle or snout at the front of the face
     const m = H3(S.hRx * 1.2, S.hRy * (a.k === 'pig' ? 0.25 : 0.2), 0);
-    ellDraw(ello(...m, S.hRx * 0.36, S.hRy * 0.6, S.hRy * 0.62, -ha), headCol, a.k === 'pig' ? 0.85 : 0.72);
+    ellDraw(
+      ello(
+        ...m,
+        S.hRx * (a.k === 'fox' ? 0.72 : 0.36),
+        S.hRy * (a.k === 'fox' ? 0.36 : 0.6),
+        S.hRy * (a.k === 'fox' ? 0.4 : 0.62),
+        -ha
+      ),
+      a.k === 'fox' ? '#C8BA9B' : headCol,
+      a.k === 'pig' ? 0.85 : 0.72
+    );
     if (a.k === 'pig')
       for (const sd of [-1, 1]) {
         const q = P2(...H3(S.hRx * 1.52, S.hRy * 0.25, sd * 0.6));

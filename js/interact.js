@@ -129,7 +129,7 @@ function interact(dt) {
   feederRaids(dt);
   foxProwl(dt);
   for (const a of ANIMALS) {
-    if (a.dying) continue;
+    if (a.dying || a.shelter || a.migrating) continue;
     if (a.k === 'crow' && (a.st === 'mob' || a.st === 'mobret')) crowMob(a, dt);
     else if (a.k === 'magpie' && (a.st === 'raid' || a.st === 'hold' || a.st === 'leave')) magpieRaid(a, dt);
     else if (a.k === 'fox' && a.busy) foxLife(a, dt);

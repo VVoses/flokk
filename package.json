@@ -5,7 +5,9 @@
   "scripts": {
     "lint": "node tools/lint.mjs",
     "format": "prettier --write \"js/*.js\" \"css/*.css\" index.html",
-    "check": "sh tools/check.sh"
+    "check": "sh tools/check.sh",
+    "check:polish": "node tools/polish_check.cjs",
+    "check:seasons": "node tools/transition_check.cjs"
   },
   "devDependencies": {
     "eslint": "^9.0.0",

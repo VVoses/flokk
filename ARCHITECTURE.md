@@ -77,8 +77,12 @@ applySeason(newSeason, smooth=true)
       │  sprites/ground for the new season a little each frame (runBgJob, update.js)
       ▼
 render() blends TRANS.prevG/prevSPR (frozen at the moment of the flip) against the
-live G/SPR as TRANS.t eases 0→1 over ~10s (tEase())
+live G/SPR as TRANS.t eases 0→1 over ~10s (tEase()), after BG_JOB completes
 ```
+
+The fade stays at zero until all incoming assets, including field and leaf growth stages, are ready.
+The outgoing ground snapshot includes the live crop and snow overlays; rebuilding bushes and growth
+stages yields between variants/fields. This avoids revealing a mixture of old and new assets.
 
 Two details worth knowing before touching anything here, because both were real bugs:
 

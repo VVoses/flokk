@@ -28,15 +28,33 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: pip install playwright
+      - run: pip install -r requirements-ci.txt
 
-      - run: python3 -m playwright install --with-deps chromium
+      - name: cache Playwright browser
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-ci.txt') }}
+
+      - name: install Chromium system dependencies
+        run: python3 -m playwright install-deps chromium
+
+      - name: install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: python3 -m playwright install chromium
 
       - name: syntax check + headless smoke
         run: npm run check
 
+      - name: saved flight coordination
+        run: python3 tools/session_check.py
+
       - name: farms meet the road cleanly
         run: python3 tools/road_check.py
+
+      - name: seeded visual smoke
+        run: python3 tools/visual_smoke.py
 
       - name: full flow (title, play, pause, game over, full year, resize, night, phone)
         run: python3 tools/flows.py
@@ -46,5 +64,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flow-screenshots
-          path: tools/out/*.png
+          path: |
+            tools/out/*.png
+            tools/out/visual-smoke/*.png
           if-no-files-found: ignore

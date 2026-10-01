@@ -287,11 +287,12 @@ function updateWild(dt) {
     if (!WILD.flocks.length && kinds.length && LIGHT.night < 0.25 && !spawnWild(pickP(kinds))) WILD.t = rr(10, 20);
   }
   for (const F of WILD.flocks) wildFlock(F, dt);
-  WILD.flocks = WILD.flocks.filter(F => {
-    if (F.st !== 'out' || inView(F.x, F.y, 700)) return true;
-    for (const a of F.members) a.life = 0;
-    return false;
-  });
+  let flockWrite = 0;
+  for (const F of WILD.flocks) {
+    if (F.st !== 'out' || inView(F.x, F.y, 700)) WILD.flocks[flockWrite++] = F;
+    else for (const a of F.members) a.life = 0;
+  }
+  WILD.flocks.length = flockWrite;
 }
 function wildFlock(F, dt) {
   const S = WILD_SP[F.sp];

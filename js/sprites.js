@@ -697,13 +697,6 @@ function drawJuniper(g, vi, season) {
     g.stroke();
   }
 }
-function buildBushSprites(s) {
-  for (let i = 0; i < NBV; i++) {
-    BSPR.cur[i] = makeBush(i, s);
-    BSPR.bare[i] = s === 0 || s === 2 ? makeBush(i, s, 'bare') : null;
-    BSPR.bud[i] = s === 0 ? makeBush(i, s, 'bud') : null;
-  }
-}
 const NV = 12;
 // same work as buildSprites, but yielding after each variant so a season change can spread it
 // across several frames instead of freezing one (see BG_JOB in light.js)
@@ -713,7 +706,12 @@ function* buildSpritesGen(s) {
       SPR[t][i] = makeSprite(t, i, s);
       yield;
     }
-  buildBushSprites(s);
+  for (let i = 0; i < NBV; i++) {
+    BSPR.cur[i] = makeBush(i, s);
+    BSPR.bare[i] = s === 0 || s === 2 ? makeBush(i, s, 'bare') : null;
+    BSPR.bud[i] = s === 0 ? makeBush(i, s, 'bud') : null;
+    yield;
+  }
 }
 function buildSprites(s) {
   const it = buildSpritesGen(s);

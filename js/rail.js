@@ -17,7 +17,24 @@ function railDist(x, y) {
 // land outside the map's valid band (NORTH-60..H-560), try the other side of the water first,
 // since a point simply clamped back into the band can otherwise still land inside the shore
 const RAIL_LO = NORTH - 60,
-  RAIL_HI = H - 560;
+  RAIL_HI = H - 560,
+  // World units are close to metres at vehicle scale. This keeps the generated line in broad,
+  // high-speed railway curves and prevents adjacent train cars from visibly folding around a kink.
+  RAIL_MIN_RADIUS = 420;
+function railMinRadius(path) {
+  let radius = Infinity;
+  for (let i = 1; i < path.length - 1; i++) {
+    const a = path[i - 1],
+      b = path[i],
+      c = path[i + 1],
+      l0 = Math.hypot(b[0] - a[0], b[1] - a[1]),
+      l1 = Math.hypot(c[0] - b[0], c[1] - b[1]);
+    if (l0 < 1 || l1 < 1) continue;
+    const turn = Math.abs(angDiff(Math.atan2(c[1] - b[1], c[0] - b[0]), Math.atan2(b[1] - a[1], b[0] - a[0])));
+    if (turn > 1e-4) radius = Math.min(radius, ((l0 + l1) * 0.5) / turn);
+  }
+  return radius;
+}
 function railDodge(x, yy) {
   for (const [c, extra] of [
     [LAKE, LAKE.r * 0.5 + 240],
@@ -93,17 +110,28 @@ function genRail() {
       pts.push([x, railDodge(x, clamp(ys[i] + (e * x) / W, lo, hi))]);
     }
     const P = trimX(catmull(extP(pts), 18), -1900, W + 1900);
-    if (!P.some(p => inWater(p[0], p[1], 110))) RAIL = P;
+    const candidate = P.map(p => railClear(p[0], p[1]));
+    const crossings = findCrossings(ROAD, candidate).filter(c => c.x >= 0 && c.x < W);
+    const shallow = crossings.some(c => Math.abs(Math.sin(c.ang - c.rang)) < 0.55);
+    const crowded = candidate.some(
+      p =>
+        p[0] >= 0 &&
+        p[0] < W &&
+        roadDist(p[0], p[1]) < 65 &&
+        !crossings.some(c => Math.hypot(c.x - p[0], c.y - p[1]) < 140)
+    );
+    const broad = railMinRadius(candidate) >= RAIL_MIN_RADIUS;
+    if (broad && !shallow && !crowded && !candidate.some(p => inWater(p[0], p[1], 40))) RAIL = candidate;
   }
   if (!RAIL) {
-    // last resort after 30 failed bends: a straight line down the corridor, still dodging
-    // the lake and pond by the same rule as above, so it never just cuts through them
-    const xs = periodXs(720, 960, 600),
-      mid = (lo + hi) / 2,
-      pts = xs.map(x => [x, railDodge(x, mid)]);
-    RAIL = trimX(catmull(extP(pts), 12), -1900, W + 1900);
+    // A clear northern corridor is preferable to forcing road and rail into the same gap.
+    RAIL = [
+      [-1900, 500],
+      [0, 500],
+      [W, 500],
+      [W + 1900, 500]
+    ];
   }
-  RAIL = RAIL.map(p => railClear(p[0], p[1]));
   RAILBOX = [Math.min(...RAIL.map(p => p[1])), Math.max(...RAIL.map(p => p[1]))];
   RAILS = [0];
   for (let i = 1; i < RAIL.length; i++)

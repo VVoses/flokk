@@ -142,7 +142,9 @@ function gustTick(dt) {
     g.x += c * speed * dt;
     g.y += s * speed * dt;
   }
-  if (W2.gusts.some(g => g.t >= g.life)) W2.gusts = W2.gusts.filter(g => g.t < g.life);
+  let gustWrite = 0;
+  for (const g of W2.gusts) if (g.t < g.life) W2.gusts[gustWrite++] = g;
+  W2.gusts.length = gustWrite;
 }
 // swells in as it arrives, dies away as it goes
 const gustEnv = g => Math.min(1, g.t / 2.5, (g.life - g.t) / 2.5);
@@ -247,7 +249,9 @@ function leafTick(dt) {
   }
   const v = viewSpan();
   const keepLeaf = f => f.down < 4.5 && Math.abs(f.x - v.cx) < v.hx + 900 && Math.abs(f.y - v.cy) < v.hy + 900;
-  if (W2.leaves.some(f => !keepLeaf(f))) W2.leaves = W2.leaves.filter(keepLeaf);
+  let leafWrite = 0;
+  for (const f of W2.leaves) if (keepLeaf(f)) W2.leaves[leafWrite++] = f;
+  W2.leaves.length = leafWrite;
 }
 function drawLeaf(f, Y, a) {
   ctx.save();
@@ -365,11 +369,21 @@ function precipTick(dt) {
     }
     if (p.snow !== snow) p.dead = true;
   }
-  if (W2.fall.some(p => p.dead)) W2.fall = W2.fall.filter(p => !p.dead);
-  for (const d of W2.drops) d.t += dt;
-  if (W2.drops.some(d => d.t >= 0.7)) W2.drops = W2.drops.filter(d => d.t < 0.7);
-  for (const d of W2.splash) d.t += dt;
-  if (W2.splash.some(d => d.t >= 0.18)) W2.splash = W2.splash.filter(d => d.t < 0.18);
+  let fallWrite = 0;
+  for (const p of W2.fall) if (!p.dead) W2.fall[fallWrite++] = p;
+  W2.fall.length = fallWrite;
+  let dropWrite = 0;
+  for (const d of W2.drops) {
+    d.t += dt;
+    if (d.t < 0.7) W2.drops[dropWrite++] = d;
+  }
+  W2.drops.length = dropWrite;
+  let splashWrite = 0;
+  for (const d of W2.splash) {
+    d.t += dt;
+    if (d.t < 0.18) W2.splash[splashWrite++] = d;
+  }
+  W2.splash.length = splashWrite;
 }
 
 /* ---------- fog: banks drifting through on the still air, closing the view down round the flock ---------- */

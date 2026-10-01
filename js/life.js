@@ -38,11 +38,13 @@ function mkA(k, x, y, o) {
     o || {}
   );
 }
-function spawnAnimals() {
+function spawnAnimals(preserve = false) {
+  const residents = preserve ? ANIMALS.filter(a => !a.dying) : [];
+  const oldWild = preserve ? WILD.flocks : null;
   ANIMALS = [];
   SMOKE = [];
   RINGS = [];
-  wildReset();
+  if (!preserve) wildReset();
   const pastures = FIELDS.filter(f => f.t === 'pasture');
   if (SEASON < 3)
     pastures.slice(0, 3).forEach((f, i) => {
@@ -58,24 +60,31 @@ function spawnAnimals() {
       const n = rr(2, 3) | 0;
       for (let j = 0; j < n; j++) ANIMALS.push(mkA('pig', ...ptIn(fm.sty, 14), { rect: fm.sty }));
     }
-  const edgeSpot = () => {
+  const edgeSpot = preferred => {
+    let fallback = null,
+      fallbackWeight = -1;
     for (let i = 0; i < 120; i++) {
       const x = rr(250, W - 250),
         y = rr(200, H - 400);
       const fo = forestness(x, y);
-      if (fo > 0.4 && fo < 0.58 && openLand(x, y) && roadDist(x, y) > 80 && !inFence(x, y, 60)) return [x, y];
+      if (fo <= 0.4 || fo >= 0.58 || !openLand(x, y) || roadDist(x, y) <= 80 || inFence(x, y, 60)) continue;
+      const weight = preferred ? regionWeights(x, y)[preferred] : 1;
+      if (weight > fallbackWeight) ((fallback = [x, y]), (fallbackWeight = weight));
+      if (!preferred || weight > 0.46) return [x, y];
     }
-    return null;
+    return fallback;
   };
   for (let g = 0; g < 2; g++) {
-    const p = edgeSpot();
+    // Deer use the broken woodland around the cultivated valley; the larger, shyer moose belongs
+    // farther upslope. The weighted fallback still lets sparse generated worlds contain both.
+    const p = edgeSpot('valley');
     if (!p) continue;
     const n = rr(1, 3) | 0;
     for (let j = 0; j < n; j++)
       ANIMALS.push(mkA('deer', p[0] + rr(-40, 40), p[1] + rr(-30, 30), { hx: p[0], hy: p[1], hr: 240 }));
   }
   if (Math.random() < 0.5) {
-    const p = edgeSpot();
+    const p = edgeSpot('highland');
     if (p) ANIMALS.push(mkA('moose', p[0], p[1], { hx: p[0], hy: p[1], hr: 380, bull: Math.random() < 0.6 }));
   }
   const openF = FIELDS.filter(f => f.t !== 'pasture');
@@ -118,7 +127,7 @@ function spawnAnimals() {
   );
   {
     // a fox denned at the forest edge - unseen by day, an occasional prowler once the light fades
-    const p = edgeSpot();
+    const p = edgeSpot('highland');
     if (p) ANIMALS.push(mkA('fox', p[0], p[1], { hx: p[0], hy: p[1], hr: 230, hide: true }));
   }
   for (const l of ANIMALS) if (l.lamb) l.mom = herdMate(l);
@@ -161,6 +170,45 @@ function spawnAnimals() {
         })
       );
   spawnPeople();
+  if (preserve) {
+    const candidates = ANIMALS;
+    ANIMALS = residents;
+    WILD.flocks = oldWild;
+    // Year-round residents keep their identity, group relationships and current routine.
+    // Only seasonal species absent from this world need a new population.
+    for (const kind of ['sheep', 'cow', 'duck', 'heron', 'tractor', 'butterfly']) {
+      if (residents.some(a => a.k === kind)) continue;
+      for (const a of candidates.filter(a => a.k === kind)) {
+        a.fade = 0;
+        ANIMALS.push(a);
+        if (kind === 'tractor') ANIMALS.push(...candidates.filter(g => g.k === 'gull' && g.follow === a));
+      }
+    }
+    for (const a of ANIMALS) {
+      if (a.k === 'butterfly' && SEASON >= 2) {
+        a.dying = true;
+        a.fade ??= 1;
+      }
+      if ((a.k === 'duck' || a.k === 'heron') && SEASON === 3) a.migrating = true;
+      if (a.k === 'sheep' || a.k === 'cow' || a.k === 'tractor') {
+        if (SEASON === 3) {
+          const barns = BUILDS.filter(b => b.kind === 'barn' || b.kind === 'sbarn');
+          const barn = barns.sort(
+            (b, c) => Math.hypot(wdx(b.cx, a.x), b.cy - a.y) - Math.hypot(wdx(c.cx, a.x), c.cy - a.y)
+          )[0];
+          if (barn) a.shelter = frontOf(barn);
+        } else {
+          a.shelter = null;
+          a.hide = false;
+          a.busy = false;
+        }
+      }
+      if (a.role === 'fisher') {
+        const next = candidates.find(b => b.role === 'fisher');
+        if (next && !!next.ice !== !!a.ice) a.seasonTravel = { x: next.x, y: next.y, ice: next.ice, pose: next.pose };
+      }
+    }
+  }
 }
 // humanOnly: only people count as a threat (moose tolerate dogs, traffic and hawks nearby, but not people)
 function threatNear(a, r, humanOnly) {
@@ -224,7 +272,7 @@ function rowStart(f, x, y) {
 // a tractor done with its field picks another ploughed, stubble or cropped field - one of the nearer ones
 // of its own farm, or any farm's if its own has none - and drives to the head of that field's first row
 function tractorMove(a) {
-  const ok = f => f !== a.rect && (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop');
+  const ok = f => f !== a.rect && f.track && (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop');
   let cand = FIELDS.filter(f => ok(f) && f.farm === a.rect.farm);
   if (!cand.length) cand = FIELDS.filter(ok);
   const near = cand
@@ -242,6 +290,8 @@ function tractorMove(a) {
   LIFE.tractorF = f;
   a.next = f;
   a.go = [s.x, s.y];
+  a.route = makeJourney([a.x, a.y], a.go);
+  a.routeS = 0;
   a.row = s.row;
   a.rdir = 1;
   a.dirn = s.dirn;
@@ -276,6 +326,17 @@ function inRectPt(r, m) {
 }
 // half the footprint each kind needs to itself, so two of them never stand drawn on top of one another
 const SEP_R = { sheep: 6, pig: 6, cow: 9, deer: 6, moose: 11, hare: 3, duck: 4, heron: 5 };
+// Separation is the final movement applied in a frame, so it must respect the same habitat limits as
+// the animal's own routine. Otherwise two bodies near an edge can quietly push one another through a
+// pasture fence or leave a duck stranded on the bank after its swimming code has already run.
+function animalSpaceClear(a, x, y) {
+  if (a.rect && !inField(a.rect, x, y, -2)) return false;
+  if (a.k === 'duck' && !inBlob(x, y, a.pool, a.prf, -2)) return false;
+  if (a.k === 'heron') return !inBuild(x, y, 8) && !inWater(x, y, -18);
+  if (a.k === 'deer' || a.k === 'moose')
+    return !inWater(x, y, 8) && !inBuild(x, y, 10) && (!inFence(x, y, 2) || inFence(a.x, a.y, 2));
+  return !inBuild(x, y, 6);
+}
 // a gentle nudge apart for any pair of grazing/wading animals overlapping this frame; too mild to
 // fight a deliberate walk toward a herd-mate or a flee target, just enough that bodies don't stack
 function separateAnimals() {
@@ -300,10 +361,12 @@ function separateAnimals() {
         push = ((min - d) / d) * 0.5;
       const nx = dx * push,
         ny = dy * push;
-      a.x -= nx;
-      a.y -= ny;
-      b.x += nx;
-      b.y += ny;
+      const ax = a.x - nx,
+        ay = a.y - ny,
+        bx = b.x + nx,
+        by = b.y + ny;
+      if (animalSpaceClear(a, ax, ay)) ((a.x = ax), (a.y = ay));
+      if (animalSpaceClear(b, bx, by)) ((b.x = bx), (b.y = by));
     }
   }
 }
@@ -312,6 +375,33 @@ function updateAnimals(dt) {
   updatePeople(dt);
   for (const a of ANIMALS) {
     a.anim += dt;
+    if (a.migrating) {
+      a.busy = true;
+      a.st = 'fly';
+      a.vx = 65;
+      a.vy = -22;
+      a.x += a.vx * dt;
+      a.y += a.vy * dt;
+      a.z = Math.min(3, a.z + dt * 0.7);
+      a.hd = Math.atan2(a.vy, a.vx);
+      a.flap += dt * 7;
+      if (!inView(a.x, a.y, 300)) {
+        a.dying = true;
+        a.fade = 0;
+      }
+      continue;
+    }
+    if (a.shelter) {
+      a.busy = true;
+      a.st = 'walk';
+      a.graze = false;
+      if (steerA(a, ...a.shelter, a.k === 'tractor' ? 24 : 12, dt) < 4) {
+        a.hide = true;
+        a.st = 'idle';
+        a.vx = a.vy = 0;
+      }
+      continue;
+    }
     if (a.busy) continue;
     a.t -= dt;
     a.chk -= dt;
@@ -321,7 +411,18 @@ function updateAnimals(dt) {
       case 'pig': {
         if (a.st === 'walk') {
           a.graze = false;
-          if (walkTo(a, dt, a.k === 'sheep' ? 16 : a.k === 'pig' ? 9 : 11)) {
+          const ox = a.x,
+            oy = a.y,
+            arrived = walkTo(a, dt, a.k === 'sheep' ? 16 : a.k === 'pig' ? 9 : 11);
+          // A destination can be inside an irregular field while the straight step toward it clips
+          // a concave corner. Keep the animal on its side of the fence and choose another graze spot.
+          if (!inField(a.rect, a.x, a.y, -2)) {
+            a.x = ox;
+            a.y = oy;
+            a.vx = a.vy = 0;
+            a.st = 'idle';
+            a.t = rr(0.4, 1.2);
+          } else if (arrived) {
             a.st = 'idle';
             a.t = rr(3, 10);
           }
@@ -361,6 +462,7 @@ function updateAnimals(dt) {
           }
         }
         if (a.st === 'flee') {
+          a.graze = false;
           const sp = hare ? 170 : 140,
             nx = a.x + a.fx * sp * dt,
             ny = a.y + a.fy * sp * dt;
@@ -379,6 +481,7 @@ function updateAnimals(dt) {
             a.y = ny;
             a.vx = a.fx * sp;
             a.vy = a.fy * sp;
+            a.moveHeading = Math.atan2(a.vy, a.vx);
             if (Math.abs(a.fx) > 0.1) a.f = a.fx > 0 ? 1 : -1;
           }
           if (a.t <= 0) {
@@ -621,23 +724,19 @@ function updateAnimals(dt) {
         break;
       }
       case 'tractor': {
-        if (LIGHT.night > 0.4) break;
+        // Once it has left a field, finish the journey before stopping for the night. Freezing this
+        // branch above the route logic left tractors parked in the middle of public roads at dusk.
+        if (LIGHT.night > 0.4 && !a.go) break;
         if (a.go) {
           // on the way to the next field, in a higher gear than when working it
-          const dx = wdx(a.go[0], a.x),
-            dy = a.go[1] - a.y,
-            d = Math.hypot(dx, dy);
-          if (d < 6) {
+          a.route ||= makeJourney([a.x, a.y], a.go);
+          if (travelAnimal(a, a.route, TRACTOR_ROAD, dt)) {
             a.rect = a.next;
-            a.go = a.next = null;
+            a.go = a.next = a.route = null;
+            a.routeS = 0;
             a.work = rr(60, 140);
-          } else {
-            a.vx = (dx / d) * TRACTOR_ROAD;
-            a.x = wrapX(a.x + a.vx * dt);
-            a.y += (dy / d) * TRACTOR_ROAD * dt;
-            if (Math.abs(dx) > 2) a.f = a.vx > 0 ? 1 : -1;
-            tractorTurn(a, Math.atan2(dy, dx), dt);
           }
+          tractorTurn(a, a.moveHeading ?? a.ang ?? 0, dt);
           tractorDust(a, dt);
           break;
         }
@@ -732,7 +831,7 @@ function updateAnimals(dt) {
   separateAnimals();
   for (const a of ANIMALS) {
     if (a.dying) a.fade -= dt / 6;
-    else if (a.k === 'human') {
+    else if (a.k === 'human' || a.shelter) {
       // a person going indoors or turning in for the night eases out of sight rather than
       // popping, since this happens in plain view (the farmyard, the ice hole)
       const target = a.hide ? 0 : 1;
@@ -743,7 +842,9 @@ function updateAnimals(dt) {
     } else if (a.fade !== undefined && a.fade < 1) a.fade = Math.min(1, a.fade + dt / 6);
   }
   const keepAnimal = a => (a.life === undefined || a.life > 0) && !(a.dying && a.fade <= 0);
-  if (ANIMALS.some(a => !keepAnimal(a))) ANIMALS = ANIMALS.filter(keepAnimal);
+  let animalWrite = 0;
+  for (const a of ANIMALS) if (keepAnimal(a)) ANIMALS[animalWrite++] = a;
+  ANIMALS.length = animalWrite;
   // passing flights: geese heading south in a V, rooks crossing, small flocks dropping in to feed (wild.js)
   if (L && st.mode !== 'pause') {
     updateWild(dt);
@@ -875,9 +976,13 @@ function updateAnimals(dt) {
     p.z += dt * (0.7 - age * 0.06);
     p.r += dt * (4.2 - age * 0.35);
   }
-  if (SMOKE.some(p => p.life <= 0)) SMOKE = SMOKE.filter(p => p.life > 0);
+  let smokeWrite = 0;
+  for (const p of SMOKE) if (p.life > 0) SMOKE[smokeWrite++] = p;
+  SMOKE.length = smokeWrite;
   for (const r of RINGS) r.t += dt;
-  if (RINGS.some(r => r.t >= 2.4)) RINGS = RINGS.filter(r => r.t < 2.4);
+  let ringWrite = 0;
+  for (const r of RINGS) if (r.t < 2.4) RINGS[ringWrite++] = r;
+  RINGS.length = ringWrite;
   for (const c of CLOUDSH) {
     c.x += WIND.x * 14 * dt;
     c.y += WIND.y * 14 * dt;

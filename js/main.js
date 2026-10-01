@@ -19,12 +19,20 @@ function hud(dt) {
   ui.foodBar.style.width = (Math.min(1, st.food / need) * 100).toFixed(0) + '%';
   let cls = '',
     txt = 'Flying';
-  const dive = hawks.some(h => h.state === 'dive'),
-    stalk = hawks.some(h => h.state === 'stalk' || h.state === 'hover');
-  const hidden = birds.filter(coveredNow).length;
+  let dive = false,
+    stalk = false,
+    hunting = 0,
+    owl = false,
+    hidden = 0;
+  for (const h of hawks) {
+    if (h.state === 'dive') dive = true;
+    if (h.state === 'stalk' || h.state === 'hover') stalk = true;
+    if (h.state !== 'leave' && h.state !== 'carry') hunting++;
+    if (h.kind === 'owl') owl = true;
+  }
+  for (const b of birds) if (coveredNow(b)) hidden++;
   // one flying off (with or without a catch) is no longer a threat, however long it stays in sight
-  const hunting = hawks.filter(h => h.state !== 'leave' && h.state !== 'carry').length;
-  const pk = hawks.some(h => h.kind === 'owl') ? 'owl' : 'hawk',
+  const pk = owl ? 'owl' : 'hawk',
     Pk = pk === 'owl' ? 'Owl' : 'Hawk';
   if (dive) {
     cls = 'danger';
@@ -67,10 +75,12 @@ function frame(now) {
   last = now;
   lastDt = dt;
   if (st.mode === 'play' || st.mode === 'title' || st.overT > 0) update(dt);
+  sessionTick(dt);
   audioTick(dt);
   render();
   hud(dt);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-$('startBtn').focus();
+initSession();
+(readSession() ? $('continueBtn') : $('startBtn')).focus();

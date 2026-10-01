@@ -286,7 +286,7 @@ function spawnDfly() {
     col: Math.random() < 0.5 ? '#3E9BB0' : '#6FA23F'
   });
 }
-const motePos = (s, m) => [s.x + m.ox, s.y + m.oy, s.z + m.oh / HZ];
+const motePos = (s, m) => [s.x + m.ox, s.y + m.oy, s.z + m.oh / HZ + Math.sin(T * 2.1 + m.ph) * 0.08];
 
 /* ---------- perch assignment ---------- */
 function validGround(x, y) {
@@ -424,7 +424,8 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if ((e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) dash();
   if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) {
-    if (st.mode === 'play') pause();
+    if (!$('newFlightOv').hidden) closeNewFlightConfirm();
+    else if (st.mode === 'play') pause();
     else if (st.mode === 'pause') resume();
   }
 });
@@ -592,6 +593,7 @@ function landLabels() {
     LAND_NAME + (flock ? ` · best flock ${flock}` : '') + (days ? ` · ${days} ${days === 1 ? 'day' : 'days'}` : '');
 }
 function newLand(btn, then) {
+  clearSession();
   const old = btn.textContent;
   btn.textContent = 'Shaping the land…';
   btn.disabled = true;
@@ -612,6 +614,7 @@ function newLand(btn, then) {
   }, 40);
 }
 function startGame() {
+  clearSession();
   initAudio();
   // always start in spring, with a full year ahead
   CAL.t = 0;
@@ -702,6 +705,7 @@ function pause() {
   $('pauseStats').innerHTML = statsHTML();
   $('pauseOv').hidden = false;
   $('resumeBtn').focus();
+  saveSession();
 }
 function resume() {
   st.mode = 'play';
@@ -710,6 +714,7 @@ function resume() {
   syncHud();
 }
 function gameOver() {
+  clearSession();
   hideBanner();
   st.mode = 'over';
   $('overTitle').textContent = st.cause === 'starved' ? 'Starved' : 'Taken';
@@ -719,7 +724,23 @@ function gameOver() {
   syncHud();
   $('againBtn').focus();
 }
-$('startBtn').onclick = startGame;
+function closeNewFlightConfirm() {
+  $('newFlightOv').hidden = true;
+  $('titleOv').hidden = false;
+  $('startBtn').focus();
+}
+function requestNewFlight() {
+  if (!hasStoredSession()) return startGame();
+  $('titleOv').hidden = true;
+  $('newFlightOv').hidden = false;
+  $('cancelNewFlightBtn').focus();
+}
+$('startBtn').onclick = requestNewFlight;
+$('cancelNewFlightBtn').onclick = closeNewFlightConfirm;
+$('confirmNewFlightBtn').onclick = () => {
+  $('newFlightOv').hidden = true;
+  startGame();
+};
 $('keepBtn').onclick = keepFlying;
 $('wonNewBtn').onclick = e => newLand(e.currentTarget, startGame);
 $('againBtn').onclick = startGame;
@@ -784,10 +805,27 @@ function nearMiss(b) {
   whooshMiss(b.x, b.y);
 }
 
+function feedingSnap(x, y, z) {
+  const followers = birds.filter(b => b !== L && b.state === 'fly'),
+    nearby = followers.filter(b => Math.hypot(wdx(b.x, x), b.y - y) < 130),
+    pool = (nearby.length ? nearby : followers)
+      .map(b => ({ b, order: Math.random() + Math.hypot(wdx(b.x, x), b.y - y) / 500 }))
+      .sort((a, b) => a.order - b.order)
+      .map(o => o.b);
+  for (const b of pool.slice(0, 1 + (Math.random() < 0.45 ? 1 : 0))) {
+    b.feedT = rr(0.18, 0.32);
+    b.feedX = b.x + wdx(x, b.x) + rr(-5, 5);
+    b.feedY = y + rr(-5, 5);
+    b.feedZ = z;
+    b.flapping = true;
+    b.fbT = Math.max(b.fbT, b.feedT);
+  }
+}
 function eat(v, x, y, z) {
   st.food += v;
   st.eaten += v;
   feed(0.04 * v);
+  feedingSnap(x, y, z);
   sparkle(x, y, z);
   chirp(0.045, undefined, x, y);
   tryGrow();

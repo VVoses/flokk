@@ -7,6 +7,8 @@ let LAKE,
   POND,
   ROAD,
   LANES,
+  ACCESS_TRUNKS = [],
+  FIELD_GATES = [],
   FIELDS,
   DIVIDES = [], // the balks, ditches and hedges between neighbouring plots: {t, w, pts}
   YARD,
@@ -42,6 +44,21 @@ const inWater = (x, y, m = 0) => y > shoreY(x) - m || inBlob(x, y, LAKE, lakeR, 
 function roadDist(x, y) {
   if (y < ROADBOX[0] - 300 || y > ROADBOX[1] + 300) return 1e9;
   return polyDist(x, y, ROAD);
+}
+function laneDist(x, y) {
+  let d = 1e9;
+  for (const lane of LANES) d = Math.min(d, polyDist(x, y, lane));
+  return d;
+}
+function pathHitsYard(path, yard, margin = 0) {
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1],
+      b = path[i],
+      n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 10));
+    for (let j = 0; j <= n; j++)
+      if (inYard(yard, lerp(a[0], b[0], j / n), lerp(a[1], b[1], j / n), margin)) return true;
+  }
+  return false;
 }
 function inBuild(x, y, m = 0) {
   return buildAt(x, y, m) !== null;
@@ -254,6 +271,7 @@ function navPlan(x0, y0, x1, y1) {
 }
 // one step of s units/second towards (a.x+dx, a.y+dy), going round any building in the way
 function groundStep(a, dx, dy, d, s, dt) {
+  if (!(dt > 0)) return;
   const gx = a.x + dx,
     gy = a.y + dy;
   let ux = dx,
@@ -275,8 +293,21 @@ function groundStep(a, dx, dy, d, s, dt) {
     }
   } else a.nav = null;
   const ul = Math.hypot(ux, uy) || 1;
-  let nx = a.x + (ux / ul) * s * dt,
-    ny = a.y + (uy / ul) * s * dt;
+  const aim = Math.atan2(uy, ux),
+    speed = Math.hypot(a.vx || 0, a.vy || 0),
+    heading = a.moveHeading ?? a.hd3 ?? aim,
+    turn = angDiff(aim, heading),
+    large = a.k === 'cow' || a.k === 'moose' || a.k === 'tractor',
+    rate = large ? 2.2 : a.k === 'fox' || a.k === 'dog' ? 4.8 : 3.4,
+    nextHeading = heading + clamp(turn, -rate * dt, rate * dt),
+    // Slow before a corner, then accelerate out along the new heading.
+    target = Math.min(s, Math.sqrt(2 * 70 * ul)) * Math.max(0, Math.cos(turn)),
+    acceleration = large ? 28 : 65,
+    nextSpeed = Math.max(0, speed + clamp(target - speed, -110 * dt, acceleration * dt)),
+    step = Math.min(ul, nextSpeed * dt);
+  a.moveHeading = nextHeading;
+  let nx = a.x + Math.cos(nextHeading) * step,
+    ny = a.y + Math.sin(nextHeading) * step;
   // never onto a roof: slide along the wall instead (also the fallback when no route exists)
   if (inBuild(nx, ny, NAV_M - 4)) [nx, ny] = pushOut(nx, ny, NAV_M - 3);
   a.vx = (nx - a.x) / dt;
@@ -306,6 +337,11 @@ function forestness(x, y) {
   }
   const out = Math.max(-y, y - H);
   if (out > 0) f += 0.5;
+  if (REGIONS.length) {
+    const regional = regionWeights(x, y);
+    f -= regional.town * 0.2;
+    f += regional.highland * 0.035;
+  }
   return f;
 }
 /* a gentle rolling elevation field, purely for hillshading the ground texture - the land itself
@@ -444,9 +480,13 @@ function blocked(x, y, r) {
   for (const Y of YARDS) if (inYard(Y, x, y, r * 0.4)) return true;
   if (inChurchyard(x, y, r * 0.4)) return true;
   if (inBuild(x, y, r * 0.6 + 12)) return true;
-  if (roadDist(x, y) < 52 + r * 0.85) return true;
+  // Dense woodland pulls farther back from the road than isolated trees do. A little deterministic
+  // variation keeps the clearing from becoming a ruler-straight corridor.
+  const forestSetback = smooth(0.45, 0.76, forestness(x, y)) * (22 + hash2(x * 0.015, y * 0.015) * 24);
+  if (roadDist(x, y) < 62 + r + forestSetback) return true;
+  if (FIELD_TRACKS.some(t => polyDist(x, y, t.path) < 20 + r)) return true;
   if (railDist(x, y) < 34 + r * 0.85) return true;
-  for (const P of LANES) if (polyDist(x, y, P) < 26 + r * 0.7) return true;
+  for (const P of LANES) if (polyDist(x, y, P) < 34 + r * 0.8) return true;
   if (segDist(x, y, JET.x0, JET.y0, JET.x1, JET.y1) < r + 12) return true;
   return false;
 }
@@ -554,7 +594,10 @@ function genLayout() {
       ys = [];
     let ry = rnd(1050, H - 650);
     for (let i = 0; i < xs.length; i++) {
-      ry = clamp(ry + rnd(-230, 230), 950, H - 420);
+      // Broad coherent land warp supplies the long bends; a smaller local variation keeps successive
+      // stretches from looking surveyed with a ruler. Catmull interpolation then preserves vehicle speed.
+      const terrainPull = (pfbm(xs[i], ry, 1050, 43, 79) - 0.5) * 190;
+      ry = clamp(ry + terrainPull + rnd(-110, 110), 950, H - 420);
       ys.push(ry);
     }
     const e = ys[0] - ys[ys.length - 1],
@@ -585,6 +628,7 @@ function genLayout() {
     break;
   }
   genRail();
+  const roadRailCrossings = findCrossings(ROAD, RAIL);
   // farmsteads beside the road: a main farm and a second, differently laid-out one further along
   LANES = [];
   BUILDS = [];
@@ -608,6 +652,13 @@ function genLayout() {
     for (let i = 0; i < 1200; i++) {
       const p = pick(ROAD);
       if (p[0] < 480 || p[0] > W - 480) continue;
+      let crossingCrowded = false;
+      for (const c of roadRailCrossings)
+        if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 320) {
+          crossingCrowded = true;
+          break;
+        }
+      if (crossingCrowded) continue;
       if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < 1350)) continue;
       const small = !main && R() < 0.45,
         horiz = !main && R() < 0.5,
@@ -809,7 +860,7 @@ function genLayout() {
     for (let x = r.x - 20; x <= r.x + r.w + 20; x += 50)
       for (let y = r.y - 20; y <= r.y + r.h + 20; y += 50) {
         if (inWater(x, y, 40)) return false;
-        if (roadDist(x, y) < 42 || railDist(x, y) < 48) return false;
+        if (roadDist(x, y) < 42 || laneDist(x, y) < 28 || railDist(x, y) < 48) return false;
       }
     return true;
   };
@@ -823,7 +874,8 @@ function genLayout() {
   const plotBad = (P, own) => {
     for (const p of P) if (p[1] < NORTH || p[1] > H - 440 || p[0] < 130 || p[0] > W - 130) return p;
     const bad = (x, y) => {
-      if (inWater(x, y, 40) || roadDist(x, y) < 42 || railDist(x, y) < 48 || inBuild(x, y, 24)) return true;
+      if (inWater(x, y, 40) || roadDist(x, y) < 42 || laneDist(x, y) < 28 || railDist(x, y) < 48 || inBuild(x, y, 24))
+        return true;
       for (const Y of YARDS) if (inYard(Y, x, y, 40)) return true;
       if (inChurchyard(x, y, 40)) return true;
       for (const o of FIELDS) if (!own.has(o) && inField(o, x, y, 24)) return true;
@@ -1067,6 +1119,13 @@ function genLayout() {
     for (let i = 0; i < 1500; i++) {
       const p = pick(ROAD);
       if (p[0] < 480 || p[0] > W - 480) continue;
+      let crossingCrowded = false;
+      for (const c of roadRailCrossings)
+        if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 260) {
+          crossingCrowded = true;
+          break;
+        }
+      if (crossingCrowded) continue;
       if (FARMS.some(f => Math.abs(wdx(f.px, p[0])) < (i < 400 ? 900 : i < 900 ? 640 : 380))) continue;
       const side = R() < 0.5 ? 1 : -1,
         ang = roadAng(p[0]) + rnd(-0.08, 0.08),
@@ -1079,6 +1138,7 @@ function genLayout() {
         cy = p[1] + Ay * (lh / 2 + back),
         yard = mkYard(cx, cy, ang, lw, lh);
       if (yard.y < NORTH || yard.y + yard.h > H - 440 || !yardFree(yard, 160)) continue;
+      if (pathHitsYard(ROAD, yard, 24) || LANES.some(lane => pathHitsYard(lane, yard, 18))) continue;
       let bad = false;
       for (let gx = yard.x - 60; gx <= yard.x + yard.w + 60 && !bad; gx += 40)
         for (let gy = yard.y - 60; gy <= yard.y + yard.h + 60 && !bad; gy += 40)
@@ -1157,7 +1217,7 @@ function genLayout() {
       yard.door = at(u0 - 12);
       yard.side = side;
       BUILDS.push(b);
-      CHURCH = { b, yard, px: p[0], py: p[1] };
+      CHURCH = { b, yard, px: p[0], py: p[1], lane: LANES.length };
       if (kind === 'stave') {
         // a stave church keeps its bells in a free-standing tarred bell tower, off to one side of the gate
         const [bu, bv] = [rnd(0.26, 0.34) * yard.lw * (R() < 0.5 ? 1 : -1), -side * (lh / 2 - 44)],
@@ -1337,7 +1397,11 @@ function genLayout() {
       break;
     }
   }
+  placeServices();
+  clearAccessLanes();
+  LANES = LANES.map(squareLaneCrossings);
   shapeFields();
+  buildFieldTracks();
   LAND_NAME = landName();
 }
 function genWorld(seed) {
@@ -1355,6 +1419,10 @@ function genWorld(seed) {
   SPARK.length = 0;
   CROSSINGS.length = 0;
   XSIGNS.length = 0;
+  REGIONS = [];
+  FIELD_TRACKS = [];
+  ACCESS_TRUNKS = [];
+  FIELD_GATES = [];
   genLayout();
   // trees: forest by noise and zones, hedgerows along fields, birches on the shores
   for (let gx = 0; gx < W; gx += 46)
@@ -1372,11 +1440,16 @@ function genWorld(seed) {
       if (R() > p) continue;
       let r = rnd(17, 29);
       if (blocked(x, y, r)) continue;
-      const u = R();
+      const u = R(),
+        regional = regionWeights(x, y);
       // mixed forest even at its thickest - solid spruce reads as a wall of clones, so birch and
-      // deciduous trees keep breaking up the canopy all the way to the northern edge
+      // deciduous trees keep breaking up the canopy all the way to the northern edge. Regional
+      // character shifts the mix without drawing a hard biome boundary.
       let type;
-      if (nb > 0.55) type = u < 0.55 ? 'spruce' : u < 0.8 ? 'birch' : 'decid';
+      if (regional.town > 0.45) type = u < 0.1 ? 'spruce' : u < 0.42 ? 'birch' : 'decid';
+      else if (regional.lake > 0.58) type = u < 0.1 ? 'spruce' : u < 0.72 ? 'birch' : 'decid';
+      else if (regional.highland > 0.52) type = u < 0.62 ? 'spruce' : u < 0.87 ? 'birch' : 'decid';
+      else if (nb > 0.55) type = u < 0.55 ? 'spruce' : u < 0.8 ? 'birch' : 'decid';
       else if (f > 0.72) type = u < 0.5 ? 'spruce' : u < 0.78 ? 'birch' : 'decid';
       else if (f > 0.56) type = u < 0.3 ? 'spruce' : u < 0.7 ? 'birch' : 'decid';
       else type = u < 0.55 ? 'birch' : 'decid';
@@ -1517,9 +1590,17 @@ function genWorld(seed) {
   // level crossings: every place the road or a farm lane crosses the railway, plus a crossbuck sign
   // standing at the roadside on each approach; poles, wires and fences all keep clear of the gap
   for (const x of findCrossings(ROAD, RAIL)) CROSSINGS.push(Object.assign(x, { w: 15 }));
-  for (const P of LANES) for (const x of findCrossings(P, RAIL)) CROSSINGS.push(Object.assign(x, { w: 10 }));
+  for (const P of [...LANES, ...FIELD_TRACKS.map(t => t.path)])
+    for (const x of findCrossings(P, RAIL)) CROSSINGS.push(Object.assign(x, { w: 10 }));
+  const publicCrossings = CROSSINGS.filter(c => c.w >= 13 && c.x >= 0 && c.x < W),
+    eligibleUnderpasses = publicCrossings.filter(c => Math.abs(Math.sin(c.ang - c.rang)) > 0.62);
+  for (const c of eligibleUnderpasses) c.underpass = hash2(c.x * 0.03, c.y * 0.03) < 0.38;
+  if (eligibleUnderpasses.length && !eligibleUnderpasses.some(c => c.underpass))
+    eligibleUnderpasses.reduce((best, c) =>
+      hash2(c.x * 0.03, c.y * 0.03) < hash2(best.x * 0.03, best.y * 0.03) ? c : best
+    ).underpass = true;
   for (const c of CROSSINGS) {
-    if (c.w < 13) continue; // only the public road gets crossing signs, not a farm track
+    if (c.w < 13 || c.underpass) continue; // underpasses need no crossbucks or stopping place
     const relA = c.ang - c.rang,
       s = Math.max(Math.abs(Math.sin(relA)), 0.28),
       hl = clamp(26 / s, 26, 70),
@@ -1619,6 +1700,7 @@ function fenceField(f) {
   for (let i = 0; i < posts.length; i++) {
     const p = posts[i],
       q = posts[(i + 1) % posts.length];
+    if (f.gate && Math.hypot(wdx((p.x + q.x) / 2, f.gate[0]), (p.y + q.y) / 2 - f.gate[1]) < 30) continue;
     FSEG.push({ p, q, k: Math.max(p.y, q.y) });
   }
 }

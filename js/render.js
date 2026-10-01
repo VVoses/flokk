@@ -153,8 +153,12 @@ function hawkGeom(h) {
     span = 1 - 0.5 * fold - 0.15 * stroke;
   const wing = sg =>
     (owl ? OWING : h.kind === 'eagle' ? EWING : HWING).map(([f, s2]) => {
-      const ff = f - (fold + stroke) * 0.55 * s2,
-        u = h.dih * s2 + beat * Math.pow(s2, 1.25) * (1 - fold - stroke * 0.5);
+      const wrist = Math.max(0, s2 - 0.55),
+        ff = f - fold * 0.55 * s2 - stroke * (0.18 * s2 + wrist * 0.55),
+        u =
+          h.dih * s2 +
+          beat * Math.min(s2, 0.55) * (1 - fold) +
+          Math.sin(h.flap - 0.22) * (flapping ? (owl ? 0.5 : 0.95) : 0) * wrist * (1 - fold - stroke * 0.5);
       return T3(ff, sg * s2 * span, u);
     });
   const fan = (0.2 + 0.3 * h.fan) * (h.kind === 'eagle' ? 1.3 : 1),
@@ -202,7 +206,7 @@ function drawHawk(h) {
     path(pts);
     // a white-tailed eagle reads dark on both wing faces; an owl's top is a cooler, greyer brown
     // than a hawk's warm rufous, closer to bark and dead leaves than to a hawk's ruddy tan
-    ctx.fillStyle = shade(eagle ? '#3B2C20' : top ? (owl ? '#5E5747' : '#5C3F28') : owl ? '#E6E1D0' : '#D6C3A0', lit);
+    ctx.fillStyle = shade(eagle ? '#3B2C20' : top ? (owl ? '#696451' : '#625A4A') : owl ? '#C7C3AC' : '#BEB39C', lit);
     ctx.fill();
     path(pts.slice(2, 11).concat([mix3(pts[2], pts[11], 0.5)]));
     ctx.fillStyle = top ? 'rgba(28,18,10,.5)' : 'rgba(70,48,30,.4)';
@@ -249,8 +253,8 @@ function drawHawk(h) {
       ctx.stroke();
     }
     path(pts);
-    ctx.strokeStyle = 'rgba(25,16,10,.35)';
-    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = 'rgba(25,22,18,.18)';
+    ctx.lineWidth = Math.max(0.35, K * 0.012);
     ctx.stroke();
   };
   const drawTail = () => {
@@ -268,114 +272,97 @@ function drawHawk(h) {
     for (const s of [-0.85, -0.35, 0.35, 0.85])
       line(g.T3(-0.3, 0, 0.032), g.T3(-0.88, s * tw, 0.03), 'rgba(120,88,56,.3)', K * 0.016);
   };
+  // Project the full volume into the same bank/pitch frame as the wings.
+  // This keeps the breast and skull from remaining flat circles while the bird turns.
+  const volume = (center, radii, color) => {
+    const c = P(g.T3(...center));
+    const axes = radii.map((r, i) => {
+      const q = center.slice();
+      q[i] += r;
+      const p = P(g.T3(...q));
+      return [p[0] - c[0], p[1] - c[1]];
+    });
+    let xx = 0,
+      xy = 0,
+      yy = 0;
+    for (const [x, y] of axes) {
+      xx += x * x;
+      xy += x * y;
+      yy += y * y;
+    }
+    const det = Math.sqrt(Math.max(0.00001, xx * yy - xy * xy)),
+      den = Math.sqrt(xx + yy + 2 * det);
+    ctx.save();
+    ctx.transform((xx + det) / den, xy / den, xy / den, (yy + det) / den, c[0], c[1]);
+    const grad = ctx.createRadialGradient(-0.3, -0.38, 0.08, 0, 0, 1.1);
+    grad.addColorStop(0, shade(color, 1.13));
+    grad.addColorStop(0.65, color);
+    grad.addColorStop(1, shade(color, 0.64));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  };
   const drawBody = () => {
-    const nose = P(g.T3(0.46, 0, 0.04)),
-      rump = P(g.T3(-0.36, 0, 0)),
-      mx = (nose[0] + rump[0]) / 2,
-      my = (nose[1] + rump[1]) / 2,
-      len = Math.hypot(nose[0] - rump[0], nose[1] - rump[1]),
-      ang = Math.atan2(nose[1] - rump[1], nose[0] - rump[0]);
-    // an owl's body reads cooler and greyer than a hawk's warm rufous-brown, even before any markings
-    ctx.fillStyle = h.kind === 'eagle' ? '#3A2C21' : h.kind === 'owl' ? '#5E5747' : '#6E4E31';
-    ctx.beginPath();
-    ctx.ellipse(mx, my, Math.max(len / 2, K * 0.2), K * 0.2, ang, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = h.kind === 'eagle' ? '#4F3D2C' : h.kind === 'owl' ? '#8C8168' : '#93704B';
-    ctx.beginPath();
-    ctx.ellipse(mx - K * 0.03, my - K * 0.05, Math.max(len / 2, K * 0.2) * 0.75, K * 0.1, ang, 0, TAU);
-    ctx.fill();
-    if (h.kind === 'owl') {
-      // vertical streaking down the breast, the way a real owl's underside reads - a hawk barred
-      // crosswise, an owl streaked lengthwise, so the two are tellable apart by markings alone
-      ctx.strokeStyle = 'rgba(45,38,26,.4)';
-      ctx.lineWidth = K * 0.02;
-      for (const q of [-0.28, -0.08, 0.12, 0.3]) {
-        const bx = mx - K * 0.03 + Math.cos(ang) * len * 0.18 - Math.sin(ang) * len * 0.1 * q,
-          by = my - K * 0.05 + Math.sin(ang) * len * 0.18 + Math.cos(ang) * len * 0.1 * q;
-        ctx.beginPath();
-        ctx.moveTo(bx - Math.cos(ang) * K * 0.08, by - Math.sin(ang) * K * 0.08);
-        ctx.lineTo(bx + Math.cos(ang) * K * 0.05, by + Math.sin(ang) * K * 0.05);
-        ctx.stroke();
+    const owl = h.kind === 'owl',
+      eagle = h.kind === 'eagle',
+      body = eagle ? '#494238' : owl ? '#756E5C' : '#756856',
+      head = eagle ? '#B8AD92' : owl ? '#756E5C' : '#817866';
+    volume([-0.04, 0, -0.025], [owl ? 0.43 : 0.47, 0.145, owl ? 0.22 : 0.18], body);
+    volume([0.25, 0, 0.035], [0.24, 0.12, 0.14], body);
+    volume([0.44, 0, 0.075], [owl ? 0.2 : 0.155, owl ? 0.18 : 0.105, owl ? 0.21 : 0.125], head);
+    const forward = g.T3(1, 0, 0),
+      facing = dot3(forward, HVIEW) / K;
+    if (owl && facing > 0.05) {
+      // The disc is on the face plane, so it turns out of view instead of staring at the camera.
+      const disk = [];
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * TAU;
+        disk.push(g.T3(0.565, Math.cos(a) * 0.143, 0.07 + Math.sin(a) * 0.164));
       }
-    } else if (h.kind !== 'eagle') {
-      // fine barring on the breast, the way a real hawk's underside is streaked, not one flat patch
-      ctx.strokeStyle = 'rgba(60,38,20,.35)';
-      ctx.lineWidth = K * 0.02;
-      for (const q of [-0.3, -0.05, 0.2]) {
-        const bx = mx - K * 0.03 + Math.cos(ang) * len * 0.18 * q,
-          by = my - K * 0.05 + Math.sin(ang) * len * 0.18 * q;
+      path(disk);
+      ctx.fillStyle = '#B5AE97';
+      ctx.fill();
+      for (const side of [-1, 1]) {
+        const eye = P(g.T3(0.578, side * 0.061, 0.083));
+        ctx.fillStyle = '#24231E';
         ctx.beginPath();
-        ctx.moveTo(bx - Math.sin(ang) * K * 0.06, by + Math.cos(ang) * K * 0.06);
-        ctx.lineTo(bx + Math.sin(ang) * K * 0.06, by - Math.cos(ang) * K * 0.06);
-        ctx.stroke();
-      }
-    }
-    if (h.prey) {
-      const p = P(g.T3(-0.02, 0, -0.35));
-      ctx.fillStyle = h.prey.c2;
-      ctx.beginPath();
-      ctx.ellipse(p[0], p[1], 3, 4.5, 0, 0, TAU);
-      ctx.fill();
-    }
-    const hd = P(g.T3(0.5, 0, 0.07)),
-      bk = P(g.T3(0.68, 0, 0.02));
-    if (h.kind === 'owl') {
-      ctx.fillStyle = '#7E6E5C';
-      ctx.beginPath();
-      ctx.arc(hd[0], hd[1], K * 0.25, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = '#D8CCB4';
-      ctx.beginPath();
-      ctx.ellipse(hd[0] + (bk[0] - hd[0]) * 0.25, hd[1] + (bk[1] - hd[1]) * 0.25, K * 0.17, K * 0.14, 0, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = '#1A120C';
-      const ex = (bk[0] - hd[0]) * 0.3,
-        ey = (bk[1] - hd[1]) * 0.3,
-        px = -(bk[1] - hd[1]),
-        py = bk[0] - hd[0],
-        pl = Math.hypot(px, py) || 1;
-      for (const sg of [-1, 1]) {
-        ctx.beginPath();
-        ctx.arc(hd[0] + ex + (px / pl) * K * 0.07 * sg, hd[1] + ey + (py / pl) * K * 0.07 * sg, K * 0.045, 0, TAU);
+        ctx.arc(...eye, K * 0.023, 0, TAU);
         ctx.fill();
       }
-      // a small dark hooked beak beneath the facial disc, easy to miss but part of the silhouette
-      ctx.fillStyle = '#241A10';
-      ctx.beginPath();
-      ctx.moveTo(hd[0] + ex - (px / pl) * K * 0.03, hd[1] + ey - (py / pl) * K * 0.03);
-      ctx.lineTo(hd[0] + (bk[0] - hd[0]) * 0.42, hd[1] + (bk[1] - hd[1]) * 0.42);
-      ctx.lineTo(hd[0] + ex + (px / pl) * K * 0.03, hd[1] + ey + (py / pl) * K * 0.03);
-      ctx.fill();
-      return;
+    } else if (!owl) {
+      for (const side of [-1, 1]) {
+        if (dot3(g.T3(0, side, 0), HVIEW) <= 0) continue;
+        const eye = P(g.T3(0.47, side * 0.09, 0.11));
+        ctx.fillStyle = '#BAA66A';
+        ctx.beginPath();
+        ctx.arc(...eye, K * 0.025, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#181B18';
+        ctx.beginPath();
+        ctx.arc(...eye, K * 0.014, 0, TAU);
+        ctx.fill();
+      }
     }
-    const eagle = h.kind === 'eagle';
-    // an eagle's pale, almost creamy head against its dark body - as identifying a mark as the tail
-    ctx.fillStyle = eagle ? '#D9C7A0' : '#8F6E4A';
-    ctx.beginPath();
-    ctx.arc(hd[0], hd[1], K * 0.16, 0, TAU);
+    const tip = owl ? 0.63 : eagle ? 0.72 : 0.66;
+    path(
+      [
+        [0.55, -0.035, 0.06],
+        [tip, 0, 0.02],
+        [tip - 0.03, 0, -0.035],
+        [0.55, 0.035, 0.025]
+      ].map(p => g.T3(...p))
+    );
+    ctx.fillStyle = owl ? '#494235' : '#9D916C';
     ctx.fill();
-    ctx.fillStyle = eagle ? '#EDE0C0' : '#B8966B';
-    ctx.beginPath();
-    ctx.arc(hd[0] - K * 0.04, hd[1] - K * 0.05, K * 0.08, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = '#E4B84A';
-    ctx.beginPath();
-    ctx.moveTo(hd[0] + (bk[0] - hd[0]) * 0.55, hd[1] + (bk[1] - hd[1]) * 0.55 - K * 0.05);
-    ctx.lineTo(bk[0], bk[1]);
-    ctx.lineTo(hd[0] + (bk[0] - hd[0]) * 0.55, hd[1] + (bk[1] - hd[1]) * 0.55 + K * 0.05);
-    ctx.fill();
-    const eo = Math.cos(h.psi) >= 0 ? 1 : -1;
-    const ex = hd[0] + (bk[0] - hd[0]) * 0.25,
-      ey = hd[1] + (bk[1] - hd[1]) * 0.25 - K * 0.06 * eo * 0.5;
-    // a hawk's stare: a pale, piercing iris (not just a dark dot), same as a real buzzard or sparrowhawk
-    ctx.fillStyle = '#F2C14E';
-    ctx.beginPath();
-    ctx.arc(ex, ey, K * 0.058, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = '#1A120C';
-    ctx.beginPath();
-    ctx.arc(ex, ey, K * 0.03, 0, TAU);
-    ctx.fill();
+    if (h.prey) {
+      const prey = P(g.T3(-0.02, 0, -0.3));
+      ctx.fillStyle = h.prey.c2;
+      ctx.beginPath();
+      ctx.ellipse(...prey, 3, 4, 0, 0, TAU);
+      ctx.fill();
+    }
   };
   const parts = [
     { d: depthOf(g.wL), f: () => drawWing(g.wL, -1) },
@@ -512,10 +499,10 @@ function drawTree(t) {
     const r = RIM[t.type][t.v];
     if (r) {
       const si = LIGHT.rimSide > 0 ? 1 : 0;
-      ctx.globalAlpha = LIGHT.rim * 0.3 * la;
+      ctx.globalAlpha = LIGHT.rim * 0.3 * la * tEase();
       ctx.drawImage(r.c[1 - si], x, y, w, h);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28) * la;
+      ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28) * la * tEase();
       ctx.drawImage(r.w[si], x, y, w, h);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
@@ -782,6 +769,55 @@ function drawBuilding(b) {
       const k = Q(0.5 + w * 0.55, wh * 0.4);
       ctx.fillStyle = '#D9C27A';
       ctx.fillRect(k[0] - 0.7, k[1] - 0.7, 1.4, 1.4);
+    }
+    if (b.service && ny === 1) {
+      const signColor = b.service === 'fuel' ? '#325459' : '#344E36';
+      poly(
+        [
+          P(-hl * 0.82, hd + 0.2, wh - 9),
+          P(hl * 0.82, hd + 0.2, wh - 9),
+          P(hl * 0.82, hd + 0.2, wh - 2),
+          P(-hl * 0.82, hd + 0.2, wh - 2)
+        ],
+        signColor
+      );
+      const origin = P(0, hd + 0.4, wh - 4.7),
+        axis = P(1, hd + 0.4, wh - 4.7);
+      ctx.save();
+      ctx.transform(axis[0] - origin[0], axis[1] - origin[1], 0, 1, origin[0], origin[1]);
+      ctx.font = 'bold 4.6px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#E6E0CD';
+      ctx.fillText(b.service === 'fuel' ? 'BENSIN' : 'GÅRDSBUTIKK', 0, 0);
+      ctx.restore();
+      for (const lx of [-hl * 0.6, hl * 0.6]) {
+        if (b.service === 'fuel') {
+          const py = hd + 13;
+          poly([P(lx - 4, py - 3, 0), P(lx + 4, py - 3, 0), P(lx + 4, py + 3, 0), P(lx - 4, py + 3, 0)], '#7D807C');
+          poly([P(lx - 3, py + 3, 0), P(lx + 3, py + 3, 0), P(lx + 3, py + 3, 15), P(lx - 3, py + 3, 15)], '#A74234');
+          poly([P(lx - 3, py - 3, 15), P(lx + 3, py - 3, 15), P(lx + 3, py + 3, 15), P(lx - 3, py + 3, 15)], '#D2D3C9');
+          poly(
+            [P(lx - 2, py + 3.2, 9), P(lx + 2, py + 3.2, 9), P(lx + 2, py + 3.2, 13), P(lx - 2, py + 3.2, 13)],
+            '#2B3638'
+          );
+          const hose = [P(lx + 3, py + 2, 12), P(lx + 7, py + 2, 3), P(lx + 5, py + 2, 9)];
+          ctx.beginPath();
+          ctx.moveTo(...hose[0]);
+          ctx.quadraticCurveTo(...hose[1], ...hose[2]);
+          ctx.strokeStyle = '#2B2926';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else {
+          poly([P(lx - 7, hd + 8, 0), P(lx + 7, hd + 8, 0), P(lx + 7, hd + 8, 7), P(lx - 7, hd + 8, 7)], '#8F7251');
+          for (let i = -5; i <= 5; i += 2.5) {
+            const q = P(lx + i, hd + 7, 8);
+            ctx.fillStyle = '#B3A254';
+            ctx.beginPath();
+            ctx.arc(...q, 1.6, 0, TAU);
+            ctx.fill();
+          }
+        }
+      }
     }
     if (b.portal && nx === -1) {
       // the church door, facing the road
@@ -1173,6 +1209,24 @@ function drawFence(sg) {
   ctx.beginPath();
   ctx.moveTo(p.x, p.y * TILT);
   ctx.lineTo(p.x, PY(p.y, POST_H));
+  ctx.stroke();
+}
+function drawFieldGate(gate) {
+  const { p, q } = gate;
+  ctx.strokeStyle = '#665039';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  for (const post of [p, q]) {
+    ctx.moveTo(post.x, post.y * TILT);
+    ctx.lineTo(post.x, PY(post.y, POST_H * 1.15));
+  }
+  for (const h of [0.12, 0.26]) {
+    ctx.moveTo(p.x, PY(p.y, h));
+    ctx.lineTo(q.x, PY(q.y, h));
+  }
+  ctx.moveTo(p.x, PY(p.y, 0.12));
+  ctx.lineTo(q.x, PY(q.y, 0.26));
   ctx.stroke();
 }
 function drawWires() {
@@ -1730,6 +1784,7 @@ function render() {
       for (const p of line) if (!p.ghost && visU(p.x, p.y, 14, POLE_H * HZ)) items.push([p.y, 2, p, k]);
     if (SEASON >= 2) for (const b of BALES) if (baleShown(b) && visU(b.x, b.y, 14, 16)) items.push([b.y, 3, b, k]);
     for (const f of FSEG) if (visU(f.p.x, f.p.y, 40, 16)) items.push([f.k, 4, f, k]);
+    for (const gate of FIELD_GATES) if (visU(gate.p.x, gate.p.y, 40, 18)) items.push([gate.k, 17, gate, k]);
     for (const b of BOULDERS) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 6, b, k]);
     for (const b of BUSHES) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 13, b, k]);
     if (TRAIN) for (const c of TRAIN.cars) if (visU(c.x, c.y, 40, 40)) items.push([c.y, 10, c, k]);
@@ -1784,6 +1839,7 @@ function render() {
     else if (kind === 11) drawVehicle(o);
     else if (kind === 12) drawProp(o);
     else if (kind === 14) drawXSign(o);
+    else if (kind === 17) drawFieldGate(o);
     else if (kind === 7) drawAnimal(o);
     else if (kind === 16)
       drawWeatherBand(o); // 15 and 16 belong to weather.js (weatherItems)
@@ -1821,10 +1877,13 @@ function render() {
     for (const s of swarms) {
       if (!visU(s.x, s.y, 60, s.z * HZ + 40)) continue;
       if (!s.moth && LIGHT.shadowA > 0.05) {
-        ctx.fillStyle = `rgba(22,28,18,${0.16 * LIGHT.shadowA})`;
+        ctx.fillStyle = `rgba(18,24,15,${0.28 * LIGHT.shadowA})`;
         for (const m of s.m) {
           const [mx, my, mz] = motePos(s, m);
-          ctx.fillRect(mx + mz * SX - 0.8, (my + mz * SY) * TILT - 0.6, 1.6, 1.2);
+          const sh = clamp(1 - mz / 6, 0.45, 0.85);
+          ctx.beginPath();
+          ctx.ellipse(mx + mz * SX, (my + mz * SY) * TILT, 3.8 * sh, 1.8 * sh, 0, 0, TAU);
+          ctx.fill();
         }
       }
       if (!s.moth) {
@@ -1913,9 +1972,12 @@ function render() {
     }
     for (const f of dflies) {
       if (!visU(f.x, f.y, 20, f.z * HZ + 10)) continue;
-      ctx.fillStyle = 'rgba(30,50,40,.18)';
+      const shadowX = f.x + f.z * SX,
+        shadowY = (f.y + f.z * SY) * TILT,
+        shadowPulse = 0.85 + Math.sin(T * 7 + f.h) * 0.15;
+      ctx.fillStyle = `rgba(20,35,25,${0.3 * LIGHT.shadowA})`;
       ctx.beginPath();
-      ctx.ellipse(f.x, f.y * TILT, 5, 2, 0, 0, TAU);
+      ctx.ellipse(shadowX, shadowY, 7 * shadowPulse, 2.4 * shadowPulse, f.h, 0, 0, TAU);
       ctx.fill();
       ctx.save();
       ctx.translate(f.x, PY(f.y, f.z + Math.sin(T * 4 + f.h) * 0.05));
