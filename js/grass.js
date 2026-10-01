@@ -229,7 +229,9 @@ function drawGrass() {
     lean = WIND.x * (0.12 + 0.15 * g),
     gLean = Math.cos(WEATHER.ang) * Math.min(1.4, WEATHER.s) * 0.55,
     stiff = wint ? 0.35 : 1,
-    tm = T;
+    tm = T,
+    wc = Math.cos(WEATHER.ang),
+    ws = Math.sin(WEATHER.ang);
   // blade paths batched by colour: three greens, dry straw, the gust's sheen; seed heads as dots
   const paths = [new Path2D(), new Path2D(), new Path2D(), new Path2D(), new Path2D()],
     heads = new Path2D();
@@ -244,14 +246,21 @@ function drawGrass() {
     for (let cl = c0; cl <= c1; cl++) {
       const Bk = GRS.buckets[rw * GRS.nc + cl];
       if (!Bk.length) continue;
-      // the gust passing over this patch of grass right now (weather.js): you watch it come across the meadow
-      const gl = gustAt((cl + 0.5) * gc, (rw + 0.5) * gc);
       for (let q = 0; q < Bk.length; q += step) {
         const i = Bk[q],
           x = A.x[i],
           y = A.y[i];
         let h = A.h[i] * L.hs;
         if (!visU(x, y, 12, h + 4)) continue;
+        // the gust over this very tuft (weather.js), so its edge is a smooth streak, not one value per bucket
+        let gl = gustAt(x, y);
+        if (gl > 0.02) {
+          // combed into long streaks along the wind that drift sideways and wander, never one smooth hump
+          const u = x * wc + y * ws,
+            v = y * wc - x * ws,
+            st = 0.5 + 0.5 * Math.sin(v * 0.052 + 1.7 * Math.sin(u * 0.0045 - tm * 0.35) + Math.sin(v * 0.019 + 1.3));
+          gl *= 0.3 + 1.1 * st * st;
+        }
         const kd = A.kd[i];
         if (kd === 1 && s !== 3) h *= 0.8; // grazed
         let dry = L.dryK;
@@ -274,7 +283,8 @@ function drawGrass() {
           ph = A.ph[i];
         // where a gust is passing the blades bow flat in waves and show their pale undersides
         const wv =
-            Math.sin(x * 0.011 + y * 0.004 - tm * 1.9) * 0.6 + Math.sin(x * 0.006 - y * 0.009 - tm * 1.3 + 1.7) * 0.4,
+            Math.sin((x * wc + y * ws) * 0.011 - tm * 1.9) * 0.6 +
+            Math.sin((x * wc + y * ws) * 0.006 - (y * wc - x * ws) * 0.004 - tm * 1.3 + 1.7) * 0.4,
           bow =
             (lean * (0.7 + 0.8 * wv * g) + gLean * gl * (0.75 + 0.45 * wv) + Math.sin(tm * 2.3 + ph) * 0.07) * stiff,
           lit = !wint && (wv * g > 0.5 || gl * (0.55 + 0.45 * wv) > 0.42);
