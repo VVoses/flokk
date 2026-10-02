@@ -2089,12 +2089,17 @@ function render() {
         ctx.arc(p.x, Y, Math.max(0.5, 3 + (1 - a) * 7), 0, TAU);
         ctx.fill();
       } else if (p.k === 's') {
-        ctx.globalAlpha = a;
-        ctx.strokeStyle = p.col;
-        ctx.lineWidth = 1.5;
+        // a catch is a soft puff of light widening and thinning out, not a hard drawn ring; dimmer in the dark
+        ctx.globalAlpha = 1;
+        const r = Math.max(1, (1 - a) * 14 + 3),
+          gr = ctx.createRadialGradient(p.x, Y, r * 0.35, p.x, Y, r);
+        gr.addColorStop(0, p.col + '00');
+        gr.addColorStop(0.7, p.col + hex2(0.3 * a * (1 - LIGHT.night * 0.5)));
+        gr.addColorStop(1, p.col + '00');
+        ctx.fillStyle = gr;
         ctx.beginPath();
-        ctx.arc(p.x, Y, Math.max(0.5, (1 - a) * 14 + 2), 0, TAU);
-        ctx.stroke();
+        ctx.arc(p.x, Y, r, 0, TAU);
+        ctx.fill();
       } else {
         ctx.globalAlpha = Math.min(1, a * 2);
         ctx.fillStyle = p.col;
