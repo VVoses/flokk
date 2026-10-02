@@ -395,15 +395,12 @@ function drawProp(p) {
       ctx.arc(X + o.a * wAt(o.u) * 0.7, gy - Ht * o.u, 0.9, 0, TAU);
       ctx.fill();
     }
-    // fairy lights, warm and twinkling once the dark comes on
-    if (LIGHT.night > 0.05)
-      for (const l of p.lights) {
-        const tw = 0.55 + 0.45 * Math.sin(T * 3 + l.ph);
-        ctx.fillStyle = `rgba(255,214,140,${(0.35 + 0.55 * LIGHT.night) * tw})`;
-        ctx.beginPath();
-        ctx.arc(X + l.a * wAt(l.u) * 0.7, gy - Ht * l.u, 1.1, 0, TAU);
-        ctx.fill();
-      }
+    // a spiral of coloured lights winding round the boughs, twinkling and chasing once the dark comes on
+    for (let i = 0; i < 26; i++) {
+      const u = 0.1 + (0.84 * i) / 25;
+      xmasBulb(X + Math.sin(i * 1.3 + p.x) * wAt(u) * 0.8, gy - Ht * u, i, p.x & 3);
+    }
+    for (const [i, l] of p.lights.entries()) xmasBulb(X + l.a * wAt(l.u) * 0.7, gy - Ht * l.u, i + 3, p.y & 3);
     ctx.fillStyle = '#F2C14E';
     ctx.beginPath();
     ctx.arc(X, top - 1, 1.4, 0, TAU);

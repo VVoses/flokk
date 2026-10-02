@@ -1020,6 +1020,27 @@ function drawBuilding(b) {
     ctx.lineTo(r0[0], r0[1]);
     ctx.stroke();
   }
+  if (xmasLit(b)) {
+    // a string of lights along the front eave, and on Jul up the gable edges as well
+    const seed = hash2(b.cx, b.cy + 7) * 4;
+    for (const { pts, wy } of planes) {
+      if (wy <= 0) continue;
+      const [e0, e1, r0, r1] = pts;
+      xmasString(
+        e0[0],
+        e0[1] + 3.6,
+        e1[0],
+        e1[1] + 3.6,
+        seed | 0,
+        b.kind === 'house' ? 2.2 : 3,
+        b.kind === 'house' ? 11 : 15
+      );
+      if (isYule()) {
+        xmasString(e0[0], e0[1] + 2, r1[0], r1[1], (seed + 1) | 0, 1.2, 9);
+        xmasString(e1[0], e1[1] + 2, r0[0], r0[1], (seed + 2) | 0, 1.2, 9);
+      }
+    }
+  }
   const r0 = P(-hl - o, 0, rh),
     r1 = P(hl + o, 0, rh);
   ctx.strokeStyle = 'rgba(25,18,12,.6)';
