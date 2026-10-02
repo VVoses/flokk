@@ -87,6 +87,7 @@ function calUpdate() {
     LIGHT.C = [lerp(LIGHT.C[0], 215, 0.5), lerp(LIGHT.C[1], 225, 0.5), lerp(LIGHT.C[2], 240, 0.5)];
     LIGHT.a = Math.max(LIGHT.a, 0.07);
   }
+  summerTwilight(el);
   LIGHT.night = clamp((2 - el) / 10, 0, 1);
   LIGHT.glow = clamp(1 - Math.abs(el + 1) / 7, 0, 1);
   LIGHT.glowSide = Math.cos(LIGHT.theta) > 0 ? 1 : -1;
@@ -549,6 +550,7 @@ const tEase = () => {
   return t * t * (3 - 2 * t);
 };
 const winterW = () => lerp(TRANS.prevSeason === 3 ? 1 : 0, SEASON === 3 ? 1 : 0, tEase());
+const summerW = () => lerp(TRANS.prevSeason === 1 ? 1 : 0, SEASON === 1 ? 1 : 0, tEase());
 // growUnder/drawBush blend a tree or bush's baked sprite with a bare overlay live, by how far
 // through spring's leafing-out or autumn's leaf-fall the season actually is - so by the end of
 // autumn a tree is mostly bare on screen even though its baked sprite is still the full green one
@@ -873,6 +875,22 @@ function gradeLight(el) {
   LIGHT.eve = eve;
   LIGHT.rim = el > -1.5 ? clamp((el + 1.5) / 3, 0, 1) * clamp((16 - el) / 11, 0, 1) : 0;
   LIGHT.rimSide = Math.cos(LIGHT.theta) > 0 ? 1 : -1;
+}
+// A midsummer night in southern Norway never gets dark: the sun dips a few degrees under the horizon
+// and the sky holds a luminous blue with a rose band along the north rim. The generic below-horizon
+// grade is a heavy, grey-green dusk, so in summer it is eased toward that twilight - the flock and
+// the insect clouds stay readable. Winter, spring and autumn keep their dark nights.
+const SUMMER_TW = { C: [58, 88, 180], a: 0.2, C2: [214, 138, 206], a2: 0.42, top: '#36559C', bot: '#EDA6B8' };
+function summerTwilight(el) {
+  const k = summerW() * clamp((2 - el) / 3, 0, 1);
+  if (k <= 0) return;
+  const S = SUMMER_TW;
+  LIGHT.C = LIGHT.C.map((v, i) => lerp(v, S.C[i], k));
+  LIGHT.a = lerp(LIGHT.a, S.a, k);
+  LIGHT.C2 = LIGHT.C2.map((v, i) => lerp(v, S.C2[i], k));
+  LIGHT.a2 = lerp(LIGHT.a2, S.a2, k);
+  LIGHT.skyTop = mixHex(LIGHT.skyTop, S.top, k);
+  LIGHT.skyBot = mixHex(LIGHT.skyBot, S.bot, k);
 }
 function mixRgb(str, c, t) {
   const m = str.match(/\d+/g).map(Number);
