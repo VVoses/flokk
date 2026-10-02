@@ -128,6 +128,8 @@ function gustTick(dt) {
       y: v.cy - s * reach + c * side,
       r,
       ang: W2.ang, // kept with the gust, so it stays a streak along the way it was blowing even if the wind veers
+      c,
+      s,
       k: rr(0.55, 1) * Math.min(1.25, 0.4 + W2.s * 0.7),
       t: 0,
       life: (reach * 2) / speed,
@@ -156,11 +158,9 @@ function gustAt(x, y) {
   for (const g of WEATHER.gusts) {
     const dx = wdx(x, g.x),
       dy = y - g.y,
-      c = Math.cos(g.ang),
-      s = Math.sin(g.ang),
-      along = dx * c + dy * s,
-      across = -dx * s + dy * c,
-      q = (along * along) / (g.r * g.r * 2.5) + (across * across) / (g.r * g.r * 0.4);
+      along = dx * g.c + dy * g.s,
+      across = -dx * g.s + dy * g.c,
+      q = (along * along) / (g.r * g.r * 4.5) + (across * across) / (g.r * g.r * 0.22);
     if (q >= 1) continue;
     const f = 1 - q;
     a += g.k * f * f * gustEnv(g);
