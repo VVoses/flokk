@@ -139,6 +139,7 @@ function buildLights() {
   PROPS = [];
   FEEDER = null;
   for (const b of BUILDS) {
+    if (b.service === 'fuel') placeStation(b);
     const c = Math.cos(b.ang),
       s = Math.sin(b.ang);
     if (b.windows) {

@@ -127,7 +127,8 @@ function placeGraves(C) {
 function propShadows(c, cap) {
   for (const p of PROPS) {
     if (!visG(p.x, p.y, 200)) continue;
-    if (p.k === 'flag') cap(p.x, p.y, FLAG_H, 1.8);
+    if (p.k === 'pumps' || p.k === 'canopy' || p.k === 'pylon') stationShadow(c, cap, p);
+    else if (p.k === 'flag') cap(p.x, p.y, FLAG_H, 1.8);
     else if (p.k === 'wood') {
       c.lineCap = 'butt';
       for (let dx = -p.len / 2 + 3; dx <= p.len / 2 - 3; dx += 3) cap(p.x + dx, p.y, 0.4, 8);
@@ -142,6 +143,7 @@ function propShadows(c, cap) {
   }
 }
 function drawProp(p) {
+  if (p.k === 'pumps' || p.k === 'canopy' || p.k === 'pylon') return drawStationProp(p);
   const X = p.x,
     gy = p.y * TILT,
     snow = SEASON === 3;
