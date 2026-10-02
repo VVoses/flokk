@@ -303,28 +303,55 @@ function carBox(c) {
   return { cs, sn, hl, hd };
 }
 /* ---- drawing the train: bogies and wheels, two-tone bodies, rounded roofs, and per-type detail ---- */
-// a box along the car (x0..x1 lengthwise, half-width hd, heights in HZ units); deco(Q, face) paints on each visible side
-function tBox(c, x0, x1, hd, h0, h1, col, deco, top) {
+// a box along the car (x0..x1 lengthwise, half-width hd, heights in HZ units); deco(Q, face) paints on each visible side.
+// ch > 0 clips the four plan corners (an octagon, so the ends read as rounded, not slab-cut); those faces are kind 'cham'.
+// Side faces get a soft vertical sheen (shadowed low, catching light high) so a body reads as curved sheet metal.
+function tBox(c, x0, x1, hd, h0, h1, col, deco, top, ch = 0) {
   const cs = Math.cos(c.ang),
     sn = Math.sin(c.ang);
   const P = (lx, ly, h) => [c.x + lx * cs - ly * sn, (c.y + lx * sn + ly * cs) * TILT - h * HZ];
-  const faces = [
-    [x0, -hd, x1, -hd, 0, -1, 'side'],
-    [x1, -hd, x1, hd, 1, 0, 'front'],
-    [x1, hd, x0, hd, 0, 1, 'side'],
-    [x0, hd, x0, -hd, -1, 0, 'back']
-  ];
-  for (const [ax, ay, bx, by, nx, ny, kind] of faces) {
+  ch = Math.min(ch, hd * 0.9, (x1 - x0) / 3);
+  const k = Math.SQRT1_2,
+    ring = [
+      [x0 + ch, -hd, 0, -1, 'side'],
+      [x1 - ch, -hd, k, -k, 'cham'],
+      [x1, -hd + ch, 1, 0, 'front'],
+      [x1, hd - ch, k, k, 'cham'],
+      [x1 - ch, hd, 0, 1, 'side'],
+      [x0 + ch, hd, -k, k, 'cham'],
+      [x0, hd - ch, -1, 0, 'back'],
+      [x0, -hd + ch, -k, -k, 'cham']
+    ];
+  const pts = [];
+  for (let i = 0; i < 8; i++) {
+    const [ax, ay, nx, ny, kind] = ring[i],
+      [bx, by] = ring[(i + 1) % 8];
+    pts.push([ax, ay]);
     const wnx = nx * cs - ny * sn,
       wny = nx * sn + ny * cs;
     if (wny <= 0.02) continue;
+    if (Math.hypot(bx - ax, by - ay) < 0.01) continue;
     let fc = shade(col, clamp(1 - 0.25 * wnx, 0.62, 1.1));
     if (LIGHT.rim > 0.05 && wnx * LIGHT.rimSide > 0) fc = mixRgb(fc, rimCol(), LIGHT.rim * 0.4 * Math.abs(wnx));
     const Q = (u, h) => P(lerp(ax, bx, u), lerp(ay, by, u), h);
-    tPoly([Q(0, h0), Q(1, h0), Q(1, h1), Q(0, h1)], fc);
+    let fill = fc;
+    if (h1 - h0 > 0.2) {
+      const lo = Q(0, h0),
+        hi = Q(0, h1),
+        g = ctx.createLinearGradient(lo[0], lo[1], hi[0], hi[1]);
+      g.addColorStop(0, shade(fc, 0.95));
+      g.addColorStop(0.7, fc);
+      g.addColorStop(1, shade(fc, 1.07));
+      fill = g;
+    }
+    tPoly([Q(0, h0), Q(1, h0), Q(1, h1), Q(0, h1)], fill);
     if (deco) deco(Q, kind, Math.hypot(bx - ax, by - ay), ax, bx);
   }
-  if (top !== false) tPoly([P(x0, -hd, h1), P(x1, -hd, h1), P(x1, hd, h1), P(x0, hd, h1)], top || shade(col, 1.08));
+  if (top !== false)
+    tPoly(
+      pts.map(q => P(q[0], q[1], h1)),
+      top || shade(col, 1.08)
+    );
   return P;
 }
 function tPoly(pts, fill) {
@@ -366,49 +393,92 @@ function drawCar(c) {
   else tBox(c, -hl - 2.6, hl + 2.6, 1, 0.1, 0.14, '#3A3836', null, '#2A2826');
   const top = c.top;
   if (c.k === 'loco') {
-    const nose = c.col;
+    const nose = c.col,
+      Hh = H * 0.7, // the hood: low, sloping away to a cab nose at each end
+      cab = hl - 7, // where the cab roof ends and the windscreen slope starts
+      hu = hd * 0.93;
+    const wc = winCol(),
+      glass = mixHex('#3E5260', '#8FA6B2', 0.4);
+    // the lower body: chamfered corners, so the ends are rounded off, not slab-cut
     tBox(
       c,
       -hl,
       hl,
       hd,
       0.13,
-      H,
+      Hh,
       nose,
-      (Q, kind, L2) => {
+      (Q, kind) => {
         band(Q, 0, 1, 0.13, 0.2, '#1E1E22'); // skirt
-        if (kind === 'side') {
-          band(Q, 0, 1, H * 0.5, H * 0.54, c.stripe); // livery stripe
-          const wc = winCol();
-          band(Q, 0.05, 0.13, H * 0.62, H * 0.88, wc); // cab windows at both ends
-          band(Q, 0.87, 0.95, H * 0.62, H * 0.88, wc);
-          band(Q, 0.2, 0.26, 0.24, H * 0.86, shade(nose, 0.78)); // doors
-          band(Q, 0.74, 0.8, 0.24, H * 0.86, shade(nose, 0.78));
-          for (let i = 0; i < 4; i++) band(Q, 0.34 + i * 0.09, 0.4 + i * 0.09, H * 0.6, H * 0.86, shade(nose, 0.82)); // grilles
-        } else {
-          band(Q, 0.12, 0.88, H * 0.6, H * 0.9, '#1C2228'); // windscreen
-          band(Q, 0.16, 0.84, H * 0.63, H * 0.87, mixHex('#3E5260', '#8FA6B2', 0.4));
-          band(Q, 0, 1, H * 0.36, H * 0.46, c.stripe);
-          const lit = kind === 'front' ? (night > 0.2 ? '#FFF2C8' : '#E8E4D8') : night > 0.2 ? '#C8342A' : '#6E2A24';
-          band(Q, 0.12, 0.24, H * 0.26, H * 0.34, lit); // lamps
-          band(Q, 0.76, 0.88, H * 0.26, H * 0.34, lit);
+        if (kind === 'side')
+          band(Q, 0, 1, H * 0.34, H * 0.38, c.stripe); // livery stripe
+        else if (kind !== 'back') {
+          band(Q, 0.1, 0.9, H * 0.26, H * 0.34, kind === 'front' ? '#1C2228' : '#262A2E');
+          const lit = night > 0.2 ? '#FFF2C8' : '#E8E4D8';
+          if (kind === 'front') {
+            band(Q, 0.1, 0.3, H * 0.26, H * 0.34, lit); // lamps
+            band(Q, 0.7, 0.9, H * 0.26, H * 0.34, lit);
+          }
         }
       },
-      top
+      top,
+      3.2
     );
-    tBox(c, -hl + 3, hl - 3, hd * 0.72, H, H + 0.05, top, null, shade(top, 1.12)); // roof
+    // the slope from the cab roof down to the hood: a raked windscreen at each end, with its tapering cheeks
+    const slope = e => {
+      const ex = e * hl,
+        cx = e * cab,
+        w = hu * 0.78;
+      for (const s of [-1, 1]) {
+        const q = [P(cx, s * hu, H), P(cx, s * hu, Hh), P(ex, s * w, Hh)];
+        tPoly(q, shade(nose, 0.9));
+      }
+      tPoly([P(cx, -hu, H), P(cx, hu, H), P(ex, w, Hh), P(ex, -w, Hh)], nose);
+      const gi = (u, v) => {
+        const lx = lerp(cx, ex, v),
+          hh = lerp(H, Hh, v),
+          ww = lerp(hu, w, v);
+        return P(lx, ww * u, hh);
+      };
+      tPoly([gi(-0.82, 0.08), gi(0.82, 0.08), gi(0.7, 0.8), gi(-0.7, 0.8)], '#1C2228');
+      tPoly([gi(-0.72, 0.16), gi(0.72, 0.16), gi(0.62, 0.7), gi(-0.62, 0.7)], glass);
+    };
+    const farE = sn >= 0 ? -1 : 1; // the end further up the screen goes behind the cab block
+    slope(farE);
+    // the cab and body above the hood: tumblehome, windows along the side, a rounded roof
+    tBox(
+      c,
+      -cab,
+      cab,
+      hu,
+      Hh,
+      H,
+      nose,
+      (Q, kind) => {
+        if (kind !== 'side') return;
+        band(Q, 0, 1, H * 0.74, H * 0.78, shade(nose, 0.78));
+        band(Q, 0.03, 0.12, H * 0.78, H * 0.96, wc); // cab windows at both ends
+        band(Q, 0.88, 0.97, H * 0.78, H * 0.96, wc);
+        for (let i = 0; i < 4; i++) band(Q, 0.28 + i * 0.1, 0.35 + i * 0.1, H * 0.76, H * 0.96, shade(nose, 0.8)); // grilles
+      },
+      top,
+      2
+    );
+    tBox(c, -cab, cab, hu * 0.86, H, H + 0.04, shade(top, 1.04), null, shade(top, 1.12), 2.4); // roof shoulder
+    tBox(c, -cab + 2, cab - 2, hu * 0.56, H + 0.04, H + 0.075, shade(top, 1.1), null, shade(top, 1.2), 1.8); // roof crown
+    slope(-farE);
     // pantograph up to the wire
-    const a = P(-hl * 0.35, 0, H + 0.05),
-      m = P(-hl * 0.1, 0, H + 0.28),
-      b = P(-hl * 0.35, 0, H + 0.5);
+    const a = P(-hl * 0.28, 0, H + 0.075),
+      m = P(-hl * 0.05, 0, H + 0.3),
+      b = P(-hl * 0.28, 0, H + 0.5);
     ctx.strokeStyle = '#2A2A2C';
     ctx.lineWidth = 0.9;
     ctx.beginPath();
     ctx.moveTo(a[0], a[1]);
     ctx.lineTo(m[0], m[1]);
     ctx.lineTo(b[0], b[1]);
-    const b1 = P(-hl * 0.35, -4, H + 0.5),
-      b2 = P(-hl * 0.35, 4, H + 0.5);
+    const b1 = P(-hl * 0.28, -4, H + 0.5),
+      b2 = P(-hl * 0.28, 4, H + 0.5);
     ctx.moveTo(b1[0], b1[1]);
     ctx.lineTo(b2[0], b2[1]);
     ctx.stroke();
@@ -426,7 +496,7 @@ function drawCar(c) {
       (Q, kind, L2) => {
         band(Q, 0, 1, 0.13, 0.19, '#1E1E22');
         if (kind !== 'side') {
-          band(Q, 0.3, 0.7, 0.22, H * 0.82, shade(c.col, 0.8)); // end door
+          if (kind !== 'cham') band(Q, 0.3, 0.7, 0.22, H * 0.82, shade(c.col, 0.8)); // end door
           return;
         }
         band(Q, 0, 1, H * 0.5, H * 0.88, c.band); // window band
@@ -442,10 +512,13 @@ function drawCar(c) {
           band(Q, u - 0.022, u + 0.022, H * 0.58, H * 0.8, wc);
         }
       },
-      false
+      false,
+      2.6
     );
-    tBox(c, -hl, hl, hd * 0.86, H, H + 0.05, top, null, shade(top, 1.1)); // rounded roof, two steps
-    tBox(c, -hl + 1, hl - 1, hd * 0.55, H + 0.05, H + 0.08, shade(top, 1.05), null, shade(top, 1.16));
+    // a rounded roof in three steps, each narrower and brighter, so the crown catches the light
+    tBox(c, -hl, hl, hd * 0.9, H, H + 0.04, shade(top, 0.96), null, shade(top, 1.04), 2.8);
+    tBox(c, -hl + 0.8, hl - 0.8, hd * 0.7, H + 0.04, H + 0.07, shade(top, 1.04), null, shade(top, 1.12), 2.6);
+    tBox(c, -hl + 2, hl - 2, hd * 0.4, H + 0.07, H + 0.09, shade(top, 1.12), null, shade(top, 1.22), 2);
     return;
   }
   if (c.k === 'box') {
@@ -466,28 +539,27 @@ function drawCar(c) {
           band(Q, 0.36, 0.64, H * 0.95, H * 0.98, '#3A3836'); // its rail
         }
       },
-      false
+      false,
+      1.6
     );
-    tBox(c, -hl, hl, hd * 0.9, H, H + 0.04, c.top, null, shade(c.top, 1.1));
+    tBox(c, -hl, hl, hd * 0.92, H, H + 0.035, shade(c.top, 0.95), null, shade(c.top, 1.02), 1.8); // a curved roof
+    tBox(c, -hl + 1, hl - 1, hd * 0.55, H + 0.035, H + 0.06, c.top, null, shade(c.top, 1.12), 1.4);
     return;
   }
   if (c.k === 'tank') {
     tBox(c, -hl, hl, hd * 0.9, 0.13, 0.19, '#2A2826', null);
-    // the barrel: a rounded side, darker underside and a highlight along the top
-    tBox(
-      c,
-      -hl + 2,
-      hl - 2,
-      hd * 0.85,
-      0.19,
-      H,
-      c.col,
-      (Q, kind) => {
-        band(Q, 0, 1, 0.19, 0.27, shade(c.col, 0.7));
-        band(Q, 0, 1, H - 0.08, H, shade(c.col, 1.15));
-      },
-      shade(c.col, 1.2)
-    );
+    // the barrel: slices of a circle stacked up, with domed ends, so it reads round rather than as a block
+    const r0 = H - 0.19,
+      N = 9;
+    for (let i = 0; i < N; i++) {
+      const ha = 0.19 + (r0 * i) / N,
+        hb = 0.19 + (r0 * (i + 1)) / N,
+        mid = ((i + 0.5) / N) * 2 - 1, // -1 (underside) .. 1 (crown)
+        w = hd * 0.85 * Math.sqrt(Math.max(0.05, 1 - mid * mid * 0.9)),
+        tone = 0.8 + 0.5 * ((mid + 1) / 2),
+        bc = tone < 1 ? shade(c.col, tone) : mixHex(c.col, '#CFD6DA', (tone - 1) * 0.7); // dark tanks still catch a sheen
+      tBox(c, -hl + 2, hl - 2, w, ha, hb, bc, null, bc, 4);
+    }
     const d = P(0, 0, H);
     ctx.fillStyle = '#3A3836';
     ctx.beginPath();
