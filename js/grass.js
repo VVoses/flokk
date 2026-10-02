@@ -231,8 +231,8 @@ function drawGrass() {
     stiff = wint ? 0.35 : 1,
     tm = T;
   // blade paths batched by colour: three greens, dry straw, the gust's sheen; seed heads as dots
-  const paths = [new Path2D(), new Path2D(), new Path2D(), new Path2D(), new Path2D()],
-    heads = new Path2D();
+  const paths = [bladeSink(), bladeSink(), bladeSink(), bladeSink(), bladeSink()],
+    heads = bladeSink();
   let any = false;
   const c0 = Math.max(0, Math.floor((V.x0 - 20) / gc)),
     c1 = Math.min(GRS.nc - 1, Math.floor((V.x1 + 20) / gc)),
@@ -285,24 +285,14 @@ function drawGrass() {
             bx = x + A.bo[o],
             lx = (A.bl[o] + bow + Math.sin(tm * 3.1 + ph + k) * 0.04 * stiff) * hk;
           const P = k < dn ? paths[3] : lit && k === nb - 1 ? paths[4] : paths[(A.sh[i] + k) % 3];
-          P.moveTo(bx, b);
-          P.quadraticCurveTo(bx + lx * 0.15, b - hk * 0.65, bx + lx, b - hk + Math.abs(lx) * 0.25);
+          sinkBlade(P, bx, b, bx + lx * 0.15, b - hk * 0.65, bx + lx, b - hk + Math.abs(lx) * 0.25);
           if (k === 1 && L.heads > 0 && kd !== 1 && hk > 5 && ph < L.heads * TAU * 0.6)
-            heads.rect(bx + lx - 0.7, b - hk + Math.abs(lx) * 0.25 - 1.6, 1.4, 2.4);
+            sinkRect(heads, bx + lx - 0.7, b - hk + Math.abs(lx) * 0.25 - 1.6, 1.4, 2.4);
         }
       }
     }
   if (!any) return;
   const cols = [...L.c, L.dry, L.sheen];
-  ctx.lineWidth = wint ? 0.8 : 0.85;
-  ctx.lineCap = 'round';
-  for (let j = 0; j < 5; j++) {
-    ctx.strokeStyle = rgbS(cols[j]);
-    ctx.stroke(paths[j]);
-  }
-  if (L.heads > 0) {
-    ctx.fillStyle = rgbS(mixRGB(L.dry, [120, 100, 80], 0.35));
-    ctx.fill(heads);
-  }
-  ctx.lineCap = 'butt';
+  for (let j = 0; j < 5; j++) sinkStroke(paths[j], rgbS(cols[j]), wint ? 0.8 : 0.85);
+  if (L.heads > 0) sinkFill(heads, rgbS(mixRGB(L.dry, [120, 100, 80], 0.35)));
 }

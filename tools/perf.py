@@ -105,6 +105,7 @@ with sync_playwright() as p:
         ("winter_noon", f"dev.season(3,12);{to};{dry}dev.weather({{s:0.3,ang:0.2,fog:0}})", 7000),
         ("winter_storm", "dev.weather({s:1.6,ang:3.2,fog:0})", 9000),
         ("winter_storm_night", "dev.hour(22)", 3000),
+        ("farm_summer_breeze", f"dev.season(1,14);dev.to({farm[0]},{farm[1]},1.0);{dry}dev.weather({{s:1.0,ang:0.2,fog:0}});dev.zoom(null)", 4000),
         ("zoomed_out", f"dev.season(1,15);{to};{dry}dev.weather({{s:0.6,ang:0.2,fog:0}});dev.zoom(0.72)", 4000),
     ]
     only = set(filter(None, args.only.split(",")))
