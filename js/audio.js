@@ -677,6 +677,47 @@ function owlHoot(v, x, y) {
     hoot(t1 + 0.5 * r * wob(0.08), 0.7 * r * wob(0.1), f * 1.02);
   }
 }
+// the small noises of stock bedded down in a barn: a hoof shifting on the boards, a mouthful of hay.
+// Always heard through the wall, so only the lows come through.
+function stallShuffle(vol, pn) {
+  if (!ac || muted) return;
+  const t = ac.currentTime + 0.02,
+    out = ac.createGain(),
+    lp = ac.createBiquadFilter();
+  out.gain.value = vol;
+  lp.type = 'lowpass';
+  lp.frequency.value = 420;
+  out.connect(lp);
+  const p = panned(lp, pn),
+    send = ac.createGain();
+  send.gain.value = 0.35;
+  p.connect(master);
+  p.connect(send).connect(verb);
+  const o = ac.createOscillator(),
+    g = ac.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(rr(90, 120), t);
+  o.frequency.exponentialRampToValueAtTime(52, t + 0.16);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(1, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+  o.connect(g).connect(out);
+  o.start(t);
+  o.stop(t + 0.3);
+  const s = ac.createBufferSource(),
+    nb = ac.createBiquadFilter(),
+    ng = ac.createGain();
+  s.buffer = amb.noise;
+  nb.type = 'lowpass';
+  nb.frequency.value = 700;
+  const t1 = t + rr(0.15, 0.4),
+    len = rr(0.5, 1.1);
+  ng.gain.setValueAtTime(0, t1);
+  ng.gain.linearRampToValueAtTime(0.4, t1 + len * 0.3);
+  ng.gain.linearRampToValueAtTime(0, t1 + len);
+  s.connect(nb).connect(ng).connect(out);
+  s.start(t1, Math.random() * 2, len + 0.05);
+}
 function frog() {
   if (!ac || muted) return;
   const t = ac.currentTime + 0.02,
@@ -802,7 +843,8 @@ function animalCall(k, vol, pn, o = {}) {
   // distance: a far call loses its top to the air and reaches you more as echo off the land than direct
   const air = ac.createBiquadFilter();
   air.type = 'lowpass';
-  air.frequency.value = lerp(7600, 1900, d);
+  // heard through a barn wall (o.muffle): only the low body of the voice gets out, a little more of it near the door
+  air.frequency.value = o.muffle ? lerp(1100, 380, d) : lerp(7600, 1900, d);
   air.Q.value = 0.55;
   const dry = ac.createGain();
   dry.gain.value = 1 - 0.45 * d;
@@ -810,7 +852,7 @@ function animalCall(k, vol, pn, o = {}) {
   const p = panned(air, pn);
   p.connect(dry).connect(master);
   const send = ac.createGain();
-  send.gain.value = 0.12 + 0.55 * d;
+  send.gain.value = o.muffle ? 0.3 + 0.4 * d : 0.12 + 0.55 * d;
   p.connect(send).connect(verb);
   const sw = (f0, f1, dur, t0, q, bpf, type = 'sawtooth', vib = 0) => {
     const pj = VOX.p * wob(0.025);
@@ -1683,6 +1725,7 @@ function audioTick(dt) {
       const near = ANIMALS.filter(
         a =>
           a.k in AMB_REST &&
+          !a.hide &&
           now > (rest[a.k] || 0) &&
           Math.hypot(wdx(a.x, L.x), a.y - L.y) < 950 &&
           Math.random() < hush(a.k)
@@ -1700,6 +1743,33 @@ function audioTick(dt) {
           const mates = ANIMALS.filter(
             b => b !== a && b.k === a.k && !b.dying && Math.hypot(wdx(b.x, a.x), b.y - a.y) < 500
           );
+          if (mates.length) {
+            const b = pickP(mates);
+            setTimeout(() => L && say(b), rr(1200, 3500));
+          }
+        }
+      }
+    }
+    // stock stalled in the barn for the winter: heard through the walls, louder the nearer the flock flies,
+    // lowing and bleating, shifting in the straw, answering one another in the dark
+    amb.stallT = (amb.stallT ?? 3) - dt;
+    if (amb.stallT <= 0) {
+      amb.stallT = rr(3.5, 9) * (1 + 0.5 * LIGHT.night);
+      const inn = ANIMALS.filter(
+        a => a.hide && a.shelter && (a.k === 'cow' || a.k === 'sheep') && Math.hypot(wdx(a.x, L.x), a.y - L.y) < 1500
+      );
+      if (inn.length) {
+        const say = a => {
+          const d = Math.hypot(wdx(a.x, L.x), a.y - L.y) / 1500,
+            pn = wdx(a.x, L.x) / 700;
+          if (d >= 1) return;
+          if (Math.random() < 0.22) stallShuffle(0.09 * (1 - d) + 0.012, pn);
+          else animalCall(a.k, 0.075 * (1 - d) + 0.012, pn, { who: a, d, muffle: 1 });
+        };
+        const a = pickP(inn);
+        say(a);
+        if (Math.random() < 0.3) {
+          const mates = inn.filter(b => b !== a);
           if (mates.length) {
             const b = pickP(mates);
             setTimeout(() => L && say(b), rr(1200, 3500));

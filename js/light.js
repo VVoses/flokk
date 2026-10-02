@@ -163,7 +163,8 @@ function buildLights() {
         h: (b.wh * 0.9) / HZ,
         r: 56,
         i: 0.75,
-        fl: 0
+        fl: 0,
+        stall: b.kind === 'barn'
       });
     }
   }
@@ -340,7 +341,15 @@ function applyLight(tx, ty, KS, inK) {
   if (nf > 0.02) {
     const src = LIGHTS.concat(trainLights(), trafficLights(), xmasLights());
     if (L && birds.includes(L)) src.push({ x: L.x, y: L.y, h: L.z, r: 170, i: 0.32, fl: 0, soft: 1 });
-    const K = l => nf * l.i * (l.fl ? 0.93 + 0.07 * Math.sin(T * 11 + l.x) : 1);
+    // in winter the barn doors glow warmer and a little unsteadily: a lantern lit for the stock bedded down inside
+    const lantern = winterW();
+    const K = l =>
+      nf *
+      l.i *
+      (l.fl ? 0.93 + 0.07 * Math.sin(T * 11 + l.x) : 1) *
+      (l.stall && lantern > 0
+        ? 1 + lantern * (0.45 + 0.05 * Math.sin(T * 7.3 + l.x) + 0.03 * Math.sin(T * 17 + l.y))
+        : 1);
     // 1. the light on the ground: round pools, and the beams thrown ahead of vehicles
     for (const pass of ['destination-out', 'lighter']) {
       c.globalCompositeOperation = pass;
