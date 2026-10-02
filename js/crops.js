@@ -9,12 +9,13 @@
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 const CRP = { seed: null, F: [] };
-// per crop: where the stalks stand (spacing across the rows), how tall, how much it gives to the wind
+// per crop: where the stalks stand (spacing across the rows), how tall, how much it gives to the wind, and the
+// spring it swings on (k stiffness, c damping: grain and onion tops are loose and overshoot, potato haulm is stiff)
 const CROPDEF = {
-  grain: { sp: 7, h: 10, fl: 1, w: 0.9, nb: 3 },
-  rapeseed: { sp: 8, h: 15, fl: 0.7, w: 1, nb: 3 },
-  potato: { sp: 9, h: 6, fl: 0.35, w: 2.4, nb: 2 },
-  onion: { sp: 6, h: 8, fl: 1.2, w: 0.9, nb: 3 }
+  grain: { sp: 7, h: 10, fl: 1, w: 0.9, nb: 3, k: 16, c: 2.2 },
+  rapeseed: { sp: 8, h: 15, fl: 0.7, w: 1, nb: 3, k: 24, c: 3.2 },
+  potato: { sp: 9, h: 6, fl: 0.35, w: 2.4, nb: 2, k: 42, c: 7 },
+  onion: { sp: 6, h: 8, fl: 1.2, w: 0.9, nb: 3, k: 11, c: 1.5 }
 };
 const CRP_CELL = 24; // the wind is read once per cell of this many world units, not once per stalk
 
@@ -41,21 +42,38 @@ function buildCrop(f, fi, cv) {
     }
   T0.forEach(t => (t.c = Math.floor(t.y / CRP_CELL) * 4096 + Math.floor(t.x / CRP_CELL)));
   T0.sort((a, b) => a.c - b.c);
-  const n = T0.length,
-    A = {
-      n,
-      x: new Float32Array(n),
-      y: new Float32Array(n),
-      ph: new Float32Array(n),
-      sh: new Uint8Array(n),
-      c: new Int32Array(n)
-    };
+  const n = T0.length;
+  let nc = 0;
+  T0.forEach((t, i) => {
+    if (i && t.c !== T0[i - 1].c) nc++;
+    t.ci = nc;
+  });
+  const A = {
+    nc: nc + 1,
+    ci: new Int32Array(n),
+    cx: new Float32Array(nc + 1),
+    cy: new Float32Array(nc + 1),
+    sx: new Float32Array(nc + 1), // each cell's lean, sprung (below)
+    sv: new Float32Array(nc + 1), // and how fast it is swinging
+    gl: new Float32Array(nc + 1), // and how hard the gust is on it
+    t: -1,
+
+    n,
+    x: new Float32Array(n),
+    y: new Float32Array(n),
+    ph: new Float32Array(n),
+    sh: new Uint8Array(n),
+    c: new Int32Array(n)
+  };
   T0.forEach((t, i) => {
     A.x[i] = t.x;
     A.y[i] = t.y;
     A.ph[i] = t.ph;
     A.sh[i] = t.sh;
     A.c[i] = t.c;
+    A.ci[i] = t.ci;
+    A.cx[t.ci] = t.x;
+    A.cy[t.ci] = t.y;
   });
   return A;
 }
@@ -163,33 +181,47 @@ function drawCrops() {
       paths = [new Path2D(), new Path2D(), new Path2D()],
       heads = new Path2D(),
       sheenC = mixRGB(L.c2, [244, 240, 190], 0.4);
-    let lc = -1,
-      wv = 0,
-      gl = 0,
-      any = false;
+    // the wind's push on each cell, then the cell's lean sprung towards it: a gust eases the stalks over, they
+    // swing past, and settle back, rather than snapping between the calm and the gusted lean. A field that was
+    // out of view just takes the wind it finds.
+    const dt = A.t < 0 || T - A.t > 0.5 || T < A.t ? 0 : Math.min(T - A.t, 0.05);
+    A.t = T;
+    for (let q = 0; q < A.nc; q++) {
+      const cx = A.cx[q],
+        cy = A.cy[q],
+        wv = windWave(cx, cy),
+        gl = gustAt(cx, cy),
+        tgt = (lean * (0.7 + 0.8 * wv * g) + gLean * (0.3 + 0.55 * gl) * (0.8 + 0.3 * wv)) * d.fl;
+      A.gl[q] = gl * (0.6 + 0.4 * wv);
+      if (!dt) {
+        A.sx[q] = tgt;
+        A.sv[q] = 0;
+        continue;
+      }
+      A.sv[q] += (d.k * (tgt - A.sx[q]) - d.c * A.sv[q]) * dt;
+      A.sx[q] += A.sv[q] * dt;
+    }
+    let any = false;
     for (let i = 0; i < A.n; i += step) {
       const x = A.x[i],
         y = A.y[i],
         hh = d.h * L.h;
       if (!visU(x, y, 10, hh + 4)) continue;
-      if (A.c[i] !== lc) {
-        lc = A.c[i];
-        wv = windWave(x, y);
-        gl = gustAt(x, y);
-      }
       any = true;
-      const ph = A.ph[i],
+      const q = A.ci[i],
+        ph = A.ph[i],
         b = y * ey,
-        ge = 0.3 + 0.55 * gl,
-        bow = (lean * (0.7 + 0.8 * wv * g) + gLean * ge * (0.8 + 0.3 * wv)) * d.fl,
-        lit = gl * (0.6 + 0.4 * wv) > 0.6;
+        // each plant swings a little out of step with its neighbours: its own stiffness, and a share of the
+        // cell's speed so the overshoot reaches it a beat early or late
+        bow = A.sx[q] * (0.85 + 0.3 * Math.sin(ph * 2.3)) + A.sv[q] * 0.07 * Math.sin(ph * 1.7),
+        flut = Math.sin(tm * 3.1 + ph) * (0.03 + 0.04 * A.gl[q]) * d.fl,
+        lt = A.gl[q];
       for (let k = 0; k < d.nb; k++) {
         const hk = hh * (0.8 + 0.2 * Math.sin(ph * 3 + k * 2)),
           bx = x + (k - 1) * 1.7,
-          lx =
-            ((k - 1) * 0.16 + bow + Math.sin(tm * 3.1 + ph + k) * 0.05 * d.fl + L.lodge * Math.sin(ph * 5 + k) * 1.1) *
-            hk;
-        const P = lit && k === d.nb - 1 ? paths[2] : paths[(A.sh[i] + k) & 1];
+          lx = ((k - 1) * 0.16 + bow + flut * Math.cos(k * 2.1) + L.lodge * Math.sin(ph * 5 + k) * 1.1) * hk;
+        // the pale undersides show stalk by stalk as a gust arrives, not all at once
+        const P = lt > 0.45 + 0.35 * ((ph * 7 + k * 0.37) % 1) ? paths[2] : paths[(A.sh[i] + k) & 1];
         const tx = bx + lx,
           ty = b - hk + Math.abs(lx) * 0.25;
         P.moveTo(bx, b);
