@@ -288,6 +288,19 @@ const root = path.resolve(__dirname, '..');
       roadInit();
       const destination = journeyDestinations();
       const route = makeJourney(destination[0].point, destination[1].point);
+      const start = journeyAt(route, 0),
+        end = journeyAt(route, route.length),
+        mid = journeyAt(route, route.length / 2),
+        still = journeyAt({ points: [[12, 34]], lengths: [0], length: 0 }, 0),
+        routeSamplesValid =
+          Math.hypot(start.x - route.points[0][0], start.y - route.points[0][1]) < 0.01 &&
+          Math.hypot(end.x - route.points.at(-1)[0], end.y - route.points.at(-1)[1]) < 0.01 &&
+          Number.isFinite(mid.x) &&
+          Number.isFinite(mid.y) &&
+          Number.isFinite(mid.ang) &&
+          still.x === 12 &&
+          still.y === 34 &&
+          Number.isFinite(still.ang);
       const c = { x: railAt(RAIL_S0 + 300).x, y: railAt(RAIL_S0 + 300).y, s: 200 };
       TRAIN = { s: railSAtX(wrapX(c.x)) - 100, dir: 1, v: 160, vmax: 200, tot: 160 };
       const blocked = crossingRoom({ crossings: [c] }, 140, 15);
@@ -376,6 +389,7 @@ const root = path.resolve(__dirname, '..');
         finite,
         feedingReaction,
         journey: route.length > 0,
+        routeSamplesValid,
         usesRoad,
         usesTrack,
         parkedRetained,
@@ -397,6 +411,7 @@ const root = path.resolve(__dirname, '..');
         traffic.finite &&
         traffic.feedingReaction &&
         traffic.journey &&
+        traffic.routeSamplesValid &&
         traffic.usesRoad &&
         traffic.usesTrack &&
         traffic.parkedRetained &&

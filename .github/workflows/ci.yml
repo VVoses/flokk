@@ -22,7 +22,7 @@ jobs:
         run: npm run lint
 
       - name: format check
-        run: npx prettier --check "js/*.js" "css/*.css" index.html
+        run: npx prettier --check "js/*.js" "css/*.css" "tools/*.{cjs,mjs}" index.html
 
       - uses: actions/setup-python@v5
         with:

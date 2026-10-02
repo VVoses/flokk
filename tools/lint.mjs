@@ -12,7 +12,9 @@ const map = [];
 const text = files
   .map(f => {
     // the per-file 'use strict' directives are fine; blank them so they don't read as stray expressions
-    const lines = readFileSync(join(root, f), 'utf8').replace(/^'use strict';$/m, '').split('\n');
+    const lines = readFileSync(join(root, f), 'utf8')
+      .replace(/^'use strict';$/m, '')
+      .split('\n');
     lines.forEach((_, i) => map.push([f, i + 1]));
     return lines.join('\n');
   })
@@ -26,10 +28,14 @@ const eslint = new ESLint({
       'no-undef': 'error',
       'no-redeclare': 'error',
       'no-dupe-keys': 'error',
-      'no-unused-vars': ['warn', { vars: 'all', args: 'none', caughtErrors: 'none' }],
-      'no-unreachable': 'warn',
-      'no-empty': 'warn',
-      'no-self-assign': 'warn'
+      'no-unused-vars': ['error', { vars: 'all', args: 'none', caughtErrors: 'none' }],
+      'no-unreachable': 'error',
+      'no-empty': 'error',
+      'no-self-assign': 'error',
+      'no-constant-condition': 'error',
+      'no-fallthrough': 'error',
+      'no-unsafe-finally': 'error',
+      'valid-typeof': 'error'
     }
   }
 });

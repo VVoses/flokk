@@ -100,13 +100,11 @@ function makeJourney(from, to) {
     }
     points.push(q);
   }
-  const crossings = [];
+  const crossings = [],
+    railCopies = [-W, 0, W].map(ox => RAIL.map(p => [p[0] + ox, p[1]]));
   for (let i = 1; i < points.length; i++) {
-    for (const ox of [-W, 0, W]) {
-      const hits = findCrossings(
-        [points[i - 1], points[i]],
-        RAIL.map(p => [p[0] + ox, p[1]])
-      );
+    for (const rail of railCopies) {
+      const hits = findCrossings([points[i - 1], points[i]], rail);
       for (const c of hits) {
         const s = lengths[i - 1] + Math.hypot(c.x - points[i - 1][0], c.y - points[i - 1][1]);
         const built = CROSSINGS.find(o => Math.hypot(wdx(o.x, c.x), o.y - c.y) < 5);
@@ -117,9 +115,19 @@ function makeJourney(from, to) {
   return { points, lengths, length: lengths[lengths.length - 1], crossings };
 }
 function journeyAt(route, s) {
+  if (route.points.length === 1) {
+    const [x, y] = route.points[0];
+    return { x, y, ang: 0 };
+  }
   s = clamp(s, 0, route.length);
-  let i = 1;
-  while (i < route.lengths.length - 1 && route.lengths[i] < s) i++;
+  let lo = 1,
+    hi = route.lengths.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (route.lengths[mid] < s) lo = mid + 1;
+    else hi = mid;
+  }
+  const i = lo;
   const a = route.points[i - 1],
     b = route.points[i] || a,
     t = (s - route.lengths[i - 1]) / (route.lengths[i] - route.lengths[i - 1] || 1);
