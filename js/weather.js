@@ -187,8 +187,13 @@ const windAt = (x, y) => WEATHER.s * (0.25 + gustAt(x, y));
 // ground-speed change, so a tailwind speeds the flock up, a headwind holds it back and a crosswind sets it
 // sideways. Felt from the first breath of wind, strongest in a gust (a gale is roughly a fifth of flying speed)
 function windPush(b) {
-  const k = windAt(b.x, b.y) * 42;
-  return [Math.cos(WEATHER.ang) * k, Math.sin(WEATHER.ang) * k * 0.7];
+  const k = windAt(b.x, b.y) * 42,
+    wx = Math.cos(WEATHER.ang) * k,
+    wy = Math.sin(WEATHER.ang) * k * 0.7;
+  // remembered so the wingbeat can answer to it (a bird working into the wind beats harder)
+  b.wpx = wx;
+  b.wpy = wy;
+  return [wx, wy];
 }
 
 /* ---------- leaves torn off and tumbling downwind (late summer, autumn) ---------- */

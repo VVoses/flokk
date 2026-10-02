@@ -191,13 +191,22 @@ function update(dt) {
         clamp(-vz * 0.35, -0.6, 0.6) + (b.state === 'land' ? -0.35 : 0),
         Math.min(1, dt * 5)
       );
-      b.fold = lerp(b.fold || 0, b.state === 'fly' && !b.flapping && b.panic <= 0 ? 0.6 : 0, Math.min(1, dt * 9));
+      // effort against the wind: the headwind along the bird's heading (a tailwind eases it a little)
+      const eff =
+        b.state === 'fly' && sp > 12 ? clamp(-((b.wpx || 0) * b.vx + (b.wpy || 0) * b.vy) / sp / 45, -0.3, 1) : 0;
+      b.fold = lerp(
+        b.fold || 0,
+        b.state === 'fly' && !b.flapping && b.panic <= 0 ? 0.6 * (1 - Math.max(0, eff)) : 0,
+        Math.min(1, dt * 9)
+      );
       b.fbT -= dt;
       if (b.fbT <= 0) {
         b.flapping = !b.flapping;
-        b.fbT = b.flapping ? rr(0.35, 1) : rr(0.25, 0.8);
+        // into the wind there is less gliding between bursts and the bursts run longer
+        b.fbT = b.flapping ? rr(0.35, 1) * (1 + eff * 0.8) : rr(0.25, 0.8) * (1 - eff * 0.7);
       }
-      if (b.flapping || b.panic > 0 || sp < 60 || b.state === 'land') b.flap += dt * (b.panic > 0 ? 34 : 24);
+      if (b.flapping || b.panic > 0 || sp < 60 || b.state === 'land')
+        b.flap += dt * (b.panic > 0 ? 34 : 24) * (1 + eff * 0.45);
     }
   }
   st.grounded = grounded;
