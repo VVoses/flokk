@@ -357,7 +357,13 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
     dur = (0.4 + 0.08 * power) * tail;
   const { pan, d } = spatial(x, y, 500),
     bus = ac.createGain(),
-    busOut = panned(bus, pan);
+    soft = ac.createBiquadFilter(),
+    busOut = panned(soft, pan);
+  // the whole kill sits under a steep lowpass so no bright edge survives, whatever the layers do
+  soft.type = 'lowpass';
+  soft.frequency.value = kind === 'owl' ? 750 : kind === 'fox' ? 600 : 1050;
+  soft.Q.value = 0.4;
+  bus.connect(soft);
   busOut.connect(master);
   if (d > 0.1) busOut.connect(verb);
   if (kind !== 'fox') {
@@ -387,7 +393,7 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
     cf.frequency.value = base * 0.85;
     cf.Q.value = 1;
     cg.gain.setValueAtTime(0, t);
-    cg.gain.linearRampToValueAtTime(0.05 * gk, t + 0.05);
+    cg.gain.linearRampToValueAtTime(0.05 * gk, t + 0.11);
     cg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     co.connect(cf);
     co2.connect(cf).connect(cg).connect(bus);
@@ -407,7 +413,7 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
   hf.frequency.value = kind === 'fox' ? 220 : 260;
   const hg = ac.createGain();
   hg.gain.setValueAtTime(0, t);
-  hg.gain.linearRampToValueAtTime(0.038 * gk, t + rr(0.025, 0.035));
+  hg.gain.linearRampToValueAtTime(0.038 * gk, t + rr(0.05, 0.07));
   hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
   hs.connect(hf).connect(hg).connect(bus);
   hs.start(t, Math.random() * 3);
