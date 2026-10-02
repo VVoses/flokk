@@ -413,11 +413,20 @@ function drawFlyer(b) {
   const K = b.s * (0.95 + 0.04 * b.z),
     X = b.x,
     Y = PY(b.y, b.z);
-  ctx.globalAlpha = 0.09 + 0.06 * LIGHT.night;
-  ctx.drawImage(HALO, X - K * 1.7, Y - K * 1.7, K * 3.4, K * 3.4);
+  // over canopy the birds are a few pixels the colour of the trees, so the aura swells and brightens there,
+  // like light caught in the air above the treetops; eased, and sampled every few frames since forestness is noisy maths
+  if (!(b.fqT > T)) {
+    b.fqT = T + 0.2 + Math.random() * 0.1;
+    b.fqTo = smooth(0.42, 0.66, forestness(b.x, b.y));
+  }
+  b.fq = (b.fq || 0) + ((b.fqTo || 0) - (b.fq || 0)) * 0.08;
+  const fq = b.fq;
+  ctx.globalAlpha = 0.09 + 0.06 * LIGHT.night + 0.46 * fq * (1 - 0.35 * LIGHT.night);
+  const hr = K * (1.7 + 1.4 * fq);
+  ctx.drawImage(HALO, X - hr, Y - hr, hr * 2, hr * 2);
   ctx.globalAlpha = 1;
   if (b === L) {
-    ctx.globalAlpha = 0.34 + 0.1 * Math.sin(T * 2);
+    ctx.globalAlpha = 0.34 + 0.1 * Math.sin(T * 2) + 0.2 * fq;
     ctx.drawImage(HALO_GOLD, X - K * 2.1, Y - K * 2.1, K * 4.2, K * 4.2);
     ctx.globalAlpha = 1;
   }
