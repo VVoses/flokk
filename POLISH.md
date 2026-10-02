@@ -70,6 +70,7 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Silence parked vehicle engines and place parking bays deeper inside destinations.
 - [x] Remove unused shared-road stubs and keep service parking clear of storefront walls.
 - [x] Give the farm store three marked, reachable parking spaces on a gravel apron.
+- [x] Park farm cars on a soft-edged gravel pad beside the house (planned at generation, never on a building), reached by ruts from the gate.
 
 ## 6. Regional expansion
 

@@ -171,13 +171,12 @@ function buildLights() {
     const house = fm.house;
     if (!house) continue;
     const Y = fm.yard;
-    // the yard lamp stands off the house's gable, on the yard side, kept inside the yard
-    const [hu, hv] = yardLocal(Y, house.cx, house.cy),
-      [lx, ly] = yardClamp(Y, ...yardWorld(Y, hu + (hu < 0 ? 95 : -95), hv + 48), 15);
+    const [lx, ly] = yardLampAt(fm);
     LAMPS.push({ x: lx, y: ly });
     LIGHTS.push({ x: lx, y: ly, h: 2.25, r: 135, i: 0.9, fl: 1 });
     addPerch(lx, ly, 2.4, 'pole', false, 0);
     const taken = [[lx, ly, 14]];
+    if (fm.park) taken.push([fm.park.x, fm.park.y, 34]);
     if (fm.main) {
       // the winter feeder stands in the open, where it can be seen from the kitchen window
       const f = yardSpot(Y, taken, 30, (x, y) => Math.hypot(house.cx - x, house.cy + 60 - y));

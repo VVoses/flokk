@@ -39,6 +39,8 @@ with sync_playwright() as playwright:
           const stops = vehicleDestinations();
           const parking = stops.filter(stop => stop.name === 'farm').every((stop, i) =>
             inYard(FARMS[i].yard, ...stop.point, -8) &&
+            !inBuild(stop.point[0], stop.point[1], 14) &&
+            !inBuild(stop.rest[0], stop.rest[1], 14) &&
             Math.hypot(wdx(stop.point[0], FARMS[i].yard.gate[0]), stop.point[1] - FARMS[i].yard.gate[1]) > 80
           );
           const serviceParking = BUILDS.filter(b => b.service).every(b => {

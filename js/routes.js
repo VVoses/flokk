@@ -180,6 +180,11 @@ function vehicleDestinations() {
       dy = Y.cy - Y.gate[1],
       d = Math.max(1, Math.hypot(dx, dy)),
       inset = Math.min(110, Math.max(0, d - 32));
+    if (f.park) {
+      // visitors take the free bay on the pad beside the house; the resident car rests in the other
+      out.push({ name: 'farm', point: f.park.bays[1], ang: f.park.ang, rest: f.park.bays[0], pad: true });
+      continue;
+    }
     out.push({
       name: 'farm',
       point: [wrapX(Y.gate[0] + (dx / d) * inset), Y.gate[1] + (dy / d) * inset],

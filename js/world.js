@@ -115,6 +115,13 @@ function yardClamp(Y, x, y, m = 0) {
   const [u, v] = yardLocal(Y, x, y);
   return yardWorld(Y, clamp(u, -Y.lw / 2 + m, Y.lw / 2 - m), clamp(v, -Y.lh / 2 + m, Y.lh / 2 - m));
 }
+// where the yard lamp stands: off the house's gable, on the yard side, kept inside the yard
+function yardLampAt(fm) {
+  const Y = fm.yard,
+    house = fm.house,
+    [hu, hv] = yardLocal(Y, house.cx, house.cy);
+  return yardClamp(Y, ...yardWorld(Y, hu + (hu < 0 ? 95 : -95), hv + 48), 15);
+}
 // the road's heading near x: averaged over +-span, so a local wiggle doesn't turn a whole farm
 function roadAng(x, span = 250) {
   const near = x2 => ROAD.reduce((b, q) => (Math.abs(q[0] - x2) < Math.abs(b[0] - x2) ? q : b));
@@ -851,6 +858,94 @@ function genLayout() {
       ])
     );
   };
+  /* Where a farm parks: a small gravel pad tucked beside the house, never on it. Candidates sit along each
+     wall of the house, parked alongside the wall or nose-in to it, and are scored by how short and clear
+     the run from the gate is. The pad is a soft-edged blob with two bays side by side; the resident car
+     takes the first, visitors the second. Planned once, at generation, so nothing here costs a frame. */
+  const planParking = fm => {
+    const Y = fm.yard,
+      h = fm.house;
+    if (!h || !Y.gate) return;
+    const [gx, gy] = Y.gate,
+      lamp = yardLampAt(fm),
+      PL = 56,
+      PW = 58,
+      hc = Math.cos(h.ang),
+      hs = Math.sin(h.ang);
+    let best = null,
+      bestCost = 1e9;
+    for (let side = 0; side < 4; side++) {
+      const long = side < 2,
+        sg = side % 2 ? 1 : -1,
+        nx = long ? -hs * sg : hc * sg,
+        ny = long ? hc * sg : hs * sg,
+        tx = -ny,
+        ty = nx,
+        half = (long ? h.len : h.dep) / 2,
+        wall = (long ? h.dep : h.len) / 2;
+      for (const nose of [0, 1])
+        for (let t = -half; t <= half; t += 14) {
+          const depth = nose ? PL : PW,
+            x = h.cx + nx * (wall + 14 + depth / 2) + tx * t,
+            y = h.cy + ny * (wall + 14 + depth / 2) + ty * t;
+          let ang = Math.atan2(-ny, -nx);
+          if (!nose) ang = Math.atan2(ty, tx) + (tx * (x - gx) + ty * (y - gy) < 0 ? Math.PI : 0);
+          const fx = Math.cos(ang),
+            fy = Math.sin(ang);
+          let ok = true;
+          for (let a = -PL / 2 - 6; ok && a <= PL / 2 + 6; a += 10)
+            for (let b = -PW / 2 - 6; b <= PW / 2 + 6; b += 10) {
+              const px = x + fx * a - fy * b,
+                py = y + fy * a + fx * b;
+              if (
+                buildAt(px, py, 8) ||
+                inWater(px, py, 0) ||
+                !inYard(Y, px, py, -14) ||
+                Math.hypot(px - lamp[0], py - lamp[1]) < 32
+              ) {
+                ok = false;
+                break;
+              }
+            }
+          if (!ok) continue;
+          const d = Math.hypot(x - gx, y - gy),
+            ex = x + ((gx - x) / d) * (PL / 2),
+            ey = y + ((gy - y) / d) * (PL / 2),
+            cost =
+              d + (d < 90 ? 400 : 0) + (segClear(gx, gy, ex, ey) ? 0 : 400) + hash2(side * 31 + t, h.cx * 0.01) * 30;
+          if (cost < bestCost) {
+            bestCost = cost;
+            best = { x, y, ang, fx, fy, ex, ey, d };
+          }
+        }
+    }
+    if (!best) return;
+    const { x, y, ang, fx, fy, ex, ey, d } = best,
+      bow = (hash2(x * 0.1, y * 0.1) - 0.5) * 24,
+      blob = [];
+    // a rounded, slightly lopsided outline: gravel pushed out by tyres, not marked out with a ruler
+    for (let i = 0; i < 18; i++) {
+      const th = (i / 18) * TAU,
+        c = Math.cos(th),
+        s = Math.sin(th),
+        r =
+          (1 / ((Math.abs(c) / (PL / 2)) ** 3 + (Math.abs(s) / (PW / 2)) ** 3) ** (1 / 3)) * (0.9 + hash2(i, x) * 0.18);
+      blob.push([x + fx * c * r - fy * s * r, y + fy * c * r + fx * s * r]);
+    }
+    fm.park = {
+      x,
+      y,
+      ang,
+      blob,
+      spur: [
+        [gx, gy],
+        [lerp(gx, ex, 0.5) - ((ey - gy) / d) * bow, lerp(gy, ey, 0.5) + ((ex - gx) / d) * bow],
+        [ex, ey]
+      ],
+      bays: [-12, 12].map(b => [x - fy * b, y + fx * b])
+    };
+    fm.yard.park = fm.park;
+  };
   const fieldOK = r => {
     if (r.w < 210 || r.h < 210 || r.y < NORTH) return false;
     for (const o of CHURCH ? YARDS.concat(CHURCH.yard) : YARDS)
@@ -1263,12 +1358,14 @@ function genLayout() {
   FARMS.push(main);
   YARDS.push(main.yard);
   buildFarm(main);
+  planParking(main);
   placeSty(main);
   const second = placeFarm(false);
   if (second) {
     FARMS.push(second);
     YARDS.push(second.yard);
     buildFarm(second);
+    planParking(second);
     if (R() < 0.5) placeSty(second);
   }
   placeChurch();

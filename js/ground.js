@@ -178,6 +178,79 @@ const GRASS = [
 // its biggest cost) so a season change can spread that across several frames instead of freezing one;
 // see BG_JOB in light.js. Everything below the cell loop still runs in one go: it's a small fraction
 // of the cost and, unlike the loop above, several of its steps read back what earlier steps drew.
+// A farm's parking: ruts curving in from the gate to a soft-edged pad of packed gravel beside the house, with
+// two worn bays, a pale scatter of fresh gravel and the odd oil stain. Drawn in the yard's own gravel.
+function drawParkingPad(g, P, winter) {
+  const edge = pts => {
+    const n = pts.length;
+    g.beginPath();
+    g.moveTo((pts[0][0] + pts[n - 1][0]) / 2, (pts[0][1] + pts[n - 1][1]) / 2);
+    for (let i = 0; i < n; i++) {
+      const a = pts[i],
+        b = pts[(i + 1) % n];
+      g.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    }
+    g.closePath();
+  };
+  g.save();
+  g.lineCap = 'round';
+  const [a, m, b] = P.spur,
+    sl = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1,
+    sx = -(b[1] - a[1]) / sl,
+    sy = (b[0] - a[0]) / sl;
+  for (const [off, w, col] of [
+    [-6, 3.5, winter ? 'rgba(160,172,188,.34)' : 'rgba(96,84,60,.24)'],
+    [6, 3.5, winter ? 'rgba(160,172,188,.34)' : 'rgba(96,84,60,.24)'],
+    [0, 12, winter ? 'rgba(255,255,255,.22)' : 'rgba(128,140,84,.14)']
+  ]) {
+    g.beginPath();
+    g.moveTo(a[0] + sx * off, a[1] + sy * off);
+    g.quadraticCurveTo(m[0] + sx * off, m[1] + sy * off, b[0] + sx * off, b[1] + sy * off);
+    g.lineWidth = w;
+    g.strokeStyle = col;
+    g.stroke();
+  }
+  edge(P.blob);
+  g.lineWidth = 9;
+  g.lineJoin = 'round';
+  g.strokeStyle = winter ? 'rgba(190,200,212,.18)' : 'rgba(120,108,80,.22)';
+  g.stroke();
+  g.fillStyle = winter ? 'rgba(168,180,196,.6)' : 'rgba(116,102,72,.58)';
+  g.fill();
+  g.save();
+  edge(P.blob);
+  g.clip();
+  const fx = Math.cos(P.ang),
+    fy = Math.sin(P.ang);
+  for (let i = 0; i < 60; i++) {
+    const t = hash2(i, P.x),
+      u = hash2(i + 91, P.y);
+    g.fillStyle = winter ? 'rgba(255,255,255,.4)' : 'rgba(214,204,170,.4)';
+    g.fillRect(
+      P.x + fx * (t - 0.5) * 60 - fy * (u - 0.5) * 60,
+      P.y + fy * (t - 0.5) * 60 + fx * (u - 0.5) * 60,
+      1.8,
+      1.8
+    );
+  }
+  for (const [bx, by] of P.bays) {
+    // two tyre tracks and a drip of oil where each car has stood
+    for (const sg of [-4.5, 4.5]) {
+      g.beginPath();
+      g.moveTo(bx - fx * 19 - fy * sg, by - fy * 19 + fx * sg);
+      g.lineTo(bx + fx * 19 - fy * sg, by + fy * 19 + fx * sg);
+      g.lineWidth = 3;
+      g.strokeStyle = winter ? 'rgba(120,132,148,.3)' : 'rgba(70,60,42,.26)';
+      g.stroke();
+    }
+    g.fillStyle = winter ? 'rgba(90,100,114,.22)' : 'rgba(40,34,26,.2)';
+    g.beginPath();
+    g.ellipse(bx + fx * 5, by + fy * 5, 4.5, 2.6, P.ang, 0, TAU);
+    g.fill();
+  }
+  g.restore();
+  g.restore();
+}
 function* paintGroundGen(season) {
   const keepR = R;
   R = mulberry32((SEED ^ 0x5151) + season * 7919);
@@ -551,6 +624,7 @@ function* paintGroundGen(season) {
           g.stroke();
         }
       }
+      if (YARD.park) drawParkingPad(g, YARD.park, winter);
       g.fillStyle = winter ? 'rgba(150,160,175,.25)' : 'rgba(90,80,60,.25)';
       g.beginPath();
       for (let i = 0; i < 2200; i++) g.rect(rnd(YARD.x, YARD.x + YARD.w), rnd(YARD.y, YARD.y + YARD.h), 2, 2);
@@ -798,6 +872,7 @@ function* paintGroundGen(season) {
       g.restore();
     }
   for (const spot of vehicleDestinations()) {
+    if (spot.pad) continue;
     const service = spot.name !== 'farm';
     g.save();
     g.translate(spot.point[0], spot.point[1]);

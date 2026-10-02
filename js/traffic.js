@@ -94,8 +94,8 @@ function spawnResidentCars() {
   const homes = vehicleDestinations().filter(d => d.name === 'farm');
   for (let i = 0; i < homes.length; i++) {
     if (i > 0 && hash2(i + 17, homes[i].point[0] * 0.01) > 0.72) continue;
-    const x = homes[i].point[0] - Math.sin(homes[i].ang) * 22,
-      y = homes[i].point[1] + Math.cos(homes[i].ang) * 22;
+    const x = homes[i].rest ? homes[i].rest[0] : homes[i].point[0] - Math.sin(homes[i].ang) * 22,
+      y = homes[i].rest ? homes[i].rest[1] : homes[i].point[1] + Math.cos(homes[i].ang) * 22;
     TRAFFIC.push({
       kind: 'car',
       resident: true,
