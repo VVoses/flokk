@@ -39,7 +39,7 @@ with sync_playwright() as p:
         pg.wait_for_timeout(wait)
         pg.screenshot(path=os.path.join(out, f"{tag}_{name}.png"))
         ft = pg.evaluate(FRAME)
-        st = pg.evaluate("({s:WEATHER.s.toFixed(2),g:WEATHER.g.toFixed(2),gusts:WEATHER.gusts.length,leaves:WEATHER.leaves.length,drift:WEATHER.drift.length,fog:WEATHER.fog.toFixed(2),storm:WEATHER.storm.toFixed(2)})")
+        st = pg.evaluate("({s:WEATHER.s.toFixed(2),g:WEATHER.g.toFixed(2),gust:gustAt(L.x,L.y).toFixed(2),leaves:WEATHER.leaves.length,drift:WEATHER.drift.length,fog:WEATHER.fog.toFixed(2),storm:WEATHER.storm.toFixed(2)})")
         print(name, "frame ms median/p90", ft, st)
 
     to = f"dev.to({spot[0]},{spot[1]},1.0)"

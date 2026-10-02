@@ -15,8 +15,12 @@ const WEATHER = {
   s: 0.7, // strength: ~0.2 still, ~0.7 a breeze, ~1 fresh, 1.3+ a gale
   sT: 0.7,
   next: 8,
-  gusts: [],
-  gustT: 1,
+  ox: 0, // the camera's unwrapped travel along the land, anchoring the wind field in the world
+  lastCx: 0,
+  ft: 0,
+  adv: 0,
+  gc: 1,
+  gs: 0,
   g: 0.5, // the gust felt where the flock is: sound, the yard flag, chimney smoke
   storm: 0, // winter gale: driven snow, whiteout, cold that cuts through
   fog: 0,
@@ -36,7 +40,10 @@ const GUST_SEASON = [0.8, 0.55, 1, 0.9], // baseline strength per season: summer
   FOG_CHANCE = [0.3, 0.08, 0.4, 0.22];
 function resetWeather() {
   Object.assign(WEATHER, { s: 0.7, sT: 0.7, next: rr(10, 30), fog: 0, fogT: 0, fogNext: rr(50, 110), storm: 0 });
-  WEATHER.gusts = [];
+  WEATHER.ox = 0;
+  WEATHER.lastCx = cam.x;
+  WEATHER.ft = 0;
+  WEATHER.adv = 0;
   WEATHER.leaves = [];
   WEATHER.drift = [];
   WEATHER.drops = [];
@@ -111,61 +118,54 @@ function viewSpan() {
   const z = cam.z || 1;
   return { hx: vw / 2 / z, hy: vh / 2 / z / TILT, cx: cam.x, cy: cam.py / TILT };
 }
+/* The wind is a continuous field, not a set of travelling shapes. Three layers of sinusoids, each warped by
+   slower ones, ride downwind at their own speeds so the pattern keeps reshaping as it goes: broad irregular
+   fronts that come and go in a lull, combed streaks along the wind inside them, and quick ripples on top.
+   Positions are measured from the camera (the world wraps) plus the camera's unwrapped travel, so the field
+   stays put in the world as the flock moves and only seams at the far side of the land. */
 function gustTick(dt) {
   const W2 = WEATHER,
-    v = viewSpan(),
     speed = 60 + 130 * W2.s;
-  W2.gustT -= dt;
-  if (W2.gustT <= 0 && W2.s > 0.28 && W2.gusts.length < 7) {
-    // a gust comes in from upwind of the view and runs right across it
-    const r = rr(260, 480) * (0.8 + 0.3 * W2.s),
-      c = Math.cos(W2.ang),
-      s = Math.sin(W2.ang),
-      reach = Math.abs(c) * v.hx + Math.abs(s) * v.hy + r,
-      side = rr(-1, 1) * (Math.abs(s) * v.hx + Math.abs(c) * v.hy);
-    W2.gusts.push({
-      x: v.cx - c * reach - s * side,
-      y: v.cy - s * reach + c * side,
-      r,
-      ang: W2.ang, // kept with the gust, so it stays a streak along the way it was blowing even if the wind veers
-      c,
-      s,
-      k: rr(0.55, 1) * Math.min(1.25, 0.4 + W2.s * 0.7),
-      t: 0,
-      life: (reach * 2) / speed,
-      ph: rr(0, 256)
-    });
-    W2.gustT = rr(1.2, 4.5) / Math.max(0.5, W2.s);
-  }
-  const c = Math.cos(W2.ang),
-    s = Math.sin(W2.ang);
-  for (const g of W2.gusts) {
-    g.t += dt;
-    g.x += c * speed * dt;
-    g.y += s * speed * dt;
-  }
-  let gustWrite = 0;
-  for (const g of W2.gusts) if (g.t < g.life) W2.gusts[gustWrite++] = g;
-  W2.gusts.length = gustWrite;
+  W2.ox += wdx(cam.x, W2.lastCx);
+  W2.lastCx = cam.x;
+  W2.ft += dt;
+  W2.adv += speed * dt;
+  const a = W2.ang;
+  W2.gc = Math.cos(a);
+  W2.gs = Math.sin(a);
 }
-// swells in as it arrives, dies away as it goes
-const gustEnv = g => Math.min(1, g.t / 2.5, (g.life - g.t) / 2.5);
-// the extra wind at a point from the gusts passing over it (0 in their lee, ~1 in the heart of one).
-// A gust is a streak, not a puff: long the way it's travelling, narrow across it, so it reads as a
-// band running through the grass rather than a ring spreading out from a point.
+// the extra wind at a point (0 in a lull, ~1 in the heart of a gust, up to ~1.3)
 function gustAt(x, y) {
-  let a = 0;
-  for (const g of WEATHER.gusts) {
-    const dx = wdx(x, g.x),
-      dy = y - g.y,
-      along = dx * g.c + dy * g.s,
-      across = -dx * g.s + dy * g.c,
-      q = (along * along) / (g.r * g.r * 4.5) + (across * across) / (g.r * g.r * 0.22);
-    if (q >= 1) continue;
-    const f = 1 - q;
-    a += g.k * f * f * gustEnv(g);
-  }
-  return Math.min(1.3, a);
+  const W2 = WEATHER,
+    amp = smooth(0.2, 0.5, W2.s) * Math.min(1.25, 0.4 + W2.s * 0.7);
+  if (amp < 0.01) return 0;
+  const X = W2.ox + wdx(x, cam.x),
+    u = X * W2.gc + y * W2.gs - W2.adv,
+    v = y * W2.gc - X * W2.gs,
+    t = W2.ft;
+  const lo = Math.max(0.08, 0.34 - 0.12 * W2.s),
+    front = smooth(
+      lo,
+      lo + 0.5,
+      0.5 +
+        0.5 *
+          Math.sin(
+            (u + W2.adv * 0.28) * 0.0014 +
+              2.1 * Math.sin(v * 0.0009 + t * 0.04) +
+              1.3 * Math.sin(v * 0.0041 - t * 0.07 + 0.7)
+          )
+    );
+  if (front <= 0) return 0;
+  const st =
+      0.5 +
+      0.5 *
+        Math.sin(
+          v * 0.019 +
+            1.5 * Math.sin(u * 0.0036 + v * 0.0031 + t * 0.11) +
+            0.8 * Math.sin(u * 0.0087 - v * 0.007 - t * 0.2)
+        ),
+    rip = 0.5 + 0.5 * Math.sin((u - W2.adv * 0.35) * 0.016 + 1.2 * Math.sin(v * 0.012 + t * 0.5) + v * 0.006);
+  return Math.min(1.3, amp * front * (0.2 + 1.0 * st * st) * (0.78 + 0.32 * rip) * 1.15);
 }
 // what a tree, a reed or a flag feels: the steady wind plus whatever gust is on it
 const windAt = (x, y) => WEATHER.s * (0.25 + gustAt(x, y));
@@ -198,34 +198,32 @@ function leafTreeAt(x, y) {
 function leafTick(dt) {
   const W2 = WEATHER,
     ls = leafySeason();
-  if (ls > 0 && W2.leaves.length < 160)
-    for (const g of W2.gusts) {
-      // a few tries a frame inside each gust: wherever one lands on a broadleaf crown, a leaf lets go
-      const n = g.k * gustEnv(g) * W2.s * ls * dt * 26;
-      for (let i = 0; i < 3; i++) {
-        if (Math.random() > n) continue;
-        const a = rr(0, TAU),
-          d = Math.sqrt(Math.random()) * g.r * 0.8,
-          x = g.x + Math.cos(a) * d,
-          y = g.y + Math.sin(a) * d,
-          t = leafTreeAt(x, y);
-        if (!t) continue;
-        W2.leaves.push({
-          x: x + rr(-8, 8),
-          y,
-          z: rr(0.8, 2.6) * t.k,
-          vx: 0,
-          vy: 0,
-          sp: rr(3, 9) * (Math.random() < 0.5 ? -1 : 1),
-          rot: rr(0, TAU),
-          ph: rr(0, TAU),
-          c: pickP(LEAF_COL),
-          s: rr(0.9, 1.4),
-          age: 0,
-          down: 0
-        });
-      }
+  if (ls > 0 && W2.leaves.length < 160) {
+    const v = viewSpan();
+    // a few tries a frame over the view: where the wind is up and one lands on a broadleaf crown, a leaf lets go
+    for (let i = 0; i < 6; i++) {
+      const x = v.cx + rr(-v.hx, v.hx),
+        y = v.cy + rr(-v.hy, v.hy),
+        n = gustAt(x, y) * W2.s * ls * dt * 26;
+      if (Math.random() > n) continue;
+      const t = leafTreeAt(x, y);
+      if (!t) continue;
+      W2.leaves.push({
+        x: x + rr(-8, 8),
+        y,
+        z: rr(0.8, 2.6) * t.k,
+        vx: 0,
+        vy: 0,
+        sp: rr(3, 9) * (Math.random() < 0.5 ? -1 : 1),
+        rot: rr(0, TAU),
+        ph: rr(0, TAU),
+        c: pickP(LEAF_COL),
+        s: rr(0.9, 1.4),
+        age: 0,
+        down: 0
+      });
     }
+  }
   for (const f of W2.leaves) {
     f.age += dt;
     if (f.z > 0 && f.age < 14) {

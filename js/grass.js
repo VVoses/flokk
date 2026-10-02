@@ -253,14 +253,7 @@ function drawGrass() {
         let h = A.h[i] * L.hs;
         if (!visU(x, y, 12, h + 4)) continue;
         // the gust over this very tuft (weather.js), so its edge is a smooth streak, not one value per bucket
-        let gl = gustAt(x, y);
-        if (gl > 0.02) {
-          // combed into long streaks along the wind that drift sideways and wander, never one smooth hump
-          const u = x * wc + y * ws,
-            v = y * wc - x * ws,
-            st = 0.5 + 0.5 * Math.sin(v * 0.052 + 1.7 * Math.sin(u * 0.0045 - tm * 0.35) + Math.sin(v * 0.019 + 1.3));
-          gl *= 0.3 + 1.1 * st * st;
-        }
+        const gl = gustAt(x, y);
         const kd = A.kd[i];
         if (kd === 1 && s !== 3) h *= 0.8; // grazed
         let dry = L.dryK;
