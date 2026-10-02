@@ -971,7 +971,7 @@ function updateAnimals(dt) {
   for (const p of SMOKE) {
     p.life -= dt;
     const age = p.max - p.life;
-    p.x += (WIND.x * (8 + amb_gust() * 22) + Math.sin(age * 1.3 + p.ph) * 2.5 + p.sp * age * 0.8) * dt;
+    p.x += (WIND.x * (8 + windLocal(p.x, p.y) * 22) + Math.sin(age * 1.3 + p.ph) * 2.5 + p.sp * age * 0.8) * dt;
     p.y += WIND.y * 10 * dt;
     p.z += dt * (0.7 - age * 0.06);
     p.r += dt * (4.2 - age * 0.35);

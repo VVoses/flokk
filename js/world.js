@@ -864,7 +864,7 @@ function genLayout() {
       }
     return true;
   };
-  const types = ['stubble', 'stubble', 'stubble', 'plow', 'plow', 'pasture', 'crop', 'crop'];
+  const types = ['stubble', 'stubble', 'stubble', 'plow', 'plow', 'pasture', 'crop', 'crop', 'crop'];
   /* farmland: each farm works one tract laid out square to its stretch of road, cut - the way real farmland
      is seen from above - into neighbouring plots of different sizes, angles and crops. Every cut runs a
      little off the tract's grid and carries a grass balk, a ditch or a hedge, which sets how far apart
