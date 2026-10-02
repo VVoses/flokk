@@ -568,12 +568,13 @@ function songbird(v = 1) {
     }
   }
 }
-function owlHoot(v) {
+function owlHoot(v, x, y) {
   if (!ac || muted) return;
   const t = ac.currentTime + 0.05,
-    out = ac.createGain();
-  out.gain.value = v;
-  const p = panned(out, rr(-0.8, 0.8));
+    out = ac.createGain(),
+    sp = x == null ? null : spatial(x, y, 900);
+  out.gain.value = sp ? v * (1 - sp.d * 0.5) : v;
+  const p = panned(out, sp ? sp.pan : rr(-0.8, 0.8));
   p.connect(master);
   p.connect(verb);
   const hoot = (t0, d, f) => {

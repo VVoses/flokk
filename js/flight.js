@@ -75,7 +75,12 @@ function pickTarget(h) {
       if (q < nn) nn = q;
     }
     nn = Math.sqrt(nn);
-    const s = d - Math.min(nn, 140) * 1.3 - (b.state === 'perch' ? 50 : 0);
+    // a second predator going for a bird another already has just wastes the stoop: pick a different one
+    const s =
+      d -
+      Math.min(nn, 140) * 1.3 -
+      (b.state === 'perch' ? 50 : 0) +
+      (hawks.some(o => o !== h && o.target === b) ? 400 : 0);
     if (s < bs) {
       bs = s;
       best = b;
@@ -223,6 +228,11 @@ function updateHawk(h, dt) {
           if (t) {
             h.target = t;
             h.state = 'stalk';
+            // an owl's stoop is silent, so the one warning is the call it gives as it commits to the hunt
+            if (h.kind === 'owl' && h.life - (h.hootAt ?? -99) > 10) {
+              h.hootAt = h.life;
+              owlHoot(0.11, h.x, h.y);
+            }
           }
         }
       }
