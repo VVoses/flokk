@@ -583,12 +583,35 @@ function* paintGroundGen(season) {
       g.save();
       g.translate(ox, 0);
       let kind = f.t;
+      const cv = cropOf(f);
       if (winter) kind = 'snow';
       else if (season === 0)
-        kind = f.t === 'pasture' ? 'pasture' : f.t === 'sty' ? 'sty' : f.t === 'plow' ? 'plow' : 'sown';
+        kind =
+          f.t === 'pasture'
+            ? 'pasture'
+            : f.t === 'sty'
+              ? 'sty'
+              : f.t === 'plow'
+                ? 'plow'
+                : cv === 'rapeseed'
+                  ? 'rape'
+                  : 'sown';
       else if (season === 1)
-        kind = f.t === 'pasture' ? 'pasture' : f.t === 'sty' ? 'sty' : f.t === 'crop' ? 'crop' : 'grain';
-      else if (f.t === 'crop') kind = 'plow'; // autumn: the potatoes are lifted (grow.js shows them before that)
+        kind =
+          f.t === 'pasture'
+            ? 'pasture'
+            : f.t === 'sty'
+              ? 'sty'
+              : cv === 'rapeseed'
+                ? 'bloom'
+                : f.t === 'crop'
+                  ? cv === 'onion'
+                    ? 'onion'
+                    : 'crop'
+                  : 'grain';
+      else if (cv === 'rapeseed')
+        kind = 'stubble'; // cut in late summer
+      else if (f.t === 'crop') kind = 'plow'; // autumn: the crop is lifted (grow.js shows it before that)
       paintField(g, f, kind, season);
       g.restore();
     }
@@ -1121,6 +1144,32 @@ function paintField(g, f, kind, season, edge = true) {
     lines(6, 2, 'rgba(146,112,46,.3)');
     lines(6, 1.2, 'rgba(246,226,156,.32)', 3);
     blotch(10, 'rgba(120,96,40,.22)', 'rgba(250,232,170,.26)', 60, 140);
+  } else if (kind === 'rape') {
+    // winter rapeseed in spring: a blue-green mat of rosettes thickening into stems
+    g.fillStyle = '#5E7F46';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(30, 'rgba(110,150,80,.45)', 'rgba(70,104,60,.4)', 24, 80);
+    lines(10, 2.2, 'rgba(60,92,52,.3)');
+  } else if (kind === 'bloom') {
+    // in flower: a sheet of yellow that carries a long way across the land
+    g.fillStyle = '#C9B93A';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(34, 'rgba(236,214,58,.5)', 'rgba(150,150,56,.35)', 24, 80);
+    lines(9, 1.6, 'rgba(110,128,50,.28)');
+  } else if (kind === 'pods') {
+    // petals fallen, the green pods ripening towards straw
+    g.fillStyle = '#8E9A48';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(30, 'rgba(184,170,86,.45)', 'rgba(100,122,56,.4)', 24, 80);
+    lines(9, 1.4, 'rgba(120,120,52,.28)');
+  } else if (kind === 'onion') {
+    // pale blue-green quills in tidy bands, the tops yellowing and flopping over before they are lifted
+    const au = season === 2;
+    g.fillStyle = au ? '#8A7A50' : '#74744A';
+    g.fillRect(f.x, f.y, f.w, f.h);
+    blotch(26, au ? 'rgba(170,150,86,.4)' : 'rgba(140,164,96,.4)', 'rgba(90,86,56,.35)', 24, 70);
+    lines(7, 2.2, au ? 'rgba(150,130,70,.4)' : 'rgba(132,168,96,.4)');
+    lines(7, 1, 'rgba(60,50,34,.3)', 3);
   } else if (kind === 'dormant') {
     // last year's grass, flattened and straw-coloured by the snow, with the first green at its roots
     g.fillStyle = '#A89A6A';
@@ -1162,10 +1211,12 @@ function paintField(g, f, kind, season, edge = true) {
       g.stroke();
     }
   } else {
+    // potato rows: ridges under bushy green haulm, dying back to yellow-brown before the lifting
+    const au = season === 2;
     g.fillStyle = '#6D573F';
     g.fillRect(f.x, f.y, f.w, f.h);
-    lines(14, 6, season === 1 ? '#4F8036' : '#5B8A3E');
-    lines(14, 2.5, '#76A152', -1.5);
+    lines(14, 6, au ? '#8A7440' : season === 1 ? '#4F8036' : '#5B8A3E');
+    lines(14, 2.5, au ? '#A89050' : '#76A152', -1.5);
   }
   g.restore();
   if (!edge) return;

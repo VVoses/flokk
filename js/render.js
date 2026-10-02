@@ -1810,6 +1810,7 @@ function render() {
     }
     ctx.stroke();
     drawGrass(); // standing grass over the meadows and pastures (grass.js)
+    drawCrops(); // the standing grain, rapeseed, potatoes and onions (crops.js)
     for (const t of TREES) if (visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) items.push([t.y, 0, t, k]);
     for (const b of BUILDS) if (visU(b.cx, b.cy, b.len, b.rh + b.len * 0.6)) items.push([b.cy, 1, b, k]);
     for (const line of LINES)

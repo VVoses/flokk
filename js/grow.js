@@ -39,18 +39,30 @@ const GQ = 12, // world units per mask cell
   GP = 2; // cells of padding round the mask: wrapped east-west, the edge row repeated north and south
 
 /* ---------- fields ---------- */
+/* what a row-crop field grows: potatoes, onions or winter rapeseed, handed out in turn so a farm's plots differ
+   (every other field is grain). Handed out by order, off the world's random stream, so the layout never changes. */
+const CROP_KINDS = ['rapeseed', 'potato', 'onion', 'potato', 'rapeseed', 'onion'];
+function cropOf(f) {
+  if (f.t !== 'crop') return f.t === 'plow' || f.t === 'stubble' ? 'grain' : null;
+  if (f.cv === undefined)
+    FIELDS.filter(q => q.t === 'crop').forEach((q, n) => (q.cv = CROP_KINDS[n % CROP_KINDS.length]));
+  return f.cv;
+}
 // the look a field has before (or after) the season's own ground look takes over, or null if it keeps one look
 function fieldStage(f, s) {
   if (f.t === 'sty') return null;
+  if (cropOf(f) === 'rapeseed') return s === 0 ? 'bloom' : s === 1 ? 'pods' : null; // green, then yellow, then seed
   if (s === 0) return f.t === 'pasture' ? 'dormant' : f.t === 'plow' ? null : 'plow'; // bare soil, then the sown rows show
   if (s === 1) return f.t === 'pasture' || f.t === 'crop' ? null : 'ripe'; // green grain goes gold
-  if (s === 2) return f.t === 'pasture' ? null : f.t === 'crop' ? 'crop' : 'ripe'; // standing until harvested
+  if (s === 2) return f.t === 'pasture' ? null : f.t === 'crop' ? (cropOf(f) === 'onion' ? 'onion' : 'crop') : 'ripe'; // standing until harvested
   return null;
 }
 // harvest time of field i in autumn, as season progress: over the first two days, one field at a time
 const harvestAt = i => 0.05 + jit(i + 7) * 0.5;
 function fieldAlpha(i, s, p) {
   const j = jit(i);
+  if (cropOf(FIELDS[i]) === 'rapeseed')
+    return s === 0 ? smooth(0.55 + j * 0.1, 0.92, p) : smooth(0.28 + j * 0.15, 0.68 + j * 0.1, p);
   if (s === 0) {
     const a =
       FIELDS[i].t === 'pasture'
