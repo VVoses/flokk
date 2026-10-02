@@ -786,7 +786,10 @@ function drawSkyBehind(tx, ty) {
     }
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const hY = ((-93 - cam.py) * z + vh / 2) * dpr;
+  const hY = ((-93 - cam.py) * z + vh / 2) * dpr,
+    // the sky only shows above the ground, which is opaque below its top row: filling the rest is a
+    // full screen of blending for nothing (most of the screen when looking down at the land)
+    skyH = Math.min(cv.height, Math.ceil(groundTopPx()) + 2);
   if (LIGHT.glow > 0.02) {
     const gx = cv.width * (0.5 + 0.45 * LIGHT.glowSide);
     const gr = ctx.createRadialGradient(gx, hY, 0, gx, hY, cv.width * 0.6);
@@ -794,13 +797,13 @@ function drawSkyBehind(tx, ty) {
     gr.addColorStop(0, `rgba(${gc},${0.62 * LIGHT.glow})`);
     gr.addColorStop(1, `rgba(${gc},0)`);
     ctx.fillStyle = gr;
-    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.fillRect(0, 0, cv.width, skyH);
   }
   const gr = ctx.createLinearGradient(0, hY - 480 * z * dpr, 0, hY);
   gr.addColorStop(0, LIGHT.skyTop);
   gr.addColorStop(1, LIGHT.skyBot);
   ctx.fillStyle = gr;
-  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillRect(0, 0, cv.width, skyH);
   ctx.globalCompositeOperation = 'source-over';
 }
 

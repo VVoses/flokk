@@ -306,11 +306,33 @@ function treeFoliage(t, season, progress) {
   if (season === 2) return 1 - smooth(0.6 + j, 0.99, progress) * (t.type === 'birch' ? 0.85 : 0.7);
   return 1;
 }
+// a forest's worth of perches, but their leaves only move with the season's progress (a season lasts minutes)
+// and the crossfade: refresh them when either has moved enough to show, not every frame
+const COVER = { p0: null, s: -1, n: -1, p: -1, e: -1 };
 function updateTreeCover() {
+  const e = TRANS.t < 1 ? tEase() : 1,
+    C = COVER;
+  if (
+    C.p0 === perches[0] && // a new world makes new perches
+    C.s === SEASON &&
+    C.n === perches.length &&
+    Math.abs(GROW.p - C.p) < 5e-4 &&
+    Math.abs(e - C.e) < 0.01 &&
+    (e === 1) === (C.e === 1)
+  )
+    return;
+  Object.assign(C, { p0: perches[0], s: SEASON, n: perches.length, p: GROW.p, e });
+  // a tree carries several perches; work its leaves out once (stamped with this refresh's progress)
+  const k = GROW.p + SEASON * 2;
   for (const p of perches) {
     if (p.type !== 'tree' || !p.tree) continue;
-    const incoming = treeFoliage(p.tree, SEASON, GROW.p);
-    p.foliage = TRANS.t < 1 ? lerp(p.leafBefore ?? incoming, incoming, tEase()) : incoming;
+    const t = p.tree;
+    if (t.folK !== k) {
+      t.folK = k;
+      t.fol = treeFoliage(t, SEASON, GROW.p);
+    }
+    const incoming = t.fol;
+    p.foliage = e < 1 ? lerp(p.leafBefore ?? incoming, incoming, e) : incoming;
     p.cover = p.foliage >= 0.45;
   }
 }

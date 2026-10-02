@@ -1585,6 +1585,8 @@ function seamStrip(img) {
   }
   return c;
 }
+// the screen row (device pixels) where the ground plane starts: it is painted opaque from there down
+const groundTopPx = () => Math.max(0, ((-150 * TILT - cam.py) * cam.z + vh / 2) * dpr);
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
@@ -1606,7 +1608,7 @@ function render() {
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.beginPath();
-  ctx.rect(0, Math.max(0, ((-150 * TILT - cam.py) * z + vh / 2) * dpr), cv.width, cv.height);
+  ctx.rect(0, groundTopPx(), cv.width, cv.height);
   ctx.clip();
   ctx.setTransform(dpr * z, 0, 0, dpr * z * TILT, tx, ty);
   const gy0 = V0.py0 / TILT - 10,
@@ -1857,8 +1859,12 @@ function render() {
     }
   };
   items.sort((a, b) => a[0] - b[0]);
-  for (const [, kind, o, k] of items) {
-    setK(k);
+  // indexed rather than destructured: a destructuring for-of makes an iterator per item, every frame
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i],
+      kind = it[1],
+      o = it[2];
+    setK(it[3]);
     if (kind === 0) drawTree(o);
     else if (kind === 1) drawBuilding(o);
     else if (kind === 2) drawPole(o);

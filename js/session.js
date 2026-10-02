@@ -7,7 +7,11 @@ const SESSION_KEY = 'flokk-session-v1',
 let sessionClock = 0,
   sessionLastRaw = null,
   sessionConflict = false;
+// the statics only change when a new world is generated (new perch objects), so the registry and the
+// signature are worked out once per world: the signature alone is ~20ms, and a save runs every 5 s
+let sessionStatics = null;
 function sessionRegistry() {
+  if (sessionStatics && sessionStatics.p0 === perches[0] && sessionStatics.t0 === TREES[0]) return sessionStatics;
   const values = [],
     ids = new Map();
   const add = v => {
@@ -19,12 +23,14 @@ function sessionRegistry() {
   for (const list of [perches, TREES, BUILDS, FIELDS, FARMS, YARDS, LANES, ZONES]) for (const v of list) add(v);
   for (const b of BUILDS) for (const p of b.parts || []) add(p);
   for (const v of [LAKE, POND, JET, BOAT, CHURCH, lakeR, pondR]) add(v);
-  return { values, ids };
+  return (sessionStatics = { values, ids, p0: perches[0], t0: TREES[0], sig: null });
 }
 // References in the snapshot point into sessionRegistry by index. Record the generated world's
 // geometry in that same order so a later world-generator change cannot silently remap them.
 function worldSignature() {
-  const { values } = sessionRegistry(),
+  const reg = sessionRegistry();
+  if (reg.sig) return reg.sig;
+  const { values } = reg,
     keys = ['x', 'y', 'cx', 'cy', 'z', 'h', 'w', 'r', 'lw', 'lh', 'len', 'dep', 'ang', 'type', 'kind', 'tt', 't'],
     signature = values.map(v => {
       if (Array.isArray(v)) return v;
@@ -36,7 +42,7 @@ function worldSignature() {
   const raw = JSON.stringify(signature);
   let hash = 2166136261;
   for (let i = 0; i < raw.length; i++) hash = Math.imul(hash ^ raw.charCodeAt(i), 16777619);
-  return (hash >>> 0).toString(16);
+  return (reg.sig = (hash >>> 0).toString(16));
 }
 function sessionWarning(message) {
   const warning = $('sessionWarning');
