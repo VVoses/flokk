@@ -819,10 +819,11 @@ function updateAnimals(dt) {
       }
       case 'goose':
       case 'rook': {
-        a.x += a.vx * dt;
-        a.y += a.vy * dt;
+        const [wx, wy] = windPush(a);
+        a.x += (a.vx + wx) * dt;
+        a.y += (a.vy + wy) * dt;
         if (L) a.x = L.x + wdx(a.x, L.x);
-        a.flap += dt * (a.k === 'goose' ? 5.5 : 7);
+        a.flap += dt * (a.k === 'goose' ? 5.5 : 7) * (1 + windEffort(a, a.vx, a.vy) * 0.45);
         a.life -= dt;
         break;
       }

@@ -389,8 +389,11 @@ function updateHawk(h, dt) {
   h.heading = h.psi;
   h.vx = Math.cos(h.psi) * h.v;
   h.vy = Math.sin(h.psi) * h.v;
-  h.x += h.vx * dt;
-  h.y += h.vy * dt;
+  const [wx, wy] = windPush(h);
+  // a hovering hawk holds its place into the wind rather than being blown off it
+  const drift = h.state === 'hover' ? 0 : 1;
+  h.x += (h.vx + wx * drift) * dt;
+  h.y += (h.vy + wy * drift) * dt;
   const bankT = h.state === 'hover' ? 0 : clamp((h.turn * h.v) / 240, -1.15, 1.15);
   h.bank += (bankT - h.bank) * Math.min(1, dt * 3);
   h.pitch += (pitchT - h.pitch) * Math.min(1, dt * 3);
@@ -410,7 +413,7 @@ function updateHawk(h, dt) {
       h.flapRate = h.kind === 'owl' ? 5 : 8;
     }
   }
-  if (h.flapOn || Math.abs(Math.sin(h.flap)) > 0.08) h.flap += dt * h.flapRate;
+  if (h.flapOn || Math.abs(Math.sin(h.flap)) > 0.08) h.flap += dt * h.flapRate * (1 + windEffort(h, h.vx, h.vy) * 0.45);
   h.tuck = h.fold > 0.5;
 }
 

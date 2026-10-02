@@ -195,6 +195,12 @@ function windPush(b) {
   b.wpy = wy;
   return [wx, wy];
 }
+// how hard a flyer is working against the wind it was last pushed by (windPush): 1 flying straight into a
+// gale, a little under 0 with a tailwind; scales its wingbeat rate and how often it glides
+function windEffort(b, vx, vy) {
+  const sp = Math.hypot(vx, vy);
+  return sp > 12 ? clamp(-((b.wpx || 0) * vx + (b.wpy || 0) * vy) / sp / 45, -0.3, 1) : 0;
+}
 
 /* ---------- leaves torn off and tumbling downwind (late summer, autumn) ---------- */
 const LEAF_COL = ['#C8862E', '#D9A441', '#A4462A', '#8E5A2B', '#E0B84E', '#B86B2C'];

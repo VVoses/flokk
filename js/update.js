@@ -191,9 +191,8 @@ function update(dt) {
         clamp(-vz * 0.35, -0.6, 0.6) + (b.state === 'land' ? -0.35 : 0),
         Math.min(1, dt * 5)
       );
-      // effort against the wind: the headwind along the bird's heading (a tailwind eases it a little)
-      const eff =
-        b.state === 'fly' && sp > 12 ? clamp(-((b.wpx || 0) * b.vx + (b.wpy || 0) * b.vy) / sp / 45, -0.3, 1) : 0;
+      // effort against the wind: a headwind along the bird's heading (a tailwind eases it a little)
+      const eff = b.state === 'fly' ? windEffort(b, b.vx, b.vy) : 0;
       b.fold = lerp(
         b.fold || 0,
         b.state === 'fly' && !b.flapping && b.panic <= 0 ? 0.6 * (1 - Math.max(0, eff)) : 0,
