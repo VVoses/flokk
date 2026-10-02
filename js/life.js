@@ -786,6 +786,11 @@ function updateAnimals(dt) {
       }
       case 'gull': {
         const tr = a.follow;
+        // the tractor is heading for (or already in) its shed: the gulls have nothing left to follow
+        if (tr.shelter || tr.hide) {
+          a.migrating = true;
+          break;
+        }
         a.oa += dt * a.sp;
         const tx = tr.x - tr.f * 34 + Math.cos(a.oa) * a.or,
           ty = tr.y + Math.sin(a.oa) * a.or * 0.6;
