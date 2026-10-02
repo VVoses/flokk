@@ -357,9 +357,52 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
     dur = (0.4 + 0.08 * power) * tail;
   const { pan, d } = spatial(x, y, 500),
     bus = ac.createGain(),
-    busOut = panned(bus, pan);
+    soft = ac.createBiquadFilter(),
+    busOut = panned(soft, pan);
+  // the whole kill sits under a steep lowpass so no bright edge survives, whatever the layers do
+  soft.type = 'lowpass';
+  soft.frequency.value = kind === 'owl' ? 750 : kind === 'fox' ? 600 : 1050;
+  soft.Q.value = 0.4;
+  bus.connect(soft);
   busOut.connect(master);
   if (d > 0.1) busOut.connect(verb);
+  // a sparrow's distress squawk: a short, rasping 'chrrk' - a falling reedy tone chopped by a fast
+  // flutter, cut off as it's seized. It skips the lowpass above (a squawk is nothing without its
+  // buzz) but gets its own gentler one and a slow attack, so it rasps without any hard edge
+  {
+    const sq = ac.createOscillator(),
+      sq2 = ac.createOscillator(),
+      sf = ac.createBiquadFilter(),
+      sg = ac.createGain(),
+      fl = ac.createOscillator(),
+      fg = ac.createGain(),
+      sb = rr(1500, 1900),
+      sd = rr(0.2, 0.3) * (last ? 1.4 : 1),
+      sv = ac.createGain();
+    sq.type = 'sawtooth';
+    sq2.type = 'triangle';
+    sq.frequency.setValueAtTime(sb, t);
+    sq.frequency.exponentialRampToValueAtTime(sb * 0.6, t + sd);
+    sq2.frequency.setValueAtTime(sb * 1.5, t);
+    sq2.frequency.exponentialRampToValueAtTime(sb * 0.9, t + sd);
+    sf.type = 'lowpass';
+    sf.frequency.value = 2300;
+    sf.Q.value = 0.5;
+    fl.frequency.value = rr(28, 40);
+    fg.gain.value = 0.5;
+    sg.gain.value = 0.5;
+    fl.connect(fg).connect(sg.gain);
+    sv.gain.setValueAtTime(0, t);
+    sv.gain.linearRampToValueAtTime(0.02 * gk, t + 0.07);
+    sv.gain.exponentialRampToValueAtTime(0.0001, t + sd);
+    sq.connect(sf);
+    sq2.connect(sf);
+    sf.connect(sg).connect(sv).connect(busOut);
+    for (const n of [sq, sq2, fl]) {
+      n.start(t);
+      n.stop(t + sd + 0.03);
+    }
+  }
   if (kind !== 'fox') {
     // the bird's own voice, crying out as it's taken - this is the part meant to be felt, so it's
     // the loudest thing here. A slow, uneven vibrato (the same warble hawkCry uses, but shakier)
@@ -387,7 +430,7 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
     cf.frequency.value = base * 0.85;
     cf.Q.value = 1;
     cg.gain.setValueAtTime(0, t);
-    cg.gain.linearRampToValueAtTime(0.05 * gk, t + 0.05);
+    cg.gain.linearRampToValueAtTime(0.05 * gk, t + 0.11);
     cg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     co.connect(cf);
     co2.connect(cf).connect(cg).connect(bus);
@@ -407,7 +450,7 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
   hf.frequency.value = kind === 'fox' ? 220 : 260;
   const hg = ac.createGain();
   hg.gain.setValueAtTime(0, t);
-  hg.gain.linearRampToValueAtTime(0.038 * gk, t + rr(0.025, 0.035));
+  hg.gain.linearRampToValueAtTime(0.038 * gk, t + rr(0.05, 0.07));
   hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
   hs.connect(hf).connect(hg).connect(bus);
   hs.start(t, Math.random() * 3);
