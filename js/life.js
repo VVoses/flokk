@@ -205,7 +205,11 @@ function spawnAnimals(preserve = false) {
       }
       if (a.role === 'fisher') {
         const next = candidates.find(b => b.role === 'fisher');
-        if (next && !!next.ice !== !!a.ice) a.seasonTravel = { x: next.x, y: next.y, ice: next.ice, pose: next.pose };
+        if (next && !!next.ice !== !!a.ice) {
+          a.seasonTravel = { x: next.x, y: next.y, ice: next.ice, pose: next.pose };
+          // the thaw: pack up and head for the nearest shore, then along the shore to the jetty
+          if (a.ice && !next.ice) a.seasonTravel.via = leaveIce(a);
+        }
       }
     }
   }

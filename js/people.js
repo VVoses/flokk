@@ -50,6 +50,9 @@ function fieldEdge(f, x, y) {
   return [cx, cy < f.y + f.h / 2 ? f.y - 12 : f.y + f.h + 14];
 }
 
+// where the open-water fisher sits, near the far end of the jetty
+const jettySpot = () => [lerp(JET.x0, JET.x1, 0.9), lerp(JET.y0, JET.y1, 0.9)];
+
 function spawnPeople() {
   const fm = FARMS[0];
   if (fm && fm.house) {
@@ -58,9 +61,7 @@ function spawnPeople() {
   }
   if (JET) {
     if (SEASON < 3) {
-      const t = 0.9,
-        x = lerp(JET.x0, JET.x1, t),
-        y = lerp(JET.y0, JET.y1, t);
+      const [x, y] = jettySpot();
       ANIMALS.push(mkPerson('fisher', x, y, { pose: 'sit', f: JET.x1 > JET.x0 ? 1 : -1, lineT: rr(4, 9) }));
     } else {
       for (let i = 0; i < 40; i++) {
@@ -189,6 +190,12 @@ function fisherLife(a, dt) {
   a.st = 'idle';
   a.hide = LIGHT.night > 0.5;
   if (a.hide) return;
+  // thaw is near, on the last day of winter: pack up and walk in off the ice while it still holds
+  if (a.ice && SEASON === 3 && (CAL.day + 1) % DAYS_PER_SEASON === 0) {
+    const [x, y] = jettySpot();
+    a.seasonTravel = { x, y, ice: false, pose: 'sit', f: JET.x1 > JET.x0 ? 1 : -1, via: leaveIce(a) };
+    return;
+  }
   a.lineT -= dt;
   if (a.lineT <= 0) {
     // a nibble, sometimes a catch lifted out with a little splash
@@ -212,6 +219,25 @@ function fisherLife(a, dt) {
     }
   }
   if (a.catchT > 0) a.catchT -= dt;
+}
+// the way off the ice when it goes: straight out from the middle of the lake to the shore, then to the
+// jetty's landward end - never straight across open water to the jetty
+function leaveIce(a) {
+  let dx = wdx(a.x, LAKE.x),
+    dy = a.y - LAKE.y;
+  const d = Math.hypot(dx, dy) || 1;
+  dx /= d;
+  dy /= d;
+  let x = a.x,
+    y = a.y;
+  for (let i = 0; i < 80 && inBlob(x, y, LAKE, lakeR, 8); i++) {
+    x += dx * 6;
+    y += dy * 6;
+  }
+  return [
+    [x, y],
+    [JET.x0, JET.y0]
+  ];
 }
 const lineEnd = a => [a.x + a.f * (a.ice ? 7 : 30), a.y + (a.ice ? 3 : 10)];
 
@@ -280,9 +306,17 @@ function updatePeople(dt) {
       a.pose = null;
       a.st = 'walk';
       a.hide = false;
+      a.ice = false;
+      // off the thinning ice first (briskly), then wherever the new season has them fishing
+      if (target.via?.length) {
+        const [vx, vy] = target.via[0];
+        if (steerA(a, vx, vy, 24, dt) < 4) target.via.shift();
+        continue;
+      }
       if (steerA(a, target.x, target.y, 13, dt) < 4) {
         a.ice = !!target.ice;
         a.pose = target.pose;
+        if (target.f) a.f = target.f;
         a.seasonTravel = null;
       }
       continue;
