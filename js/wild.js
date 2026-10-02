@@ -365,8 +365,9 @@ function wildFlock(F, dt) {
     zT = S.z + 0.8;
   }
   if (F.st !== 'feed') {
-    F.x += F.vx * dt;
-    F.y += F.vy * dt;
+    const [wx, wy] = windPush(F);
+    F.x += (F.vx + wx) * dt;
+    F.y += (F.vy + wy) * dt;
   }
   F.z += (zT - F.z) * Math.min(1, dt * 0.8);
   if (F.st !== 'out' && F.chk <= 0) {
@@ -395,7 +396,8 @@ function wildRelocate(F, alarm, ax, ay) {
 }
 function wildBird(a, F, S, dt) {
   if (a.st === 'fly') {
-    a.flap += dt * S.flap;
+    const [wx, wy] = windPush(a);
+    a.flap += dt * S.flap * (1 + windEffort(a, a.vx, a.vy) * 0.45);
     if (a.spot) {
       // coming down to a spot on the ground, or a short hop over the others
       const dx = a.gx - a.x,
@@ -431,8 +433,8 @@ function wildBird(a, F, S, dt) {
       const dip = LOOK[a.k].bound ? Math.sin(a.anim * LOOK[a.k].bound + a.ph) * 0.12 : 0;
       a.z += (Math.max(0.3, F.z + a.oz + dip) - a.z) * Math.min(1, dt * 2);
     }
-    a.x += a.vx * dt;
-    a.y += a.vy * dt;
+    a.x += (a.vx + wx) * dt;
+    a.y += (a.vy + wy) * dt;
     if (Math.hypot(a.vx, a.vy) > 4) a.hd = Math.atan2(a.vy, a.vx);
     a.f = a.vx > 0 ? 1 : -1;
   } else {

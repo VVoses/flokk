@@ -183,10 +183,23 @@ function windWave(x, y) {
 const windLocal = (x, y) => clamp(0.08 + 0.32 * WEATHER.s + 0.65 * gustAt(x, y), 0, 1.3);
 // what a tree, a reed or a flag feels: the steady wind plus whatever gust is on it
 const windAt = (x, y) => WEATHER.s * (0.25 + gustAt(x, y));
-// flying birds are pushed along: nothing in a breeze, a real drag to fly into in a gale
+// flying birds ride the air: the same wind the trees and grass feel (windAt), carrying them along as a
+// ground-speed change, so a tailwind speeds the flock up, a headwind holds it back and a crosswind sets it
+// sideways. Felt from the first breath of wind, strongest in a gust (a gale is roughly a fifth of flying speed)
 function windPush(b) {
-  const k = Math.max(0, WEATHER.s - 0.5) * (0.6 + gustAt(b.x, b.y)) * 30;
-  return [Math.cos(WEATHER.ang) * k, Math.sin(WEATHER.ang) * k];
+  const k = windAt(b.x, b.y) * 42,
+    wx = Math.cos(WEATHER.ang) * k,
+    wy = Math.sin(WEATHER.ang) * k * 0.7;
+  // remembered so the wingbeat can answer to it (a bird working into the wind beats harder)
+  b.wpx = wx;
+  b.wpy = wy;
+  return [wx, wy];
+}
+// how hard a flyer is working against the wind it was last pushed by (windPush): 1 flying straight into a
+// gale, a little under 0 with a tailwind; scales its wingbeat rate and how often it glides
+function windEffort(b, vx, vy) {
+  const sp = Math.hypot(vx, vy);
+  return sp > 12 ? clamp(-((b.wpx || 0) * vx + (b.wpy || 0) * vy) / sp / 45, -0.3, 1) : 0;
 }
 
 /* ---------- leaves torn off and tumbling downwind (late summer, autumn) ---------- */
