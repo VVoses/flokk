@@ -11,7 +11,9 @@ const LIFE = { geeseT: 45, crowT: 25, fishT: 6, tractorF: null };
 // the field tractor's speeds in px/s: a steady crawl down the rows, and a road gear between fields no
 // quicker than the tractors on the road (traffic.js)
 const TRACTOR_WORK = 20,
-  TRACTOR_ROAD = 34;
+  TRACTOR_ROAD = 34,
+  // the share of a field still under snow above which a tractor leaves it alone and stays in its shed
+  TRACTOR_SNOW = 0.3;
 const openLand = (x, y) => y > 60 && !inWater(x, y, 14) && !inBuild(x, y, 16) && !underTree(x, y);
 function mkA(k, x, y, o) {
   return Object.assign(
@@ -175,7 +177,17 @@ function spawnAnimals(preserve = false) {
   const t0 = tf && rowStart(tf, ...ptIn(tf, 30));
   if (t0) {
     LIFE.tractorF = tf;
-    const tr = mkA('tractor', t0.x, t0.y, { rect: tf, row: t0.row, rdir: 1, dirn: t0.dirn, f: t0.dirn });
+    // a spring that opens under snow finds the tractor still in its shed, waiting for the thaw to bare its field
+    const barn = SEASON === 0 && snowOnField(tf) > TRACTOR_SNOW ? barnFor(tf.x + tf.w / 2, tf.y + tf.h / 2) : null,
+      home = barn ? frontOf(barn) : [t0.x, t0.y];
+    const tr = mkA('tractor', ...home, {
+      rect: tf,
+      row: t0.row,
+      rdir: 1,
+      dirn: t0.dirn,
+      f: t0.dirn,
+      ...(barn && { shelter: home, hide: true, busy: true, fade: 0, thawWait: true })
+    });
     ANIMALS.push(tr);
     for (let i = 0; i < (rr(2, 4) | 0); i++)
       ANIMALS.push(
@@ -223,15 +235,20 @@ function spawnAnimals(preserve = false) {
           const barn = barnFor(a.x, a.y);
           if (barn) a.shelter = frontOf(barn);
         } else {
-          if (a.shelter && a.rect) {
+          if (a.k === 'tractor' && SEASON === 0 && a.shelter && a.rect) {
+            // the tractor stays in its shed while its field is still under snow (see updateAnimals)
+            a.thawWait = true;
+          } else if (a.shelter && a.rect) {
             // the thaw: out of the barn door and back along the lane to their own pasture
             a.out = true;
             [a.tx, a.ty] = ptIn(a.rect, 20);
             a.st = 'walk';
           }
-          a.shelter = null;
-          a.hide = false;
-          a.busy = false;
+          if (!a.thawWait) {
+            a.shelter = null;
+            a.hide = false;
+            a.busy = false;
+          }
         }
       }
       if (a.role === 'fisher') {
@@ -307,7 +324,12 @@ function rowStart(f, x, y) {
 // a tractor done with its field picks another ploughed, stubble or cropped field - one of the nearer ones
 // of its own farm, or any farm's if its own has none - and drives to the head of that field's first row
 function tractorMove(a) {
-  const ok = f => f !== a.rect && f.track && (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop');
+  // no driving out onto a field the spring snow still covers
+  const ok = f =>
+    f !== a.rect &&
+    f.track &&
+    (f.t === 'plow' || f.t === 'stubble' || f.t === 'crop') &&
+    snowOnField(f) <= TRACTOR_SNOW;
   let cand = FIELDS.filter(f => ok(f) && f.farm === a.rect.farm);
   if (!cand.length) cand = FIELDS.filter(ok);
   const near = cand
@@ -425,6 +447,23 @@ function updateAnimals(dt) {
         a.fade = 0;
       }
       continue;
+    }
+    if (a.thawWait && snowOnField(a.rect) <= TRACTOR_SNOW) {
+      // the field has bared: out of the shed and along the road to the head of its first row
+      const s = rowStart(a.rect, a.x, a.y);
+      a.thawWait = false;
+      a.shelter = null;
+      a.hide = false;
+      a.busy = false;
+      if (s) {
+        a.next = a.rect;
+        a.go = [s.x, s.y];
+        a.route = makeJourney([a.x, a.y], a.go);
+        a.routeS = 0;
+        a.row = s.row;
+        a.rdir = 1;
+        a.dirn = s.dirn;
+      }
     }
     if (a.shelter) {
       a.busy = true;
