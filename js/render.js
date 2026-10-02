@@ -3,6 +3,21 @@
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 /* ---------- rendering ---------- */
+// a round blob of colour 'r,g,b' fading smoothly to nothing, drawn scaled and faded: far softer than a filled shape
+const PUFFS = {};
+function softPuff(rgb) {
+  if (PUFFS[rgb]) return PUFFS[rgb];
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d'),
+    gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, `rgba(${rgb},1)`);
+  gr.addColorStop(0.45, `rgba(${rgb},.5)`);
+  gr.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  return (PUFFS[rgb] = c);
+}
 /* ground-plane visibility (projected y) and upright visibility (object extends hpx upward) */
 const visG = (x, y, m) => x > V.x0 - m && x < V.x1 + m && y * TILT > V.py0 - m && y * TILT < V.py1 + m;
 const visU = (x, y, m, hpx) => x > V.x0 - m && x < V.x1 + m && y * TILT - hpx < V.py1 + m && y * TILT > V.py0 - m;
@@ -1904,41 +1919,25 @@ function render() {
         }
       }
       if (!s.moth) {
-        // many tiny wings together make a faint grey smudge in the air, shaped by where the flies are
-        ctx.fillStyle = `rgba(${hazeC},${hazeA})`;
-        ctx.beginPath();
-        let cx = 0,
-          cy = 0;
+        // many tiny wings together make a faint smudge in the air, shaped by where the flies are. Each fly
+        // gives a soft round puff that thins to nothing, so the cloud has no edge to read as an outline.
+        const hz = softPuff(hazeC);
+        ctx.globalAlpha = hazeA * 1.5;
         for (const m of s.m) {
-          const [mx, my, mz] = motePos(s, m),
-            py = PY(my, mz);
-          ctx.moveTo(mx + 10, py);
-          ctx.ellipse(mx, py, 10, 13, 0, 0, TAU);
-          cx += mx;
-          cy += py;
+          const [mx, my, mz] = motePos(s, m);
+          ctx.drawImage(hz, mx - 15, PY(my, mz) - 18, 30, 36);
         }
-        ctx.fill();
         if (sunK > 0.4) {
           // in sunshine a dancing column of midges lights up like a puff of bright air: backlit wings seen
           // together from well off, which is how a hungry flock (and the player) spots one across a meadow
-          cx /= s.m.length;
-          cy /= s.m.length;
-          const R = 26 + s.m.length * 1.6,
-            br = (sunK - 0.4) / 0.6,
-            gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-          gr.addColorStop(0, `rgba(${glintC},${0.3 * br})`);
-          gr.addColorStop(0.55, `rgba(${glintC},${0.12 * br})`);
-          gr.addColorStop(1, `rgba(${glintC},0)`);
-          ctx.fillStyle = gr;
-          ctx.beginPath();
+          const gl = softPuff(glintC);
+          ctx.globalAlpha = 0.07 * ((sunK - 0.4) / 0.6);
           for (const m of s.m) {
-            const [mx, my, mz] = motePos(s, m),
-              py = PY(my, mz);
-            ctx.moveTo(mx + 17, py);
-            ctx.ellipse(mx, py, 17, 21, 0, 0, TAU);
+            const [mx, my, mz] = motePos(s, m);
+            ctx.drawImage(gl, mx - 24, PY(my, mz) - 29, 48, 58);
           }
-          ctx.fill();
         }
+        ctx.globalAlpha = 1;
       }
       for (const m of s.m) {
         const [mx, my, mz] = motePos(s, m);
