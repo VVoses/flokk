@@ -38,6 +38,17 @@ function mkA(k, x, y, o) {
     o || {}
   );
 }
+// the barn nearest (x, y): where the farm stock spend the winter
+function barnFor(x, y) {
+  let best = null,
+    bd = Infinity;
+  for (const b of BUILDS) {
+    if (b.kind !== 'barn' && b.kind !== 'sbarn') continue;
+    const d = Math.hypot(wdx(b.cx, x), b.cy - y);
+    if (d < bd) ((bd = d), (best = b));
+  }
+  return best;
+}
 function spawnAnimals(preserve = false) {
   const residents = preserve ? ANIMALS.filter(a => !a.dying) : [];
   const oldWild = preserve ? WILD.flocks : null;
@@ -46,14 +57,31 @@ function spawnAnimals(preserve = false) {
   RINGS = [];
   if (!preserve) wildReset();
   const pastures = FIELDS.filter(f => f.t === 'pasture');
-  if (SEASON < 3)
-    pastures.slice(0, 3).forEach((f, i) => {
-      const kind = i % 2 ? 'cow' : 'sheep';
-      const n = kind === 'sheep' ? rr(4, 7) | 0 : rr(2, 4) | 0;
+  pastures.slice(0, 3).forEach((f, i) => {
+    const kind = i % 2 ? 'cow' : 'sheep';
+    const n = kind === 'sheep' ? rr(4, 7) | 0 : rr(2, 4) | 0;
+    if (SEASON < 3) {
       for (let j = 0; j < n; j++) ANIMALS.push(mkA(kind, ...ptIn(f, 30), { rect: f, red: Math.random() < 0.7 }));
       if (kind === 'sheep' && SEASON === 0)
         for (let j = 0; j < 3; j++) ANIMALS.push(mkA('sheep', ...ptIn(f, 30), { rect: f, lamb: true }));
-    });
+    } else {
+      // a world that starts in winter finds the herds already stalled in the nearest barn, where
+      // they can be heard (audio.js) but not seen
+      const barn = barnFor(f.x + f.w / 2, f.y + f.h / 2);
+      if (barn)
+        for (let j = 0; j < n; j++)
+          ANIMALS.push(
+            mkA(kind, ...frontOf(barn), {
+              rect: f,
+              red: Math.random() < 0.7,
+              shelter: frontOf(barn),
+              hide: true,
+              busy: true,
+              fade: 0
+            })
+          );
+    }
+  });
   // pigs stay penned by their sty year-round, snow or not
   for (const fm of FARMS)
     if (fm.sty) {
@@ -192,12 +220,15 @@ function spawnAnimals(preserve = false) {
       if ((a.k === 'duck' || a.k === 'heron') && SEASON === 3) a.migrating = true;
       if (a.k === 'sheep' || a.k === 'cow' || a.k === 'tractor') {
         if (SEASON === 3) {
-          const barns = BUILDS.filter(b => b.kind === 'barn' || b.kind === 'sbarn');
-          const barn = barns.sort(
-            (b, c) => Math.hypot(wdx(b.cx, a.x), b.cy - a.y) - Math.hypot(wdx(c.cx, a.x), c.cy - a.y)
-          )[0];
+          const barn = barnFor(a.x, a.y);
           if (barn) a.shelter = frontOf(barn);
         } else {
+          if (a.shelter && a.rect) {
+            // the thaw: out of the barn door and back along the lane to their own pasture
+            a.out = true;
+            [a.tx, a.ty] = ptIn(a.rect, 20);
+            a.st = 'walk';
+          }
           a.shelter = null;
           a.hide = false;
           a.busy = false;
@@ -420,7 +451,8 @@ function updateAnimals(dt) {
             arrived = walkTo(a, dt, a.k === 'sheep' ? 16 : a.k === 'pig' ? 9 : 11);
           // A destination can be inside an irregular field while the straight step toward it clips
           // a concave corner. Keep the animal on its side of the fence and choose another graze spot.
-          if (!inField(a.rect, a.x, a.y, -2)) {
+          if (a.out && inField(a.rect, a.x, a.y, -2)) a.out = false;
+          if (!a.out && !inField(a.rect, a.x, a.y, -2)) {
             a.x = ox;
             a.y = oy;
             a.vx = a.vy = 0;
