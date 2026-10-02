@@ -465,6 +465,23 @@ function treeSway(t) {
     lean = Math.cos(WEATHER.ang) * WEATHER.s * (0.25 + g);
   return (flutter * 0.04 * (0.5 + 0.5 * WEATHER.s + 0.8 * g) + lean * 0.03) * stiff;
 }
+// the sprite recoloured to the sky's colour, in a scratch canvas the size of the sprite (trees past the map's
+// north edge only, so a few per frame)
+const EDGE_TINT = document.createElement('canvas');
+function edgeTint(spr) {
+  if (EDGE_TINT.width !== spr.width || EDGE_TINT.height !== spr.height) {
+    EDGE_TINT.width = spr.width;
+    EDGE_TINT.height = spr.height;
+  }
+  const q = EDGE_TINT.getContext('2d');
+  q.globalCompositeOperation = 'source-over';
+  q.clearRect(0, 0, spr.width, spr.height);
+  q.drawImage(spr, 0, 0);
+  q.globalCompositeOperation = 'source-atop';
+  q.fillStyle = LIGHT.skyBot;
+  q.fillRect(0, 0, spr.width, spr.height);
+  return EDGE_TINT;
+}
 function drawTree(t) {
   const spr = SPR[t.type][t.v],
     k = t.k,
@@ -488,11 +505,11 @@ function drawTree(t) {
   // open sky rather than a hazy, distant one. Never touches anything within the real map (y>=0).
   const edge = Math.pow(clamp(-t.y / 260, 0, 1), 1.5);
   if (edge > 0.01 && la > 0.005) {
-    ctx.globalCompositeOperation = 'source-atop';
+    // tint the tree's own pixels only: a source-atop fill on the main canvas would wash a hard rectangle
+    // over everything already drawn behind the tree (ridge, other trees), and that box swayed with it
+    const q = edgeTint(spr);
     ctx.globalAlpha = edge * 0.5 * la;
-    ctx.fillStyle = LIGHT.skyBot;
-    ctx.fillRect(x, y, w, h);
-    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(q, x, y, w, h);
     ctx.globalAlpha = 1;
   }
   if (LIGHT.rim > 0.04 && la > 0.005) {

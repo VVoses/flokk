@@ -406,10 +406,19 @@ function fogTick(dt) {
   if (W2.storm > W2.fog) W2.fogCol = mixHex(W2.fogCol, '#E8EEF4', 0.5);
   if (W2.fog <= 0 && W2.storm <= 0.02) return;
   const v = viewSpan(),
-    sx = v.hx + 700,
-    sy = v.hy + 500;
+    sx = v.hx + 1000,
+    sy = v.hy + 800;
+  // sx/sy keep a bank's whole sprite off screen where it wraps round; bankEnv() fades it over the last stretch
+  // before that (and in when new), so a bank never switches on or off in view, even when the view zooms out
   while (W2.banks.length < 12)
-    W2.banks.push({ x: v.cx + rr(-sx, sx), y: v.cy + rr(-sy, sy), r: rr(420, 820), ph: rr(0, TAU), v: rr(0.6, 1.4) });
+    W2.banks.push({
+      x: v.cx + rr(-sx, sx),
+      y: v.cy + rr(-sy, sy),
+      r: rr(420, 820),
+      ph: rr(0, TAU),
+      v: rr(0.6, 1.4),
+      a: 0
+    });
   for (const b of W2.banks) {
     // fog creeps along with what air there is, and rolls slowly on itself
     b.x += (WIND.x * 22 * b.v + Math.sin(T * 0.05 + b.ph) * 6) * dt;
@@ -418,7 +427,14 @@ function fogTick(dt) {
     if (b.x - v.cx < -sx) b.x += 2 * sx;
     if (b.y - v.cy > sy) b.y -= 2 * sy;
     if (b.y - v.cy < -sy) b.y += 2 * sy;
+    b.a += (bankEnv(b, sx, sy, v) - b.a) * Math.min(1, dt * 1.5);
   }
+}
+const smooth01 = t => t * t * (3 - 2 * t);
+function bankEnv(b, sx, sy, v) {
+  const ex = clamp((sx - Math.abs(b.x - v.cx)) / 400, 0, 1),
+    ey = clamp((sy - Math.abs(b.y - v.cy)) / 400, 0, 1);
+  return smooth01(ex) * smooth01(ey);
 }
 // drawn over the world (trees, birds, hawks) but under the light overlay, so the night darkens it and the
 // yard lamps and headlights glow in it. Half resolution: it is all soft.
@@ -562,7 +578,7 @@ function weatherItems(items) {
     for (const b of W2.banks)
       for (let i = 0; i < FOG_SLICES; i++) {
         const y = b.y + (i / (FOG_SLICES - 1) - 0.5) * b.r * 0.5;
-        if (visU(b.x, y, b.r, FOG_H * HZ)) items.push([y, 15, { b, y, i }, 0]);
+        if (b.a > 0.003 && visU(b.x, y, b.r * 1.2 + 40, FOG_H * HZ)) items.push([y, 15, { b, y, i }, 0]);
       }
 }
 function drawWeatherBand(B) {
@@ -661,7 +677,9 @@ function drawFogSlice({ b, y, i }) {
     base = y * TILT,
     top = base - FOG_H * HZ * (0.7 + 0.3 * Math.sin(b.ph + i)),
     bot = base + b.r * 0.12 * TILT;
-  ctx.globalAlpha = Math.min(1, (k * 2.3) / FOG_SLICES);
+  // thins away past the map's north edge, where the sky takes over from the trees it lay among
+  const north = smooth01(clamp((y + 220) / 220, 0, 1));
+  ctx.globalAlpha = Math.min(1, (k * 2.3) / FOG_SLICES) * b.a * north;
   ctx.drawImage(mk2Tint(WEATHER.fogCol), X - rx, top, rx * 2, bot - top);
   ctx.globalAlpha = 1;
 }
