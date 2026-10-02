@@ -1641,6 +1641,14 @@ function buildExtras() {
       rf = inL ? lakeR : pondR;
     const a = rnd(0, TAU),
       r = Math.sqrt(R()) * (rf(a) - 12);
-    SPARK.push({ x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r, p: rnd(0, TAU), l: rnd(4, 10), s: rnd(0.7, 1.4) });
+    SPARK.push({
+      x: c.x + Math.cos(a) * r,
+      y: c.y + Math.sin(a) * r,
+      p: rnd(0, TAU),
+      l: rnd(4, 10),
+      s: rnd(0.7, 1.4),
+      fT: -9,
+      fk: 1
+    });
   }
 }
