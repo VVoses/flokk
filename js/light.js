@@ -78,14 +78,19 @@ function calUpdate() {
   const len = clamp((HZ * 0.5) / Math.tan((Math.max(8, el) * Math.PI) / 180), 12, 40);
   SX = -Math.cos(LIGHT.theta) * len;
   SY = -Math.sin(LIGHT.theta) * len * 0.9;
-  LIGHT.shadowA = clamp((el + 1.5) / 6, 0, 1) * (SEASON === 3 ? 0.75 : 0.9);
+  const winter = winterW();
+  LIGHT.shadowA = clamp((el + 1.5) / 6, 0, 1) * lerp(0.9, 0.75, winter);
   // ambient tint and sky by sun elevation
   gradeLight(el);
-  if (SEASON === 3 && el > 0) {
-    LIGHT.skyTop = mixHex(LIGHT.skyTop, '#9AAFBF', 0.5);
-    LIGHT.skyBot = mixHex(LIGHT.skyBot, '#E3E6E8', 0.4);
-    LIGHT.C = [lerp(LIGHT.C[0], 215, 0.5), lerp(LIGHT.C[1], 225, 0.5), lerp(LIGHT.C[2], 240, 0.5)];
-    LIGHT.a = Math.max(LIGHT.a, 0.07);
+  if (winter > 0 && el > 0) {
+    LIGHT.skyTop = mixHex(LIGHT.skyTop, '#9AAFBF', 0.5 * winter);
+    LIGHT.skyBot = mixHex(LIGHT.skyBot, '#E3E6E8', 0.4 * winter);
+    LIGHT.C = [
+      lerp(LIGHT.C[0], 215, 0.5 * winter),
+      lerp(LIGHT.C[1], 225, 0.5 * winter),
+      lerp(LIGHT.C[2], 240, 0.5 * winter)
+    ];
+    LIGHT.a = lerp(LIGHT.a, Math.max(LIGHT.a, 0.07), winter);
   }
   LIGHT.night = clamp((2 - el) / 10, 0, 1);
   LIGHT.glow = clamp(1 - Math.abs(el + 1) / 7, 0, 1);
@@ -647,7 +652,7 @@ function drawSkyBehind(tx, ty) {
   ctx.setTransform(dpr * z, 0, 0, dpr * z, tx, ty);
   if (V.py0 < -60) {
     const SNF = [0.2, 0.55, 0.32, -0.5],
-      snowAll = winterW() > 0.5,
+      winter = winterW(),
       snowF = lerp(SNF[TRANS.prevSeason], SNF[SEASON], tEase());
     for (let li = RIDGES.length - 1; li >= 0; li--) {
       const L2 = RIDGES[li],
@@ -669,7 +674,7 @@ function drawSkyBehind(tx, ty) {
         ctx.fillRect(V.x0, L2.by - 70, V.x1 - V.x0, 72);
       }
       if (L2.trees) {
-        ctx.fillStyle = tintHex(mixHex(snowAll ? '#3A4A40' : shade(L2.bot, 0.9), L2.top, L2.p ? 0.35 : 0.12));
+        ctx.fillStyle = tintHex(mixHex(mixHex(shade(L2.bot, 0.9), '#3A4A40', winter), L2.top, L2.p ? 0.35 : 0.12));
         ctx.beginPath();
         for (let i = i0; i <= i1; i++) {
           const x = i * st2 + off,
@@ -681,8 +686,9 @@ function drawSkyBehind(tx, ty) {
         }
         ctx.fill();
       }
-      if (L2.snow || snowAll) {
+      if (L2.snow || winter > 0) {
         const sH = L2.trees ? -999 : L2.base + L2.amp * snowF;
+        ctx.globalAlpha = L2.snow ? 1 : winter;
         ctx.fillStyle = tintHex(
           mixHex('#F2F5F7', LIGHT.eve ? '#FFB49A' : '#FFD0C4', L2.p > 0.2 ? LIGHT.rim * 0.7 : 0),
           0.9
@@ -703,19 +709,18 @@ function drawSkyBehind(tx, ty) {
           ctx.closePath();
         }
         ctx.fill();
+        ctx.globalAlpha = 1;
       }
       const glowK = L2.p > 0.2 ? LIGHT.rim * (L2.p > 0.5 ? 0.62 : 0.35) : 0,
         gcol = LIGHT.eve ? '#F2A084' : '#F4BCAE';
       const gr = ctx.createLinearGradient(0, L2.by - L2.mx, 0, L2.by);
-      const top = mixHex(snowAll && !L2.trees ? mixHex(L2.top, '#E8EDF1', 0.55) : L2.top, gcol, glowK),
+      const top = mixHex(mixHex(L2.top, '#E8EDF1', L2.trees ? 0 : 0.55 * winter), gcol, glowK),
         // the nearest band sits right on the land's northern edge: while snow lies there (winter, and spring
         // until it melts) its foot is snowy forest floor like the ground in front of it, or the snow would
         // end in a straight line against a dark band
         bot = L2.p
-          ? snowAll
-            ? mixHex(L2.bot, '#DCE3E8', L2.trees ? 0.35 : 0.5)
-            : L2.bot
-          : mixHex(L2.bot, '#DCE3E8', 0.8 * (snowAll ? 1 : GROW.maskOn ? GROW.northSnow : 0));
+          ? mixHex(L2.bot, '#DCE3E8', winter * (L2.trees ? 0.35 : 0.5))
+          : mixHex(L2.bot, '#DCE3E8', 0.8 * Math.max(winter, GROW.maskOn ? GROW.northSnow : 0));
       gr.addColorStop(0, tintHex(top));
       gr.addColorStop(1, tintHex(bot));
       ctx.fillStyle = gr;

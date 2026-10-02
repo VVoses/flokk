@@ -4,7 +4,7 @@
   "description": "Lead a flock of sparrows through a year. Zero runtime dependencies; these are dev tools only.",
   "scripts": {
     "lint": "node tools/lint.mjs",
-    "format": "prettier --write \"js/*.js\" \"css/*.css\" index.html",
+    "format": "prettier --write \"js/*.js\" \"css/*.css\" \"tools/*.{cjs,mjs}\" index.html",
     "check": "sh tools/check.sh",
     "check:polish": "node tools/polish_check.cjs",
     "check:seasons": "node tools/transition_check.cjs"

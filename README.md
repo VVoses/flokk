@@ -95,7 +95,7 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
 - `python3 tools/seasons.py TAG [HOUR] [X,Y,ZOOM]`: one place in all four seasons; `tools/timelapse.py TAG SEASON "h1,h2,..."`:
   one place through a day; `tools/night.py TAG`: yard lamps, a car's headlights and the train at night.
 - `npm run lint`: ESLint over all scripts as one program (so cross-file names resolve), reported per file.
-- `npm run format`: Prettier over the scripts, stylesheet and page.
+- `npm run format`: Prettier over the game scripts, JavaScript test tools, stylesheet and page.
 - `python3 tools/scene.py STEP...`: scripted run with the `?dev` helpers, e.g.
   `python3 tools/scene.py "js:dev.season(2)" "js:dev.to(1200,1500,1.2)" wait:2000 shot:autumn`
   Screenshots go to `tools/out/`. `TRACE.start(()=>[...])` records changes; read `TRACE.log`.

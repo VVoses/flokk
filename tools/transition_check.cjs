@@ -39,6 +39,43 @@ const assert = require('node:assert/strict');
       assert.equal(result.released, true);
       console.log(`season ${season} -> ${(season + 1) % 4}:`, result);
     }
+    // A fixed northern view must not flash at the midpoint of winter's crossfade.
+    for (const [from, to] of [
+      [2, 3],
+      [3, 0]
+    ]) {
+      const jump = await page.evaluate(
+        ([from, to]) => {
+          dev.calm();
+          dev.season(from, 12);
+          dev.to(W / 2, 0, 0.8);
+          st.mode = 'pause';
+          applySeason(to, true);
+          while (BG_JOB) runBgJob();
+          const sample = t => {
+            TRANS.t = t;
+            calUpdate();
+            render();
+            const pixels = ctx.getImageData(0, 0, cv.width, Math.min(cv.height, 320)).data;
+            const rgb = [0, 0, 0];
+            let n = 0;
+            for (let i = 0; i < pixels.length; i += 32) {
+              rgb[0] += pixels[i];
+              rgb[1] += pixels[i + 1];
+              rgb[2] += pixels[i + 2];
+              n++;
+            }
+            return rgb.map(v => v / n);
+          };
+          const a = sample(0.49),
+            b = sample(0.51);
+          return Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+        },
+        [from, to]
+      );
+      assert.ok(jump < 5, `north view flashes across ${from} -> ${to} midpoint: ${jump.toFixed(2)}`);
+      console.log(`north ${from} -> ${to} midpoint color jump: ${jump.toFixed(2)}`);
+    }
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

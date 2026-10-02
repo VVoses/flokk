@@ -200,7 +200,7 @@ transition), `seam_check.py` (the world-wrap, described above), `road_check.py`/
 (generation and season/weather regressions across many seeds), `survey.py`/`seasons.py`/`timelapse.py`/`night.py`
 (visual contact sheets for a human to actually look at — `DESIGN.md`'s "did you look at it?" is not rhetorical).
 `npm run lint` runs ESLint over every script *as one program* so cross-file globals resolve correctly; `npm run
-format` is Prettier over `js/*.js`, `css/*.css`, `index.html` (not the Markdown docs, including this one — match
+format` is Prettier over `js/*.js`, `css/*.css`, `tools/*.{cjs,mjs}`, `index.html` (not the Markdown docs, including this one — match
 the surrounding prose by hand). `sh tools/check.sh` is the fast smoke test: syntax-check every file, then
 actually boot the game headless and confirm it starts.
 

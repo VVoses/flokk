@@ -1005,7 +1005,11 @@ function animalCall(k, vol, pn, o = {}) {
         return 0.21;
       },
       tt => sw(5200, 6000, 0.07, tt, 6, 5500, 'sine')
-    ].sort(() => Math.random() - 0.5);
+    ];
+    for (let i = bits.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [bits[i], bits[j]] = [bits[j], bits[i]];
+    }
     let tt = t;
     for (const b of bits.slice(0, rr(2, 5) | 0)) tt += (b(tt) || 0.1) + vgap(0.06, 0.4);
   } else if (k === 'linnet') {
