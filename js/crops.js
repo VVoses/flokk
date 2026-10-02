@@ -160,8 +160,8 @@ function drawCrops() {
     let A = CRP.F[fi];
     if (!A) A = CRP.F[fi] = buildCrop(f, fi, cv);
     const d = L.d,
-      paths = [new Path2D(), new Path2D(), new Path2D()],
-      heads = new Path2D(),
+      paths = [bladeSink(), bladeSink(), bladeSink()],
+      heads = bladeSink(),
       sheenC = mixRGB(L.c2, [244, 240, 190], 0.4);
     let lc = -1,
       wv = 0,
@@ -192,30 +192,20 @@ function drawCrops() {
         const P = lit && k === d.nb - 1 ? paths[2] : paths[(A.sh[i] + k) & 1];
         const tx = bx + lx,
           ty = b - hk + Math.abs(lx) * 0.25;
-        P.moveTo(bx, b);
-        P.quadraticCurveTo(bx + lx * 0.15, b - hk * 0.65, tx, ty);
+        sinkBlade(P, bx, b, bx + lx * 0.15, b - hk * 0.65, tx, ty);
         if (L.hdK > 0 && k !== 0 && (ph * 7) % 1 < L.hdK) {
-          if (cv === 'grain') heads.rect(tx - 0.7, ty - 2.4, 1.4, 3);
+          if (cv === 'grain') sinkRect(heads, tx - 0.7, ty - 2.4, 1.4, 3);
           else if (cv === 'rapeseed') {
-            heads.rect(tx - 1.3, ty - 1.2, 2.6, 1.9);
-            heads.rect(tx - 0.4 + Math.sin(ph) * 1.6, ty + 2.6, 2.2, 1.5);
-          } else heads.rect(tx - 0.8, ty - 0.8, 1.6, 1.6);
+            sinkRect(heads, tx - 1.3, ty - 1.2, 2.6, 1.9);
+            sinkRect(heads, tx - 0.4 + Math.sin(ph) * 1.6, ty + 2.6, 2.2, 1.5);
+          } else sinkRect(heads, tx - 0.8, ty - 0.8, 1.6, 1.6);
         }
       }
     }
     if (!any) continue;
-    ctx.lineWidth = d.w;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = rgbS(L.c1);
-    ctx.stroke(paths[0]);
-    ctx.strokeStyle = rgbS(L.c2);
-    ctx.stroke(paths[1]);
-    ctx.strokeStyle = rgbS(sheenC);
-    ctx.stroke(paths[2]);
-    if (L.hdK > 0) {
-      ctx.fillStyle = rgbS(L.hd);
-      ctx.fill(heads);
-    }
-    ctx.lineCap = 'butt';
+    sinkStroke(paths[0], rgbS(L.c1), d.w);
+    sinkStroke(paths[1], rgbS(L.c2), d.w);
+    sinkStroke(paths[2], rgbS(sheenC), d.w);
+    if (L.hdK > 0) sinkFill(heads, rgbS(L.hd));
   }
 }

@@ -1798,6 +1798,7 @@ function render() {
     air = [],
     skyA = [],
     hk = [];
+  bladesBegin(); // the grass and crop blades go to the GPU layer when there is one (blades.js)
   for (const k of KS) {
     const tk = inK(k);
     ctx.setTransform(dpr * z, 0, 0, dpr * z, tk, ty);
@@ -1850,6 +1851,7 @@ function render() {
     // rain, snow, blown leaves and fog banks take their place among the trees (weather.js)
     if (k === 0) weatherItems(items);
   }
+  bladesFlush(); // lay the GPU grass and crop layer in, under everything that stands
   V = V0;
   let ck = null;
   const setK = k => {
