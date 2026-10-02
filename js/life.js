@@ -818,6 +818,31 @@ function updateAnimals(dt) {
       }
       case 'gull': {
         const tr = a.follow;
+        // the tractor is heading for (or already in) its shed: the gulls have nothing to follow, so they
+        // fly off, and drift back in from out of sight once it is working the fields again
+        if (tr.shelter || tr.hide) {
+          if (!a.away) {
+            a.vx = tr.f * -65;
+            a.vy = -22;
+            a.x += a.vx * dt;
+            a.y += a.vy * dt;
+            a.hd = Math.atan2(a.vy, a.vx);
+            a.flap += dt * 7;
+            if (!inView(a.x, a.y, 300)) a.away = a.hide = true;
+          }
+          break;
+        }
+        if (a.away) {
+          const ang = rr(0, TAU);
+          const x = tr.x + Math.cos(ang) * 700,
+            y = tr.y + Math.sin(ang) * 700;
+          if (!inView(x, y, 300)) {
+            a.x = x;
+            a.y = y;
+            a.away = a.hide = false;
+          }
+          break;
+        }
         a.oa += dt * a.sp;
         const tx = tr.x - tr.f * 34 + Math.cos(a.oa) * a.or,
           ty = tr.y + Math.sin(a.oa) * a.or * 0.6;
