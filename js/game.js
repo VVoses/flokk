@@ -668,11 +668,54 @@ function yearWon() {
   st.mode = 'won';
   $('wonStats').innerHTML = overHTML(true);
   $('wonTitle').textContent = CAL.year > 1 ? `${CAL.year} years` : 'A year';
+  $('wonSub').textContent = `${birds.length} ${birds.length === 1 ? 'bird' : 'birds'} greet the spring`;
+  $('shareBtn').textContent = 'Share';
   $('wonOv').hidden = false;
   dashBtn.hidden = true;
   syncHud();
   $('keepBtn').focus();
 }
+/* a wordle-style result for the year just won, ready to paste anywhere */
+function shareText() {
+  const years = CAL.year,
+    url = 'https://vvoses.github.io/flokk/';
+  return [
+    `flokk 🐦 ${years} ${years === 1 ? 'year' : 'years'} survived`,
+    `🪶 max flock ${st.maxFlock}`,
+    `🌅 flock at year end ${birds.length}`,
+    url
+  ].join('\n');
+}
+// clipboard API where allowed (secure context, permission), else a hidden textarea + execCommand
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (e2) {
+      ok = false;
+    }
+    ta.remove();
+    return ok;
+  }
+}
+let shareTimer = 0;
+$('shareBtn').onclick = async () => {
+  const b = $('shareBtn'),
+    ok = await copyText(shareText());
+  b.textContent = ok ? 'Copied' : 'Copy failed';
+  clearTimeout(shareTimer);
+  shareTimer = setTimeout(() => (b.textContent = 'Share'), 2000);
+};
 function keepFlying() {
   CAL.year++;
   st.mode = 'play';
