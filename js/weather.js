@@ -167,6 +167,20 @@ function gustAt(x, y) {
     rip = 0.5 + 0.5 * Math.sin((u - W2.adv * 0.35) * 0.016 + 1.2 * Math.sin(v * 0.012 + t * 0.5) + v * 0.006);
   return Math.min(1.3, amp * front * (0.2 + 1.0 * st * st) * (0.78 + 0.32 * rip) * 1.15);
 }
+// the crests of the wind running through the land, -1..1: the same travelling ripple everything that sways
+// reads, so a gust is seen reaching the grass, the trees and the smoke together
+function windWave(x, y) {
+  const W2 = WEATHER,
+    X = W2.ox + wdx(x, cam.x),
+    u = X * W2.gc + y * W2.gs - W2.adv,
+    v = y * W2.gc - X * W2.gs;
+  return (
+    0.65 * Math.sin(u * 0.011 + 0.9 * Math.sin(v * 0.0031 + W2.ft * 0.15)) +
+    0.35 * Math.sin((u + W2.adv * 0.3) * 0.0063 - v * 0.0021 + 1.1)
+  );
+}
+// the gust felt at a point, on the scale of WEATHER.g (which is the one felt where the flock is)
+const windLocal = (x, y) => clamp(0.08 + 0.32 * WEATHER.s + 0.65 * gustAt(x, y), 0, 1.3);
 // what a tree, a reed or a flag feels: the steady wind plus whatever gust is on it
 const windAt = (x, y) => WEATHER.s * (0.25 + gustAt(x, y));
 // flying birds are pushed along: nothing in a breeze, a real drag to fly into in a gale

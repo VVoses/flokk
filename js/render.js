@@ -474,7 +474,7 @@ function coverHint(dt) {
 function treeSway(t) {
   const stiff = t.type === 'spruce' ? 0.55 : t.type === 'birch' ? 1.25 : 0.95;
   const ph = t.x * 0.013 + t.y * 0.021;
-  const flutter = Math.sin(T * 1.7 + ph) * 0.65 + Math.sin(T * 0.6 + ph * 1.7) * 0.35;
+  const flutter = windWave(t.x, t.y) * 0.7 + Math.sin(T * 1.7 + ph) * 0.3;
   // the gust passing over this tree (weather.js), so you can watch a gust come through a stand tree by tree
   const g = gustAt(t.x, t.y),
     lean = Math.cos(WEATHER.ang) * WEATHER.s * (0.25 + g);

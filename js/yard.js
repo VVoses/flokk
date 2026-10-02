@@ -216,7 +216,7 @@ function drawProp(p) {
     // the pennant streams downwind, a long tapering tongue that ripples
     const dir = WIND.x < 0 ? -1 : 1,
       Ln = 34,
-      wv = 0.6 + amb_gust();
+      wv = 0.6 + windLocal(p.x, p.y);
     const up = [],
       dn = [];
     for (let i = 0; i <= 10; i++) {
@@ -303,7 +303,7 @@ function drawProp(p) {
     ctx.stroke();
     // laundry out on dry days in the light half of the year, taken in for the night
     if (SEASON < 2 && LIGHT.night < 0.3 && LIGHT.rain < 0.15) {
-      const sw = Math.sin(T * 2.2) * (0.5 + amb_gust());
+      const sw = Math.sin(T * 2.2) * (0.5 + windLocal(p.x, p.y));
       for (const c of p.clothes) {
         const x = lerp(xa, xb, c.u),
           y = lineY(c.u);
