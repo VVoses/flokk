@@ -95,7 +95,8 @@ function buildCells() {
     gt = new Float32Array(nw * nh),
     kind = new Uint8Array(nw * nh),
     sf = new Float32Array(nw * nh),
-    nz = new Float32Array(nw * nh);
+    nz = new Float32Array(nw * nh),
+    open = new Float32Array(nw * nh);
   for (let j = 0; j < nh; j++)
     for (let i = 0; i < nw; i++) {
       const o = j * nw + i,
@@ -122,23 +123,30 @@ function buildCells() {
       for (const Y of YARDS)
         yd = Math.max(yd, [40, 10, -20, -50].filter(m => inYard(Y, x, y, m + (n2 - 0.5) * 40)).length / 4);
       t -= 0.25 * yd;
+      // the road, farm lanes and railway are driven or ploughed clear, so no snow lies on the surface
+      // itself and it feathers out over its verge - the same ground winter paints, in the seasons either side
+      const hw = Math.min(roadDist(x, y) - 15, railDist(x, y) - 12, laneDist(x, y) - 9);
+      open[o] = 1 - smooth(0, 5 + 3 * n2, hw);
       th[o] = clamp(t, -0.1, 0.7);
       gt[o] = Math.min(0.94, th[o] + 0.2 + 0.1 * n2);
       kind[o] = k;
       sf[o] = s;
       nz[o] = n2;
     }
-  GROW.cells = { nw, nh, th, gt, kind, sf, nz };
+  GROW.cells = { nw, nh, th, gt, kind, sf, nz, open };
   GROW.MC = mk(nw + 2 * GP, nh + 2 * GP);
   GROW.MC2 = mk((nw + 2 * GP) * GUP, (nh + 2 * GP) * GUP);
   GROW.mKey = '';
 }
 // recompute the mask for season s at progress p; k fades the whole of it (a transition out of that season)
 function paintMask(s, p, k) {
-  const { nw, nh, th, gt, kind, sf, nz } = GROW.cells,
+  const { nw, nh, th, gt, kind, sf, nz, open } = GROW.cells,
     c = GROW.MC.getContext('2d'),
     d = new Uint8ClampedArray(nw * nh * 4),
-    ease = tEase();
+    ease = tEase(),
+    // spring opens where winter left off: the roads are still pale under the old snow on the first morning, then
+    // the thaw reaches the gravel and the rails first, before the fields
+    clear = s === 0 ? lerp(0.7, 1, smooth(0, 0.2, p)) : 1;
   for (let o = 0; o < nw * nh; o++) {
     const kd = kind[o];
     if (!kd) continue;
@@ -173,7 +181,7 @@ function paintMask(s, p, k) {
       if (kd === 2) ((r = 118), (gg = 98), (b = 72));
       else ((r = 138), (gg = 132), (b = 100));
     }
-    a *= k;
+    a *= k * (1 - open[o] * clear);
     if (a < 0.004) continue;
     const i4 = o * 4;
     d[i4] = r;
