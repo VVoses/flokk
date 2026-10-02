@@ -672,77 +672,6 @@ function drawSpire(b, P, poly, cols, hl, hd) {
 }
 const rnd2 = (b, h, u) => hash2((h * 13 + b.cy) | 0, (u * 1013) | 0);
 /* building: real walls, gable ends and a pitched roof, projected in 2.5D */
-// a petrol station's forecourt: a concrete apron, pumps on islands under a flat canopy on slim columns, and a price pylon by the road
-function drawForecourt(b, P0, poly, c, s) {
-  const hd = b.dep / 2,
-    night = LIGHT.night,
-    y0 = hd - 14,
-    y1 = hd + 18,
-    xa = b.len / 2 + 6,
-    xb = b.len / 2 + 60,
-    CH = 17,
-    P = P0;
-  // the faces of a box that point toward the camera, then its top
-  const box = (x0, x1, ya, yb, h0, h1, side, top) => {
-    for (const [ax, ay, bx, by, nx, ny, k] of [
-      [x0, ya, x1, ya, 0, -1, 0.82],
-      [x1, ya, x1, yb, 1, 0, 0.7],
-      [x1, yb, x0, yb, 0, 1, 1],
-      [x0, yb, x0, ya, -1, 0, 0.9]
-    ])
-      if (nx * s + ny * c > 0.02)
-        poly(
-          [P(ax, ay, h0), P(bx, by, h0), P(bx, by, h1), P(ax, ay, h1)],
-          shade(side, k * (1 - 0.1 * (nx * c - ny * s)))
-        );
-    if (top) poly([P(x0, ya, h1), P(x1, ya, h1), P(x1, yb, h1), P(x0, yb, h1)], top);
-  };
-  poly([P(xa - 4, y0 - 4, 0), P(xb + 14, y0 - 4, 0), P(xb + 14, y1 + 4, 0), P(xa - 4, y1 + 4, 0)], '#8A8C88'); // apron
-  poly([P(xa - 6, y0, 0.1), P(xb + 6, y0, 0.1), P(xb + 6, y0 + 1.6, 0.1), P(xa - 6, y0 + 1.6, 0.1)], 'rgba(0,0,0,.14)');
-  const ym = (y0 + y1) / 2,
-    xm = (xa + xb) / 2;
-  // two pump islands with a pump on each
-  for (const px of [xm - 13, xm + 13]) {
-    box(px - 7, px + 7, ym - 2.5, ym + 2.5, 0, 1.4, '#B8B9B2', '#CBCBC3');
-    box(px - 2.4, px + 2.4, ym - 1.8, ym + 1.8, 1.4, 11, '#B53A2E', '#D6D6CE');
-    box(px - 1.8, px + 1.8, ym + 1.85, ym + 1.9, 6, 9.5, '#2B3638'); // the display
-    poly(
-      [P(px - 1.8, ym + 1.9, 6), P(px + 1.8, ym + 1.9, 6), P(px + 1.8, ym + 1.9, 9.5), P(px - 1.8, ym + 1.9, 9.5)],
-      night > 0.2 ? '#E8D890' : '#2B3638'
-    );
-  }
-  // slim columns at the four corners
-  for (const [qx, qy] of [
-    [xa + 3, y0 + 3],
-    [xb - 3, y0 + 3],
-    [xa + 3, y1 - 3],
-    [xb - 3, y1 - 3]
-  ])
-    box(qx - 1.2, qx + 1.2, qy - 1.2, qy + 1.2, 0, CH, '#C9C9C1');
-  // the canopy: a thin white slab with a red band round its edge, and lamps glowing beneath at night
-  if (night > 0.15) {
-    poly(
-      [P(xa, y0, CH - 0.2), P(xb, y0, CH - 0.2), P(xb, y1, CH - 0.2), P(xa, y1, CH - 0.2)],
-      'rgba(255,238,190,' + (0.22 * night).toFixed(2) + ')'
-    );
-    const g = P(xm, ym, 1);
-    const gr = ctx.createRadialGradient(g[0], g[1], 2, g[0], g[1], 44);
-    gr.addColorStop(0, 'rgba(255,236,176,' + (0.34 * night).toFixed(2) + ')');
-    gr.addColorStop(1, 'rgba(255,236,176,0)');
-    ctx.fillStyle = gr;
-    ctx.fillRect(g[0] - 46, g[1] - 46, 92, 92);
-  }
-  box(xa, xb, y0, y1, CH, CH + 3.2, '#E8E6DE', '#F0EEE6');
-  box(xa, xb, y0, y1, CH + 1.2, CH + 2.2, '#C03228'); // the red band
-  // the price pylon at the road edge
-  const qx = xb + 10,
-    qy = y1 - 2;
-  box(qx - 1, qx + 1, qy - 1, qy + 1, 0, 30, '#6E7074');
-  box(qx - 6, qx + 6, qy - 1.8, qy + 1.8, 24, 36, '#E8E6DE', '#F0EEE6');
-  box(qx - 6, qx + 6, qy - 1.8, qy + 1.8, 31.5, 36, '#C03228', '#D23C30');
-  for (const r of [0, 1, 2])
-    box(qx - 4.5, qx + 4.5, qy + 1.85, qy + 1.9, 25.2 + r * 2, 26.4 + r * 2, night > 0.2 ? '#F0DE98' : '#7C8284');
-}
 function drawBuilding(b) {
   // the church draws as its parts (tower, nave, chancel), back to front
   if (b.parts) {
@@ -776,9 +705,6 @@ function drawBuilding(b) {
   ];
   const wh = b.wh,
     rh = b.rh;
-  const forecourt = b.service === 'fuel',
-    fcBehind = forecourt && (b.len / 2 + 33) * s + hd * c < 0; // is the forecourt further from the camera than the kiosk?
-  if (fcBehind) drawForecourt(b, P, poly, c, s); // the road side faces away: the forecourt sits behind the kiosk
   // a soft contact shadow where the walls meet the ground (not under parts raised on others)
   if (!z)
     for (const g of [7, 4.5, 2])
@@ -899,8 +825,24 @@ function drawBuilding(b) {
       ctx.fillStyle = '#E6E0CD';
       ctx.fillText(b.service === 'fuel' ? 'BENSIN' : 'GÅRDSBUTIKK', 0, 0);
       ctx.restore();
-      if (b.service !== 'fuel')
-        for (const lx of [-hl * 0.6, hl * 0.6]) {
+      for (const lx of [-hl * 0.6, hl * 0.6]) {
+        if (b.service === 'fuel') {
+          const py = hd + 13;
+          poly([P(lx - 4, py - 3, 0), P(lx + 4, py - 3, 0), P(lx + 4, py + 3, 0), P(lx - 4, py + 3, 0)], '#7D807C');
+          poly([P(lx - 3, py + 3, 0), P(lx + 3, py + 3, 0), P(lx + 3, py + 3, 15), P(lx - 3, py + 3, 15)], '#A74234');
+          poly([P(lx - 3, py - 3, 15), P(lx + 3, py - 3, 15), P(lx + 3, py + 3, 15), P(lx - 3, py + 3, 15)], '#D2D3C9');
+          poly(
+            [P(lx - 2, py + 3.2, 9), P(lx + 2, py + 3.2, 9), P(lx + 2, py + 3.2, 13), P(lx - 2, py + 3.2, 13)],
+            '#2B3638'
+          );
+          const hose = [P(lx + 3, py + 2, 12), P(lx + 7, py + 2, 3), P(lx + 5, py + 2, 9)];
+          ctx.beginPath();
+          ctx.moveTo(...hose[0]);
+          ctx.quadraticCurveTo(...hose[1], ...hose[2]);
+          ctx.strokeStyle = '#2B2926';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else {
           poly([P(lx - 7, hd + 8, 0), P(lx + 7, hd + 8, 0), P(lx + 7, hd + 8, 7), P(lx - 7, hd + 8, 7)], '#8F7251');
           for (let i = -5; i <= 5; i += 2.5) {
             const q = P(lx + i, hd + 7, 8);
@@ -910,6 +852,7 @@ function drawBuilding(b) {
             ctx.fill();
           }
         }
+      }
     }
     if (b.portal && nx === -1) {
       // the church door, facing the road
@@ -1142,7 +1085,6 @@ function drawBuilding(b) {
       '#6E6A64'
     );
   }
-  if (forecourt && !fcBehind) drawForecourt(b, P, poly, c, s);
 }
 function drawPole(p) {
   const base = p.y * TILT,

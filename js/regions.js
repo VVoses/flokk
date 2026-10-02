@@ -38,10 +38,8 @@ function placeServices() {
         }
       if (crowdedCrossing) continue;
       let clear = true;
-      const rx = service === 'fuel' ? 100 : 65,
-        ry = service === 'fuel' ? 66 : 48; // a petrol station also needs room for its forecourt beside the kiosk
-      for (let dx = -rx; dx <= rx; dx += 13)
-        for (let dy = -ry; dy <= ry; dy += 12) {
+      for (let dx = -65; dx <= 65; dx += 13)
+        for (let dy = -48; dy <= 48; dy += 12) {
           const xx = cx + dx,
             yy = cy + dy;
           if (
@@ -60,12 +58,12 @@ function placeServices() {
         cx,
         cy,
         ang: ang + (side > 0 ? Math.PI : 0),
-        len: service === 'fuel' ? 42 : 88,
+        len: service === 'fuel' ? 66 : 88,
         dep: 42,
-        wh: service === 'fuel' ? 19 : 23,
-        rh: service === 'fuel' ? 21 : 43,
+        wh: 23,
+        rh: service === 'fuel' ? 29 : 43,
         roof: service === 'fuel' ? 'metal' : 'slate',
-        wall: service === 'fuel' ? '#E6E0D2' : '#854A35',
+        wall: service === 'fuel' ? '#D8D3C5' : '#854A35',
         windows: true,
         kind: 'house',
         service,
