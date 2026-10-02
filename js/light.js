@@ -337,7 +337,7 @@ function applyLight(tx, ty, KS, inK) {
   c.fillRect(0, 0, w, h);
   const nf = LIGHT.night;
   if (nf > 0.02) {
-    const src = LIGHTS.concat(trainLights(), trafficLights());
+    const src = LIGHTS.concat(trainLights(), trafficLights(), xmasLights());
     if (L && birds.includes(L)) src.push({ x: L.x, y: L.y, h: L.z, r: 170, i: 0.32, fl: 0, soft: 1 });
     const K = l => nf * l.i * (l.fl ? 0.93 + 0.07 * Math.sin(T * 11 + l.x) : 1);
     // 1. the light on the ground: round pools, and the beams thrown ahead of vehicles
@@ -467,6 +467,81 @@ function applyLight(tx, ty, KS, inK) {
   ctx.drawImage(LMC, 0, 0, cv.width, cv.height);
   ctx.globalCompositeOperation = 'source-over';
 }
+/* ---------- Christmas lights: strings along the eaves, on the yard tree, round the lamp ---------- */
+// all of winter has a few houses lit up, the way the weeks before Jul do; on the Jul day itself every
+// house, the church and the yard trees are
+const XMAS = ['#FF5A4D', '#FFC857', '#6FD08C', '#6FB7FF'];
+let XGLOW = null;
+const xmasEligible = b => b.kind === 'house' || b.tall;
+const xmasLit = b => SEASON === 3 && xmasEligible(b) && (isYule() || (b.kind === 'house' && hash2(b.cx, b.cy) < 0.55));
+// the lit eave of a building lies on the side of the roof the eye sees
+const eaveSide = b => (Math.cos(b.ang) >= 0 ? 1 : -1);
+function xmasLights() {
+  const out = [];
+  if (SEASON !== 3) return out;
+  for (const b of BUILDS)
+    for (const p of b.parts || [b]) {
+      if (p.kind !== 'house' || !xmasLit(p)) continue;
+      const c = Math.cos(p.ang),
+        s = Math.sin(p.ang),
+        ly = eaveSide(p) * (p.dep / 2 + 5);
+      out.push({ x: p.cx - ly * s, y: p.cy + ly * c, h: (p.wh - 3) / HZ, r: p.len * 0.5 + 30, i: 0.2, fl: 0 });
+    }
+  if (isYule())
+    for (const p of PROPS) if (p.k === 'xtree') out.push({ x: p.x, y: p.y, h: XTREE_H * 0.55, r: 64, i: 0.7, fl: 0 });
+  return out;
+}
+// one bulb: a coloured bead by day, a soft glow of its own colour at night, the string chasing along
+function xmasBulb(x, y, i, seed = 0) {
+  const n = LIGHT.night,
+    ci = (i + seed) & 3,
+    tw = 0.7 + 0.3 * Math.sin(T * 2.4 - i * 0.8 + seed);
+  ctx.fillStyle = XMAS[ci];
+  ctx.globalAlpha = 0.55 + 0.45 * n * tw;
+  ctx.beginPath();
+  ctx.arc(x, y, 1, 0, TAU);
+  ctx.fill();
+  if (n > 0.05) {
+    if (!XGLOW)
+      XGLOW = XMAS.map(col => {
+        const c = mk(24, 24),
+          q = c.getContext('2d'),
+          g = q.createRadialGradient(12, 12, 0, 12, 12, 12);
+        g.addColorStop(0, col);
+        g.addColorStop(0.3, col + '99');
+        g.addColorStop(1, col + '00');
+        q.fillStyle = g;
+        q.fillRect(0, 0, 24, 24);
+        return c;
+      });
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, n * tw * 0.6);
+    ctx.drawImage(XGLOW[ci], x - 5.5, y - 5.5, 11, 11);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.globalAlpha = 1;
+}
+// a wire swagged between two points, a few bulbs hung along each swag
+function xmasString(x0, y0, x1, y1, seed, sag = 2.2, swag = 11) {
+  const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / swag)),
+    at = t => [lerp(x0, x1, t), lerp(y0, y1, t)];
+  ctx.strokeStyle = 'rgba(24,30,26,.75)';
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  for (let k = 0; k < n; k++) {
+    const m = at((k + 0.5) / n),
+      e = at((k + 1) / n);
+    ctx.quadraticCurveTo(m[0], m[1] + sag * 2, e[0], e[1]);
+  }
+  ctx.stroke();
+  let i = 0;
+  for (let k = 0; k < n; k++)
+    for (const f of [0.2, 0.5, 0.8]) {
+      const [x, y] = at((k + f) / n);
+      xmasBulb(x, y + 4 * sag * f * (1 - f), i++, seed);
+    }
+}
 function drawLamp(l) {
   const b = l.y * TILT,
     top = PY(l.y, 2.3);
@@ -488,6 +563,10 @@ function drawLamp(l) {
   ctx.fill();
   ctx.fillStyle = '#2E2A26';
   ctx.fillRect(l.x + 2.5, top, 9, 2.4);
+  // in winter a spiral of lights winds up the lamp post
+  if (SEASON === 3)
+    for (let i = 0; i < 6; i++)
+      xmasBulb(l.x + Math.sin(i * 1.9) * 2.4, b - 5 - i * ((b - top - 8) / 5), i, (l.x | 0) & 3);
 }
 function drawFeeder(f) {
   if (SEASON !== 3) return;
