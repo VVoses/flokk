@@ -1750,11 +1750,18 @@ function render() {
       ctx.clip();
     }
     ctx.globalAlpha = 0.38 * LIGHT.shadowA;
+    // stretched out along the wind they ride, so they sweep over the land as long drifting bands, not round blots
+    const ca = Math.cos(WEATHER.ang),
+      sa = Math.sin(WEATHER.ang);
     for (const c of CLOUDSH)
       for (const ox of [0, -W, W]) {
-        const x = c.x + ox;
-        if (x + c.s < Math.max(0, V.x0) || x - c.s > Math.min(W, V.x1) || c.y + c.s < gy0 || c.y - c.s > gy1) continue;
-        ctx.drawImage(SHADOW_SPR, x - c.s, c.y - c.s, c.s * 2, c.s * 2);
+        const x = c.x + ox,
+          rr2 = c.s * 1.9;
+        if (x + rr2 < Math.max(0, V.x0) || x - rr2 > Math.min(W, V.x1) || c.y + rr2 < gy0 || c.y - rr2 > gy1) continue;
+        ctx.save();
+        ctx.transform(ca * 1.9, sa * 1.9, -sa * 0.55, ca * 0.55, x, c.y);
+        ctx.drawImage(SHADOW_SPR, -c.s, -c.s, c.s * 2, c.s * 2);
+        ctx.restore();
       }
     ctx.globalAlpha = 1;
     drawMist(); // the mist banks likewise
