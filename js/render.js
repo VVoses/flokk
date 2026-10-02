@@ -713,7 +713,7 @@ function drawBuilding(b) {
         'rgba(20,24,18,.07)'
       );
   for (const [x1, y1, x2, y2, nx, ny, gb] of sides) {
-    const gable = gb && !b.spire,
+    const gable = gb && !b.spire && !b.flat,
       wnx = nx * c - ny * s,
       wny = nx * s + ny * c;
     if (wny <= 0.02) continue;
@@ -792,7 +792,7 @@ function drawBuilding(b) {
       poly([Q(0, 2.6), Q(1, 2.6), Q(1, 3.2), Q(0, 3.2)], 'rgba(0,0,0,.12)');
     }
     // a house's front door sits in the middle of the side the farmer walks out of, with a stone step
-    const front = b.kind === 'house' && ny === 1;
+    const front = b.kind === 'house' && ny === 1 && !b.flat;
     if (front) {
       const L = Math.hypot(x2 - x1, y2 - y1),
         w = 5.5 / L;
@@ -805,8 +805,9 @@ function drawBuilding(b) {
       ctx.fillStyle = '#D9C27A';
       ctx.fillRect(k[0] - 0.7, k[1] - 0.7, 1.4, 1.4);
     }
-    if (b.service && ny === 1) {
-      const signColor = b.service === 'fuel' ? '#325459' : '#344E36';
+    if (b.flat && ny === 1) drawStorefront(Q, wh, poly);
+    if (b.service === 'farmstore' && ny === 1) {
+      const signColor = '#344E36';
       poly(
         [
           P(-hl * 0.82, hd + 0.2, wh - 9),
@@ -823,34 +824,16 @@ function drawBuilding(b) {
       ctx.font = 'bold 4.6px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#E6E0CD';
-      ctx.fillText(b.service === 'fuel' ? 'BENSIN' : 'GÅRDSBUTIKK', 0, 0);
+      ctx.fillText('GÅRDSBUTIKK', 0, 0);
       ctx.restore();
       for (const lx of [-hl * 0.6, hl * 0.6]) {
-        if (b.service === 'fuel') {
-          const py = hd + 13;
-          poly([P(lx - 4, py - 3, 0), P(lx + 4, py - 3, 0), P(lx + 4, py + 3, 0), P(lx - 4, py + 3, 0)], '#7D807C');
-          poly([P(lx - 3, py + 3, 0), P(lx + 3, py + 3, 0), P(lx + 3, py + 3, 15), P(lx - 3, py + 3, 15)], '#A74234');
-          poly([P(lx - 3, py - 3, 15), P(lx + 3, py - 3, 15), P(lx + 3, py + 3, 15), P(lx - 3, py + 3, 15)], '#D2D3C9');
-          poly(
-            [P(lx - 2, py + 3.2, 9), P(lx + 2, py + 3.2, 9), P(lx + 2, py + 3.2, 13), P(lx - 2, py + 3.2, 13)],
-            '#2B3638'
-          );
-          const hose = [P(lx + 3, py + 2, 12), P(lx + 7, py + 2, 3), P(lx + 5, py + 2, 9)];
+        poly([P(lx - 7, hd + 8, 0), P(lx + 7, hd + 8, 0), P(lx + 7, hd + 8, 7), P(lx - 7, hd + 8, 7)], '#8F7251');
+        for (let i = -5; i <= 5; i += 2.5) {
+          const q = P(lx + i, hd + 7, 8);
+          ctx.fillStyle = '#B3A254';
           ctx.beginPath();
-          ctx.moveTo(...hose[0]);
-          ctx.quadraticCurveTo(...hose[1], ...hose[2]);
-          ctx.strokeStyle = '#2B2926';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        } else {
-          poly([P(lx - 7, hd + 8, 0), P(lx + 7, hd + 8, 0), P(lx + 7, hd + 8, 7), P(lx - 7, hd + 8, 7)], '#8F7251');
-          for (let i = -5; i <= 5; i += 2.5) {
-            const q = P(lx + i, hd + 7, 8);
-            ctx.fillStyle = '#B3A254';
-            ctx.beginPath();
-            ctx.arc(...q, 1.6, 0, TAU);
-            ctx.fill();
-          }
+          ctx.arc(...q, 1.6, 0, TAU);
+          ctx.fill();
         }
       }
     }
@@ -897,7 +880,7 @@ function drawBuilding(b) {
           ctx.stroke();
         }
       }
-    } else if (b.windows) {
+    } else if (b.windows && !(b.flat && ny === 1)) {
       const L = Math.hypot(x2 - x1, y2 - y1);
       const n = gable ? 1 : Math.max(front ? 2 : 1, Math.floor(L / 34));
       for (let i = 0; i < n; i++) {
@@ -939,6 +922,10 @@ function drawBuilding(b) {
     );
   if (b.spire) {
     drawSpire(b, P, poly, cols, hl, hd);
+    return;
+  }
+  if (b.flat) {
+    drawFlatRoof(b, P, poly, cols, hl, hd);
     return;
   }
   const o = 5;
@@ -1032,6 +1019,27 @@ function drawBuilding(b) {
     ctx.moveTo(e1[0], e1[1]);
     ctx.lineTo(r0[0], r0[1]);
     ctx.stroke();
+  }
+  if (xmasLit(b)) {
+    // a string of lights along the front eave, and on Jul up the gable edges as well
+    const seed = hash2(b.cx, b.cy + 7) * 4;
+    for (const { pts, wy } of planes) {
+      if (wy <= 0) continue;
+      const [e0, e1, r0, r1] = pts;
+      xmasString(
+        e0[0],
+        e0[1] + 3.6,
+        e1[0],
+        e1[1] + 3.6,
+        seed | 0,
+        b.kind === 'house' ? 2.2 : 3,
+        b.kind === 'house' ? 11 : 15
+      );
+      if (isYule()) {
+        xmasString(e0[0], e0[1] + 2, r1[0], r1[1], (seed + 1) | 0, 1.2, 9);
+        xmasString(e1[0], e1[1] + 2, r0[0], r0[1], (seed + 2) | 0, 1.2, 9);
+      }
+    }
   }
   const r0 = P(-hl - o, 0, rh),
     r1 = P(hl + o, 0, rh);
@@ -1836,7 +1844,7 @@ function render() {
       if (visU(v.x, v.y, 50, 30)) items.push([v.y, 11, v, k]);
     }
     for (const l of LAMPS) if (visU(l.x, l.y, 20, 110)) items.push([l.y, 8, l, k]);
-    for (const p of PROPS) if (visU(p.x, p.y, 50, 190)) items.push([p.y + 7, 12, p, k]);
+    for (const p of PROPS) if (visU(p.x, p.y, 50, 190)) items.push([p.key ?? p.y + 7, 12, p, k]);
     for (const s of XSIGNS) if (visU(s.x, s.y, 20, 60)) items.push([s.y, 14, s, k]);
     if (FEEDER && SEASON === 3 && visU(FEEDER.x, FEEDER.y, 20, 90)) items.push([FEEDER.y, 9, FEEDER, k]);
     for (const a of ANIMALS) {

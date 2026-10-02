@@ -6,7 +6,7 @@ decisions a change should respect, and the recurring patterns worth reusing rath
 
 ## The one deliberate constraint: plain scripts, one shared scope, no build step
 
-There is no bundler, no modules, no `import`/`export`, and (deliberately) no framework. `index.html` loads 27
+There is no bundler, no modules, no `import`/`export`, and (deliberately) no framework. `index.html` loads 28
 scripts in a fixed order, and every top-level `const`/`let`/`function` in every file lands in the same global
 scope. This is not an oversight — it's what makes the rest of the toolchain possible:
 

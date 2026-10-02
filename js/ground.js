@@ -871,6 +871,7 @@ function* paintGroundGen(season) {
       g.fillRect(-48, -29, 96, 58);
       g.restore();
     }
+  for (const b of BUILDS) if (b.service === 'fuel') paintForecourt(g, b, winter);
   for (const spot of vehicleDestinations()) {
     if (spot.pad) continue;
     const service = spot.name !== 'farm';

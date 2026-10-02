@@ -37,9 +37,11 @@ function placeServices() {
           break;
         }
       if (crowdedCrossing) continue;
+      // the petrol station's canopy and forecourt reach out towards the road
+      const dyMax = service === 'fuel' ? 84 : 48;
       let clear = true;
       for (let dx = -65; dx <= 65; dx += 13)
-        for (let dy = -48; dy <= 48; dy += 12) {
+        for (let dy = -dyMax; dy <= dyMax; dy += 12) {
           const xx = cx + dx,
             yy = cy + dy;
           if (
@@ -58,12 +60,13 @@ function placeServices() {
         cx,
         cy,
         ang: ang + (side > 0 ? Math.PI : 0),
-        len: service === 'fuel' ? 66 : 88,
-        dep: 42,
-        wh: 23,
-        rh: service === 'fuel' ? 29 : 43,
-        roof: service === 'fuel' ? 'metal' : 'slate',
-        wall: service === 'fuel' ? '#D8D3C5' : '#854A35',
+        len: service === 'fuel' ? 44 : 88,
+        dep: service === 'fuel' ? 30 : 42,
+        wh: service === 'fuel' ? 14 : 23,
+        rh: service === 'fuel' ? 17 : 43,
+        roof: service === 'fuel' ? 'dark' : 'slate',
+        flat: service === 'fuel',
+        wall: service === 'fuel' ? '#DAD6CB' : '#854A35',
         windows: true,
         kind: 'house',
         service,
