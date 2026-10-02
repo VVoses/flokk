@@ -186,6 +186,9 @@ function* paintGroundGen(season) {
   const XW = W + 2 * GB,
     RX = () => R() * XW - GB,
     RY = () => R() * H;
+  // the widened canvas is only needed while painting (composeG lets it go again)
+  GE.width = Math.round((W + 2 * GB) * S);
+  GE.height = Math.round(H * S);
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, GE.width, GE.height);
   /* base colour field, one sample every Q units: grass, heath, bog, bare rock, and the forest floor */
@@ -1266,6 +1269,8 @@ function composeG() {
   };
   band(0, w - b, 0, 0.5); // east edge takes in what lies just west of x=0
   band(b + w, 0, 0.5, 0); // west edge takes in what lies just east of x=W
+  // G now holds the season's ground; the widened scratch canvas (~17 MB) waits empty for the next repaint
+  GE.width = GE.height = 1;
 }
 /* forest floor and the smaller textures of open land, scattered over the whole (widened) ground */
 function paintFloor(season, RX, RY, K, fAt, bogAt, rockAt) {
