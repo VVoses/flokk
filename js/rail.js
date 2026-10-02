@@ -199,11 +199,12 @@ function paintRailSteel() {
 let TRAIN = null,
   TRAIN_T = 14;
 const WAGON_COLS = ['#3E6A8A', '#8A5A2E', '#6E7A3A', '#9A2E2E', '#4A5560', '#C28A2E'];
-// liveries: loco colour, coach body, window band, stripe, roof
+// Norwegian passenger sets (FLIRT-style electric units, a cab car at each end): body, window band, stripe, nose, roof.
+// 0 Vy intercity (white with a red nose), 1 older red regional unit, 2 airport express (white with a graphite nose)
 const LIVERY = [
-  { loco: '#B3302A', col: '#B3302A', band: '#8E2620', stripe: '#F2EEE6', top: '#8E9296' },
-  { loco: '#C8CDD0', col: '#D9DDDF', band: '#3A4A52', stripe: '#C8342A', top: '#9AA0A4' },
-  { loco: '#2E5E4A', col: '#E4E0D4', band: '#2E5E4A', stripe: '#E0B03A', top: '#8A9096' }
+  { loco: '#C4162A', col: '#E4E7E9', band: '#2A3238', stripe: '#C4162A', top: '#A3A9AD' },
+  { loco: '#8E2A2A', col: '#B03A32', band: '#2A3238', stripe: '#E4E0D6', top: '#8E9296' },
+  { loco: '#4A5056', col: '#ECEEEF', band: '#2A3238', stripe: '#7E868C', top: '#A3A9AD' }
 ];
 function spawnTrain() {
   const dir = Math.random() < 0.5 ? 1 : -1,
@@ -212,28 +213,40 @@ function spawnTrain() {
     lv = LIVERY[li];
   const cars = [
     freight
-      ? { k: 'loco', len: 42, h: 0.66, col: '#3E4A52', stripe: '#E0B03A', top: '#5A5E62' }
-      : { k: 'loco', len: 40, h: 0.66, col: lv.loco, stripe: lv.stripe, top: '#5A5E62' }
+      ? // a CargoNet-style electric freight engine: blue with a yellow stripe
+        { k: 'loco', len: 42, h: 0.66, col: '#27508C', stripe: '#E8B23A', top: '#5A5E62' }
+      : {
+          k: 'loco',
+          emu: true,
+          len: 52,
+          h: 0.6,
+          col: lv.col,
+          nose: lv.loco,
+          band: lv.band,
+          stripe: lv.stripe,
+          top: lv.top
+        }
   ];
   const n = freight ? rr(4, 8) | 0 : rr(2, 4) | 0;
   for (let i = 0; i < n; i++) {
     if (!freight)
-      cars.push({ k: 'coach', len: 54, h: 0.62, col: lv.col, band: lv.band, stripe: lv.stripe, top: lv.top });
+      cars.push({ k: 'coach', len: 52, h: 0.6, col: lv.col, band: lv.band, stripe: lv.stripe, top: lv.top });
     else {
       const r = Math.random(),
         c = pickP(WAGON_COLS);
-      if (r < 0.28) cars.push({ k: 'timber', len: 46, h: 0.46, col: '#4A4038', top: '#8A6A48' });
-      else if (r < 0.45) cars.push({ k: 'tank', len: 40, h: 0.5, col: pickP(['#2E2E30', '#C9CCCE', '#3E5A44']) });
-      else if (r < 0.65)
+      if (r < 0.3) cars.push({ k: 'timber', len: 46, h: 0.46, col: '#4A4038', top: '#8A6A48' });
+      else if (r < 0.5) cars.push({ k: 'tank', len: 40, h: 0.5, col: pickP(['#2E2E30', '#C9CCCE', '#3E5A44']) });
+      else if (r < 0.88)
         cars.push({
           k: 'container',
           len: 50,
           h: 0.56,
-          col: pickP(['#2F5E9A', '#B3302A', '#C28A2E', '#3E6A5A', '#E4E0D4'])
+          col: pickP(['#27508C', '#8A9298', '#E4E0D4', '#C9742A', '#3E6A5A', '#27508C'])
         });
       else cars.push({ k: 'box', len: 46, h: 0.58, col: c, top: shade(c, 0.8) });
     }
   }
+  if (!freight) cars.push({ ...cars[0] }); // the second cab car
   let tot = 0;
   for (const c of cars) tot += c.len + 5;
   const sx = L ? wrapX(L.x + W / 2 + rr(-400, 400)) : rr(0, W);
@@ -394,7 +407,8 @@ function drawCar(c) {
   const top = c.top;
   if (c.k === 'loco') {
     const nose = c.col,
-      Hh = H * 0.7, // the hood: low, sloping away to a cab nose at each end
+      nz = c.nose || nose, // the painted nose of an electric unit; a freight engine is one colour
+      Hh = H * (c.emu ? 0.8 : 0.7), // the hood: low, sloping away to a cab nose at each end
       cab = hl - 7, // where the cab roof ends and the windscreen slope starts
       hu = hd * 0.93;
     const wc = winCol(),
@@ -410,9 +424,12 @@ function drawCar(c) {
       nose,
       (Q, kind) => {
         band(Q, 0, 1, 0.13, 0.2, '#1E1E22'); // skirt
-        if (kind === 'side')
-          band(Q, 0, 1, H * 0.34, H * 0.38, c.stripe); // livery stripe
-        else if (kind !== 'back') {
+        if (kind === 'side') {
+          if (c.emu)
+            band(Q, 0, 0.14, 0.2, Hh, nz); // red-nosed ends fade into the body along the sides
+          else band(Q, 0, 1, H * 0.34, H * 0.38, c.stripe); // livery stripe
+        } else if (kind !== 'back') {
+          if (c.emu) band(Q, 0, 1, 0.2, Hh, nz); // the painted nose
           band(Q, 0.1, 0.9, H * 0.26, H * 0.34, kind === 'front' ? '#1C2228' : '#262A2E');
           const lit = night > 0.2 ? '#FFF2C8' : '#E8E4D8';
           if (kind === 'front') {
@@ -431,9 +448,9 @@ function drawCar(c) {
         w = hu * 0.78;
       for (const s of [-1, 1]) {
         const q = [P(cx, s * hu, H), P(cx, s * hu, Hh), P(ex, s * w, Hh)];
-        tPoly(q, shade(nose, 0.9));
+        tPoly(q, shade(nz, 0.9));
       }
-      tPoly([P(cx, -hu, H), P(cx, hu, H), P(ex, w, Hh), P(ex, -w, Hh)], nose);
+      tPoly([P(cx, -hu, H), P(cx, hu, H), P(ex, w, Hh), P(ex, -w, Hh)], nz);
       const gi = (u, v) => {
         const lx = lerp(cx, ex, v),
           hh = lerp(H, Hh, v),
@@ -456,6 +473,13 @@ function drawCar(c) {
       nose,
       (Q, kind) => {
         if (kind !== 'side') return;
+        if (c.emu) {
+          band(Q, 0, 1, H * 0.5, H * 0.88, c.band); // window band, as on the coaches
+          band(Q, 0, 1, H * 0.44, H * 0.5, c.stripe);
+          for (let i = 0; i < 6; i++) band(Q, 0.2 + i * 0.1, 0.27 + i * 0.1, H * 0.56, H * 0.84, wc);
+          band(Q, 0.03, 0.13, H * 0.58, H * 0.86, wc);
+          return;
+        }
         band(Q, 0, 1, H * 0.74, H * 0.78, shade(nose, 0.78));
         band(Q, 0.03, 0.12, H * 0.78, H * 0.96, wc); // cab windows at both ends
         band(Q, 0.88, 0.97, H * 0.78, H * 0.96, wc);
