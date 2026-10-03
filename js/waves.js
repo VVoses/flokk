@@ -16,7 +16,10 @@ const WV = {
   key: null,
   ws: null,
   fk: null,
-  ft: null
+  ft: null,
+  rs: null,
+  rt: null,
+  ncx: 0
 };
 function waveGrid() {
   if (WV.ws && WV.key === NS + ':' + LAKE.x + ':' + POND.x) return;
@@ -27,6 +30,10 @@ function waveGrid() {
   WV.ws = new Float32Array(n).fill(-1); // how deep into the water a node is, 0 at the shore to 1 well out
   WV.fk = new Float32Array(n).fill(1); // how much of the wind the shore upwind lets through
   WV.ft = new Float32Array(n).fill(-9);
+  WV.ncx = Math.ceil(WV.nx / WV.B) + 2;
+  const nc = WV.ncx * (Math.ceil(WV.ny / WV.B) + 2);
+  WV.rs = new Float32Array(nc); // the wind amplitude as the water has settled to it, per block corner
+  WV.rt = new Float32Array(nc).fill(-9);
 }
 // 0 on land and at the water's edge, up to 1 a little way out (lake, pond or fjord)
 function waveDepth(x, y) {
@@ -46,7 +53,7 @@ function waveDepth(x, y) {
   return smooth(6, 44, d);
 }
 /* the sea state out of the wind: the breeze plus the gust over the spot */
-const waveRough = (x, y) => clamp(0.3 * WEATHER.s + gustAt(x, y), 0, 1.3);
+const waveRough = (x, y) => clamp(0.5 * WEATHER.s + gustAt(x, y), 0, 1.4);
 
 /* Crests are the contour lines of a wave height field: three wave trains running a little off the wind's line,
    at different wavelengths, with their phase warped so the lines never lie straight, and an amplitude that follows
@@ -58,7 +65,23 @@ function drawWaves(ctx) {
   const W2 = WEATHER,
     s = W2.s;
   waveGrid();
-  const { LX, LY, B, y0, nx, ny, ws, fk, ft } = WV;
+  // the sea does not follow every shift of the wind at once: the wave direction, speed and the wind amplitude
+  // each settle slowly, so the crests keep their course and the water doesn't flicker as the gusts sweep by
+  const dtv = WV.init && T >= WV.lt && T - WV.lt < 0.5 ? T - WV.lt : 0,
+    wa = Math.atan2(W2.gs, W2.gc);
+  WV.lt = T;
+  if (!WV.init || !dtv) {
+    WV.th = wa;
+    WV.sm = s;
+    if (!WV.init) WV.tw = 0;
+    WV.init = 1;
+  } else {
+    const da = ((((wa - WV.th + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
+    WV.th += da * (1 - Math.exp(-dtv / 45));
+    WV.sm += (s - WV.sm) * (1 - Math.exp(-dtv / 10));
+  }
+  WV.tw += dtv * (0.8 + 0.4 * Math.min(1.5, WV.sm)); // the waves' own clock: its rate eases, so their phase never jumps
+  const { LX, LY, B, y0, nx, ny, ws, fk, ft, rs, rt, ncx } = WV;
   const midX = (V.x0 + V.x1) / 2;
   const lakeNear = [LAKE, POND].some(
     c => c.x > -1000 && Math.abs(wdx(c.x, midX)) < c.r * 1.45 + (V.x1 - V.x0) / 2 + 20
@@ -79,8 +102,10 @@ function drawWaves(ctx) {
     wpc = new Float32Array(cw * ch),
     g0c = new Float32Array(cw * ch),
     g1c = new Float32Array(cw * ch);
-  const gc = W2.gc,
-    gs = W2.gs;
+  const gc = Math.cos(WV.th),
+    gs = Math.sin(WV.th),
+    ox = LAKE.x > -1000 ? LAKE.x : W / 2, // phases are measured from the lake, so a turn of the wave direction stays small where it is looked at
+    oy = LAKE.x > -1000 ? LAKE.y : H;
   for (let cj = 0; cj < ch; cj++)
     for (let ci = 0; ci < cw; ci++) {
       const lx = ix0 + ci * B,
@@ -98,10 +123,18 @@ function drawWaves(ctx) {
             ft[ni] = T;
             let n = 0;
             for (const d of [40, 110, 220]) if (inWater(x - gc * d, y - gs * d, 0)) n++;
-            fk[ni] = 0.25 + 0.25 * n;
+            fk[ni] = 0.4 + 0.2 * n;
           }
           r *= fk[ni];
         }
+      }
+      {
+        const kk = (((lx % nx) + nx) % nx) / B + (iy0 / B + cj) * ncx,
+          dk = T - rt[kk];
+        if (dk > 0.6 || dk < 0) rs[kk] = r;
+        else rs[kk] += (r - rs[kk]) * (1 - Math.exp(-dk / 1.6));
+        rt[kk] = T;
+        r = rs[kk];
       }
       rc[cj * cw + ci] = r;
       // the phase warp that keeps crests from lying straight, and the wave-group envelopes of each train
@@ -121,14 +154,13 @@ function drawWaves(ctx) {
   if (top < 0.15) return; // glass: nothing to draw
   const dim0 = 1 - 0.45 * LIGHT.night;
   // two wave trains: a long swell across the wind and a shorter chop at an angle to it. Wavelength grows with the wind
-  const wl = 1 + 0.5 * smooth(0.5, 1.5, s),
-    th0 = Math.atan2(gs, gc),
+  const th0 = WV.th,
     TR = [
-      [th0, 31 * wl, 1, 0.0151],
-      [th0 + 0.5, 19 * wl, 0.55, 0.023]
+      [th0, 46, 1, 0.0151],
+      [th0 + 0.5, 30, 0.35, 0.023]
     ].map(([th, lam, wgt, gk]) => {
       const k = TAU / lam,
-        c = 14 * Math.sqrt(lam / 30) * (0.8 + 0.4 * Math.min(s, 1.5));
+        c = 14 * Math.sqrt(lam / 30);
       return { kx: Math.cos(th) * k, ky: Math.sin(th) * k, om: k * c, wgt, gk };
     });
   // per node: the amplitude (wind, shore, and wave groups so a crest runs a while and dies away) and the phase of
@@ -153,7 +185,8 @@ function drawWaves(ctx) {
         k0 = cj * cw + ci,
         warp = bl(wpc, k0, fx, fy);
       // the phase is defined everywhere; only the amplitude is held to the water
-      for (let t = 0; t < 2; t++) ph[t][o] = (TR[t].kx * x + TR[t].ky * y - TR[t].om * T + warp * (1 + 0.5 * t)) / TAU;
+      for (let t = 0; t < 2; t++)
+        ph[t][o] = (TR[t].kx * (x - ox) + TR[t].ky * (y - oy) - TR[t].om * WV.tw + warp * (1 + 0.5 * t)) / TAU;
       const ni = (((lx % nx) + nx) % nx) + ly * nx;
       let w = ws[ni];
       if (w < 0) w = ws[ni] = waveDepth(x, y);
@@ -182,8 +215,8 @@ function drawWaves(ctx) {
       A1 = amp[1],
       P0 = ph[0],
       P1 = ph[1],
-      kl = (0.22 + 0.14 * Math.min(1.5, s)) * dim0,
-      kd = (0.18 + 0.12 * Math.min(1.5, s)) * dim0;
+      kl = (0.3 + 0.18 * Math.min(1.5, WV.sm)) * dim0,
+      kd = (0.24 + 0.15 * Math.min(1.5, WV.sm)) * dim0;
     for (let o = 0; o < vw * vh; o++) {
       if (A0[o] === 0 && A1[o] === 0) {
         px[o] = 0;
@@ -199,41 +232,41 @@ function drawWaves(ctx) {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(WV.cv, ix0 * LX - LX / 2, y0 + iy0 * LY - LY / 2, vw * LX, vh * LY);
   }
-  const strong = s > 0.85,
-    minAm = strong ? 0.2 : 0.56,
-    lc = ctx.strokeStyle,
-    dim = 1 - 0.45 * LIGHT.night;
-  const NT = 5,
-    light = Array.from({ length: NT }, () => new Path2D()),
-    dark = Array.from({ length: NT }, () => new Path2D()),
-    cap = new Path2D(),
-    streak = new Path2D(),
-    sl = 10 + 14 * Math.min(1.3, s);
-  // marching squares over the phase field: for each whole turn (a crest) or half turn (a trough) that passes through
-  // a cell, one line segment, its strength read off the cell's amplitude
-  for (let t = 0; t < 2; t++) {
-    const A = amp[t],
-      Q = ph[t];
+  // white water: only where the wind is really up, and only as foam on the crest, in patches that come and go
+  // slowly, thickest at the heart and thinning to nothing at the edges, with a streak trailing back along the wind
+  const lc = ctx.strokeStyle,
+    sm = WV.sm,
+    strong = sm > 0.8,
+    thr = 0.44 - 0.1 * Math.min(1, sm - 0.8),
+    tw = WV.tw,
+    NT = 3,
+    cap = Array.from({ length: NT }, () => new Path2D()),
+    streak = Array.from({ length: NT }, () => new Path2D()),
+    sl = 6 + 8 * Math.min(1.3, sm);
+  if (strong) {
+    const A = amp[0],
+      Q = ph[0];
     for (let j = 0; j < vh - 1; j++)
       for (let i = 0; i < vw - 1; i++) {
         const o = j * vw + i,
           am = (A[o] + A[o + 1] + A[o + vw] + A[o + vw + 1]) / 4;
-        if (am < minAm) continue;
+        if (am < thr) continue;
         const qa = Q[o],
           qb = Q[o + 1],
           qc = Q[o + vw + 1],
           qd = Q[o + vw],
           lo = Math.min(qa, qb, qc, qd),
           hi = Math.max(qa, qb, qc, qd),
-          tier = Math.min(NT - 1, ((am - 0.2) * 5.5) | 0),
           x = (ix0 + i) * LX,
-          y = y0 + (iy0 + j) * LY;
-        for (let lev = Math.ceil(lo * 2); lev <= Math.floor(hi * 2); lev++) {
-          if (lev % 2) continue; // crest lines only; the troughs are in the shading
-          if (tier < 2 && !strong) continue;
-          const L0 = lev / 2,
-            P = lev % 2 === 0 ? light[tier] : dark[tier],
-            a = qa - L0,
+          y = y0 + (iy0 + j) * LY,
+          // foam patches drift over the crests as slowly changing noise; strength is the wave's height times the patch
+          pf =
+            0.5 + 0.5 * Math.sin(x * 0.052 + y * 0.037 + tw * 0.3) * Math.sin(x * 0.031 - y * 0.047 - tw * 0.2 + 1.7),
+          f = am * (0.35 + 0.9 * pf);
+        if (f < thr) continue;
+        const tier = f > thr + 0.5 ? 2 : f > thr + 0.22 ? 1 : 0;
+        for (let L0 = Math.ceil(lo); L0 <= Math.floor(hi); L0++) {
+          const a = qa - L0,
             b = qb - L0,
             c = qc - L0,
             d = qd - L0,
@@ -243,19 +276,16 @@ function drawWaves(ctx) {
             R_ = () => [x + LX, y + (LY * -b) / (c - b)],
             B_ = () => [x + (LX * -d) / (c - d), y + LY],
             L_ = () => [x, y + (LY * -a) / (d - a)];
-          const foam =
-            strong &&
-            (((i * 7 + j * 3) ^ (i >> 2)) & 3) !== 0 &&
-            am > 0.78 - 0.12 * Math.min(1, s - 0.85) &&
-            lev % 2 === 0;
           const seg = (p, q) => {
-            const T2 = foam ? cap : P;
-            T2.moveTo(p[0], p[1]);
-            T2.lineTo(q[0], q[1]);
-            if (foam && ((Math.imul(i + ix0, 73856093) ^ Math.imul(j + iy0, 19349663)) >>> 7) % 5 === 0) {
-              streak.moveTo(p[0], p[1]);
-              const hl = 0.5 + (((Math.imul(i + ix0, 83492791) ^ Math.imul(j + iy0, 2654435761)) >>> 9) % 100) / 100;
-              streak.lineTo(p[0] - gc * sl * hl, p[1] - gs * sl * hl);
+            cap[tier].moveTo(p[0], p[1]);
+            cap[tier].lineTo(q[0], q[1]);
+            // a trailing streak from some points along the crest, picked by where they lie so they keep to the crest
+            const g = Math.sin(p[0] * 0.37 + p[1] * 0.53);
+            if (g > 0.82) {
+              const u = 0.4 + 0.6 * (g - 0.82),
+                st = streak[0];
+              st.moveTo(p[0], p[1]);
+              st.lineTo(p[0] - gc * sl * u * (0.5 + f), p[1] - gs * sl * u * (0.5 + f));
             }
           };
           switch (idx) {
@@ -297,31 +327,29 @@ function drawWaves(ctx) {
           }
         }
       }
+    const dim = 1 - 0.45 * LIGHT.night;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#F4FAF8';
+    for (let t = 0; t < NT; t++) {
+      // a broad faint pass, a softer one and a bright core, so the foam is a patch with body and no hard edge
+      ctx.lineWidth = 8;
+      ctx.globalAlpha = (0.025 + 0.03 * t) * dim;
+      ctx.stroke(cap[t]);
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = (0.06 + 0.07 * t) * dim;
+      ctx.stroke(cap[t]);
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = (0.1 + 0.12 * t) * dim;
+      ctx.stroke(cap[t]);
+    }
+    ctx.lineWidth = 1.6;
+    ctx.globalAlpha = 0.07 * dim;
+    ctx.stroke(streak[0]);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = lc;
+    ctx.lineWidth = 2;
   }
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#0E2A33';
-  ctx.lineWidth = 3.4;
-  for (let t = 0; t < NT; t++) {
-    ctx.globalAlpha = (0.025 + 0.03 * t) * dim;
-    ctx.stroke(dark[t]);
-  }
-  ctx.strokeStyle = lc;
-  ctx.lineWidth = 2;
-  for (let t = 0; t < NT; t++) {
-    ctx.globalAlpha = (0.08 + 0.07 * t) * dim;
-    ctx.stroke(light[t]);
-  }
-  ctx.strokeStyle = '#F4FAF8';
-  ctx.lineWidth = 2.8;
-  ctx.globalAlpha = 0.6 * dim;
-  ctx.stroke(cap);
-  ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.22 * dim;
-  ctx.stroke(streak);
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = lc;
-  ctx.lineWidth = 2;
 }
 
 /* under it all: a hard wind greys and darkens the water, and breakers run in along the fjord shore */
