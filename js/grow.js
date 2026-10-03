@@ -234,6 +234,31 @@ function paintMask(s, p, k) {
   c2.imageSmoothingQuality = 'high';
   c2.drawImage(GROW.MC, 0, 0, GROW.MC2.width, GROW.MC2.height);
 }
+// how much of the lingering spring snow still lies at (x, y), 0 to 1 - the same cover paintMask draws, so what
+// the snow hides (a tractor going out to plough) can follow it. Bare ground in every other season.
+function snowAt(x, y) {
+  const C = GROW.cells;
+  if (SEASON !== 0 || !C) return 0;
+  const i = Math.floor((((x % W) + W) % W) / GQ),
+    j = clamp(Math.floor(y / GQ), 0, C.nh - 1),
+    o = j * C.nw + i;
+  if (!C.kind[o]) return 0;
+  const clear = lerp(0.7, 1, smooth(0, 0.2, GROW.p));
+  return smooth(GROW.p - 0.035, GROW.p + 0.035, C.th[o]) * (1 - C.open[o] * clear);
+}
+// the snow left on a field: its middle and four points round it, averaged
+function snowOnField(f) {
+  let sum = 0;
+  for (const [u, v] of [
+    [0.5, 0.5],
+    [0.25, 0.25],
+    [0.75, 0.25],
+    [0.25, 0.75],
+    [0.75, 0.75]
+  ])
+    sum += snowAt(f.x + f.w * u, f.y + f.h * v);
+  return sum / 5;
+}
 function maskState() {
   // Spring and winter start from where the season before left the ground.
   // Outgoing overlays now travel with the frozen ground snapshot.
