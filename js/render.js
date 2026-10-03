@@ -1383,7 +1383,8 @@ function renderShadows(tx, ty, KS, inK) {
   const c = shx,
     z = cam.z,
     kx = SX / HZ,
-    ky = SY / HZ;
+    ky = SY / HZ,
+    shLen = (Math.hypot(SX, SY) / HZ) * 0.6; // a tree's shadow reaches its height times this
   let px = -SY,
     py = SX;
   {
@@ -1419,8 +1420,7 @@ function renderShadows(tx, ty, KS, inK) {
       f1 = ty * SQ;
     for (const t of TREES) {
       const hh = t.hpx / HZ;
-      if (!visG(t.x + hh * SX * 0.5, t.y + hh * SY * 0.5, Math.hypot(hh * SX, hh * SY) * 0.6 + t.r * 2.2 + 60))
-        continue;
+      if (!visG(t.x + hh * SX * 0.5, t.y + hh * SY * 0.5, t.hpx * shLen + t.r * 2.2 + 60)) continue;
       const k = t.k;
       c.setTransform(a1 * px, d1 * py, -a1 * kx, -d1 * ky, a1 * t.x + e1, d1 * t.y + f1);
       drawTrim(c, SSPR[t.type][t.v], -AX * k * (t.ws || 1), -AY * k, SW * k * (t.ws || 1), SHT * k);

@@ -332,7 +332,9 @@ function treeFoliage(t, season, progress) {
   return 1;
 }
 // a forest's worth of perches, but their leaves only move with the season's progress (a season lasts minutes)
-// and the crossfade: refresh them when either has moved enough to show, not every frame
+// and the crossfade: refresh them when either has moved enough to show, not every frame. A season is 300 s, so
+// 2e-3 of it is under a second: a bird's cover flips that much later, and the leaves themselves are drawn from
+// the progress directly, not from this
 const COVER = { p0: null, s: -1, n: -1, p: -1, e: -1 };
 function updateTreeCover() {
   const e = TRANS.t < 1 ? tEase() : 1,
@@ -341,7 +343,7 @@ function updateTreeCover() {
     C.p0 === perches[0] && // a new world makes new perches
     C.s === SEASON &&
     C.n === perches.length &&
-    Math.abs(GROW.p - C.p) < 5e-4 &&
+    Math.abs(GROW.p - C.p) < 2e-3 &&
     Math.abs(e - C.e) < 0.01 &&
     (e === 1) === (C.e === 1)
   )

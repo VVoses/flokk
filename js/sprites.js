@@ -53,7 +53,17 @@ function drawTrim(g, spr, x, y, w, h) {
   if (!b) return g.drawImage(spr, x, y, w, h);
   const kx = w / spr.width,
     ky = h / spr.height;
-  g.drawImage(spr, b[0], b[1], b[2] - b[0], b[3] - b[1], x + b[0] * kx, y + b[1] * ky, (b[2] - b[0]) * kx, (b[3] - b[1]) * ky);
+  g.drawImage(
+    spr,
+    b[0],
+    b[1],
+    b[2] - b[0],
+    b[3] - b[1],
+    x + b[0] * kx,
+    y + b[1] * ky,
+    (b[2] - b[0]) * kx,
+    (b[3] - b[1]) * ky
+  );
 }
 const LEAF = {
   birch: [
