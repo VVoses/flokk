@@ -2193,7 +2193,8 @@ function lineBend(L, x, y) {
   const s = (x - L.cx) * L.dx + (y - L.cy) * L.dy,
     qx = L.cx + L.dx * s,
     qy = L.cy + L.dy * s;
-  return (pfbm(qx, qy, 240, L.o, 31) * 0.8 + pfbm(qx, qy, 95, L.o + 13, 7) * 0.2 - 0.5) * 2 * L.amp;
+  const ripple = (pfbm(qx, qy, 52, L.o + 29, 17) - 0.5) * Math.min(9, L.amp * 0.3); // a hedge-line's small irregularities
+  return (pfbm(qx, qy, 180, L.o, 31) * 0.8 + pfbm(qx, qy, 95, L.o + 13, 7) * 0.2 - 0.5) * 2 * L.amp + ripple;
 }
 // where line L crosses convex polygon Q, as distances along L
 function lineSpan(Q, L) {
@@ -2212,21 +2213,51 @@ function lineSpan(Q, L) {
   }
   return lo < hi ? [lo, hi] : null;
 }
+// a field's corners are rounded off (a plough turns, it doesn't square up): each planned corner is replaced
+// by a curve that starts part-way along both sides, radius varying from corner to corner
+function roundCorners(P, corners) {
+  const out = [];
+  for (let i = 0; i < P.length; i++) {
+    if (!corners.has(i)) {
+      out.push(P[i]);
+      continue;
+    }
+    const v = P[i],
+      a = P[(i + P.length - 1) % P.length],
+      b = P[(i + 1) % P.length],
+      la = Math.hypot(a[0] - v[0], a[1] - v[1]),
+      lb = Math.hypot(b[0] - v[0], b[1] - v[1]),
+      r = Math.min(la, lb) * 0.42,
+      t = Math.min(r, 50 + 90 * pfbm(v[0], v[1], 180, 41, 13)),
+      p0 = [v[0] + ((a[0] - v[0]) / la) * t, v[1] + ((a[1] - v[1]) / la) * t],
+      p1 = [v[0] + ((b[0] - v[0]) / lb) * t, v[1] + ((b[1] - v[1]) / lb) * t];
+    for (let k = 0; k <= 5; k++) {
+      const u = k / 5,
+        w0 = (1 - u) * (1 - u),
+        w1 = 2 * u * (1 - u),
+        w2 = u * u;
+      out.push([w0 * p0[0] + w1 * v[0] + w2 * p1[0], w0 * p0[1] + w1 * v[1] + w2 * p1[1]]);
+    }
+  }
+  return out;
+}
 function bendPoly(Q) {
-  const P = [];
+  const P = [],
+    corners = new Set();
   for (let i = 0; i < Q.length; i++) {
     const c = Q[i],
       nxt = Q[(i + 1) % Q.length],
       L1 = Q[(i + Q.length - 1) % Q.length][2],
       L2 = c[2];
     // the corner moves to where the two bent sides meet
+    corners.add(P.length);
     const d1 = lineBend(L1, c[0], c[1]),
       d2 = lineBend(L2, c[0], c[1]),
       det = L1.nx * L2.ny - L1.ny * L2.nx;
     if (Math.abs(det) > 0.25) P.push([c[0] + (d1 * L2.ny - d2 * L1.ny) / det, c[1] + (L1.nx * d2 - L2.nx * d1) / det]);
     else P.push([c[0] + (L1.nx * d1 + L2.nx * d2) / 2, c[1] + (L1.ny * d1 + L2.ny * d2) / 2]);
     const len = Math.hypot(nxt[0] - c[0], nxt[1] - c[1]),
-      n = Math.floor(len / 40);
+      n = Math.floor(len / 24);
     for (let k = 1; k < n; k++) {
       const x = lerp(c[0], nxt[0], k / n),
         y = lerp(c[1], nxt[1], k / n),
@@ -2234,7 +2265,7 @@ function bendPoly(Q) {
       P.push([x + L2.nx * o, y + L2.ny * o]);
     }
   }
-  return P;
+  return roundCorners(P, corners);
 }
 function polyArea(P) {
   let a = 0;
