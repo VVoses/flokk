@@ -560,6 +560,29 @@ function teach(key, text) {
   void el.offsetWidth;
   el.classList.add('show');
 }
+/* the plain first-minute goal: stays up (not a once-only flash) until the flock's first real meal,
+   and at least a few seconds so it can be read; never shown again once that meal has been learned */
+function goalLine() {
+  const el = $('goalEl');
+  if (!el) return;
+  if (st.mode !== 'play' || LEARN.meal) {
+    el.classList.remove('show');
+    return;
+  }
+  if (!st.goalT) {
+    st.goalT = T;
+    el.textContent = 'eat the insect swarms to keep the flock fed';
+  }
+  if (st.eaten > 0 && T - st.goalT > 7) {
+    LEARN.meal = 1;
+    try {
+      localStorage.setItem('flokk-learn', JSON.stringify(LEARN));
+    } catch (e) {
+      /* storage unavailable: shown again next run */
+    }
+    el.classList.remove('show');
+  } else if (T - st.goalT > 1) el.classList.add('show');
+}
 function statsHTML() {
   return `<div><b>${birds.length}</b><span>birds</span></div><div><b>${CAL.day + 1}</b><span>day</span></div>`;
 }
@@ -638,6 +661,7 @@ function startGame() {
     grace: DAY_LEN,
     food: 0,
     eaten: 0,
+    goalT: 0,
     lost: 0,
     maxFlock: 6,
     day0: CAL.day,
@@ -663,7 +687,7 @@ function startGame() {
   seasonBanner();
   setTimeout(() => {
     if (st.mode === 'play') teach('goal', 'bring the flock safely through to spring');
-  }, 4000);
+  }, 14000);
 }
 function yearWon() {
   hideBanner();
