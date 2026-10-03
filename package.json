@@ -1,6 +1,7 @@
 {
   "name": "flokk",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Lead a flock of sparrows through a year. Zero runtime dependencies; these are dev tools only.",
   "scripts": {
     "lint": "node tools/lint.mjs",
