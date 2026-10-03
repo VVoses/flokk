@@ -78,7 +78,7 @@ function drawWaves(ctx) {
   } else {
     const da = ((((wa - WV.th + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
     WV.th += da * (1 - Math.exp(-dtv / 45));
-    WV.sm += (s - WV.sm) * (1 - Math.exp(-dtv / 10));
+    WV.sm += (s - WV.sm) * (1 - Math.exp(-dtv / 14));
   }
   WV.tw += dtv * (0.8 + 0.4 * Math.min(1.5, WV.sm)); // the waves' own clock: its rate eases, so their phase never jumps
   const { LX, LY, B, y0, nx, ny, ws, fk, ft, rs, rt, ncx } = WV;
@@ -131,27 +131,27 @@ function drawWaves(ctx) {
       {
         const kk = (((lx % nx) + nx) % nx) / B + (iy0 / B + cj) * ncx,
           dk = T - rt[kk];
-        if (dk > 0.6 || dk < 0) rs[kk] = r;
-        else rs[kk] += (r - rs[kk]) * (1 - Math.exp(-dk / 1.6));
+        if (dk > 1.5 || dk < 0) rs[kk] = r;
+        else rs[kk] += (r - rs[kk]) * (1 - Math.exp(-dk / 6)); // a gust lifts the sea over several seconds, never flips it
         rt[kk] = T;
         r = rs[kk];
       }
       rc[cj * cw + ci] = r;
       // the phase warp that keeps crests from lying straight, and the wave-group envelopes of each train
       wpc[cj * cw + ci] =
-        3.2 * Math.sin(x * 0.0091 + y * 0.0127 + T * 0.19) +
-        1.5 * Math.sin(x * 0.021 - y * 0.017 - T * 0.31) +
-        0.8 * Math.sin(x * 0.043 + y * 0.037 + T * 0.4);
+        3.2 * Math.sin(x * 0.0091 + y * 0.0127 + T * 0.07) +
+        1.5 * Math.sin(x * 0.021 - y * 0.017 - T * 0.11) +
+        0.8 * Math.sin(x * 0.043 + y * 0.037 + T * 0.14);
       for (let t = 0; t < 2; t++) {
         const gk = t ? 0.023 : 0.0151;
         (t ? g1c : g0c)[cj * cw + ci] =
-          (0.5 + 0.5 * Math.sin((x * gs - y * gc) * gk + 1.3 + 2.1 * t + 0.9 * Math.sin(T * 0.06 + x * 0.004 + t))) *
-          (0.55 + 0.45 * Math.sin((x * gc + y * gs) * 0.011 - T * 0.12 * (1 + t) + 4.1 * t));
+          (0.5 + 0.5 * Math.sin((x * gs - y * gc) * gk + 1.3 + 2.1 * t + 0.9 * Math.sin(T * 0.02 + x * 0.004 + t))) *
+          (0.55 + 0.45 * Math.sin((x * gc + y * gs) * 0.011 - T * 0.04 * (1 + t) + 4.1 * t));
       }
     }
   let top = 0;
   for (let k = 0; k < rc.length; k++) if (rc[k] > top) top = rc[k];
-  if (top < 0.15) return; // glass: nothing to draw
+  if (top < 0.06) return; // glass: nothing to draw
   const dim0 = 1 - 0.45 * LIGHT.night;
   // two wave trains: a long swell across the wind and a shorter chop at an angle to it. Wavelength grows with the wind
   const th0 = WV.th,
@@ -192,9 +192,10 @@ function drawWaves(ctx) {
       if (w < 0) w = ws[ni] = waveDepth(x, y);
       if (w <= 0) continue;
       const r = bl(rc, k0, fx, fy);
-      if (r < 0.15) continue;
-      amp[0][o] = r * w * TR[0].wgt * (0.12 + 1.15 * bl(g0c, k0, fx, fy));
-      amp[1][o] = r * w * TR[1].wgt * (0.12 + 1.15 * bl(g1c, k0, fx, fy));
+      if (r < 0.04) continue;
+      const rf = r * smooth(0.04, 0.4, r); // waves rise out of glass instead of switching on
+      amp[0][o] = rf * w * TR[0].wgt * (0.12 + 1.15 * bl(g0c, k0, fx, fy));
+      amp[1][o] = rf * w * TR[1].wgt * (0.12 + 1.15 * bl(g1c, k0, fx, fy));
       any = 1;
     }
   }
@@ -236,8 +237,9 @@ function drawWaves(ctx) {
   // slowly, thickest at the heart and thinning to nothing at the edges, with a streak trailing back along the wind
   const lc = ctx.strokeStyle,
     sm = WV.sm,
-    strong = sm > 0.8,
-    thr = 0.44 - 0.1 * Math.min(1, sm - 0.8),
+    fade = smooth(0.65, 1.05, sm), // foam fades in with the wind rather than switching on
+    strong = fade > 0.01,
+    thr = 0.4 - 0.08 * Math.min(1, sm - 0.8),
     tw = WV.tw,
     NT = 3,
     cap = Array.from({ length: NT }, () => new Path2D()),
@@ -261,7 +263,7 @@ function drawWaves(ctx) {
           y = y0 + (iy0 + j) * LY,
           // foam patches drift over the crests as slowly changing noise; strength is the wave's height times the patch
           pf =
-            0.5 + 0.5 * Math.sin(x * 0.052 + y * 0.037 + tw * 0.3) * Math.sin(x * 0.031 - y * 0.047 - tw * 0.2 + 1.7),
+            0.5 + 0.5 * Math.sin(x * 0.052 + y * 0.037 + tw * 0.15) * Math.sin(x * 0.031 - y * 0.047 - tw * 0.1 + 1.7),
           f = am * (0.35 + 0.9 * pf);
         if (f < thr) continue;
         const tier = f > thr + 0.5 ? 2 : f > thr + 0.22 ? 1 : 0;
@@ -334,17 +336,17 @@ function drawWaves(ctx) {
     for (let t = 0; t < NT; t++) {
       // a broad faint pass, a softer one and a bright core, so the foam is a patch with body and no hard edge
       ctx.lineWidth = 8;
-      ctx.globalAlpha = (0.025 + 0.03 * t) * dim;
+      ctx.globalAlpha = (0.025 + 0.03 * t) * dim * fade;
       ctx.stroke(cap[t]);
       ctx.lineWidth = 4;
-      ctx.globalAlpha = (0.06 + 0.07 * t) * dim;
+      ctx.globalAlpha = (0.06 + 0.07 * t) * dim * fade;
       ctx.stroke(cap[t]);
       ctx.lineWidth = 1.5;
-      ctx.globalAlpha = (0.1 + 0.12 * t) * dim;
+      ctx.globalAlpha = (0.1 + 0.12 * t) * dim * fade;
       ctx.stroke(cap[t]);
     }
     ctx.lineWidth = 1.6;
-    ctx.globalAlpha = 0.07 * dim;
+    ctx.globalAlpha = 0.07 * dim * fade;
     ctx.stroke(streak[0]);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = lc;
