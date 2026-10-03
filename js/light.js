@@ -264,6 +264,7 @@ const OCC = document.createElement('canvas'),
   OCC_K = 0.88;
 // the mask is soft and half-size, so each crown goes in from a small copy of its sprite (made once a season)
 const OCC_SPR = new WeakMap();
+const OCC_W = new Map(); // tree -> how far its crown is in the mask (eased)
 function occSprite(spr) {
   let m = OCC_SPR.get(spr);
   if (!m) {
@@ -384,7 +385,7 @@ function applyLight(tx, ty, KS, inK) {
     }
     // 2. the crowns near a light keep the night on them. Only the patch of the mask the crowns cover is
     // touched, so a night with no tree near a lamp costs next to nothing.
-    const near = new Set(),
+    const near = new Map(),
       sc = dpr * z * SQ;
     let bx0 = w,
       by0 = h,
@@ -398,11 +399,20 @@ function applyLight(tx, ty, KS, inK) {
     // the set of trees covering a light is pure world-space geometry, independent of which repeated
     // copy of the map (kk2) we're drawing it into, so the grid scan only needs to run once per frame
     const over = treesOver(src, new Set());
+    // a crown eases into the mask as a light's patch reaches it and out as it leaves, rather than the night
+    // switching on and off over the whole tree between one frame and the next
+    const ease = Math.min(1, lastDt * 7);
+    for (const t of over) if (!OCC_W.has(t)) OCC_W.set(t, 0);
+    for (const [t, wt] of OCC_W) {
+      const nw = wt + ((over.has(t) ? 1 : 0) - wt) * ease;
+      if (nw < 0.02 && !over.has(t)) OCC_W.delete(t);
+      else OCC_W.set(t, nw);
+    }
     for (const kk2 of KS) {
       const tk = inK(kk2);
-      for (const t of over) {
+      for (const [t, wt] of OCC_W) {
         if (!visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) continue;
-        near.add(t);
+        near.set(t, wt);
         const k = t.k,
           kw = k * (t.ws || 1),
           X = t.x * sc + tk * SQ,
@@ -419,7 +429,9 @@ function applyLight(tx, ty, KS, inK) {
         by1 = Math.max(by1, Y + (SHT - AY) * k * sc);
         o.setTransform(sc, 0, 0, sc, X, Y);
         o.transform(1, 0, treeSway(t), 1, 0, 0);
+        o.globalAlpha = wt;
         o.drawImage(occSprite(SPR[t.type][t.v]), -AX * kw, -AY * k, SW * kw, SHT * k);
+        o.globalAlpha = 1;
       }
     }
     bx0 = Math.max(0, Math.floor(bx0) - 1);
@@ -454,9 +466,9 @@ function applyLight(tx, ty, KS, inK) {
             Y = PY(l.y, l.h);
           let vis = 1;
           if (!l.soft)
-            for (const t of near) {
+            for (const [t, wt] of near) {
               if (t.y <= l.y || t.y - l.y > 260 || Math.abs(t.x - X) > t.r * 3) continue;
-              vis *= 1 - OCC_K * (1 - crownCover(t, X, Y));
+              vis *= 1 - OCC_K * wt * (1 - crownCover(t, X, Y));
               if (vis < 0.02) break;
             }
           if (vis < 0.02) continue;
