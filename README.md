@@ -43,7 +43,7 @@ files; function bodies can use anything, since they run after everything has loa
 | `life.js` | `ANIMALS`, spawning, per-kind behaviour `updateAnimals`, passing flocks, smoke |
 | `interact.js` | animals reacting to each other (mobbing, cat, dog, herds, ducks); `callAt` sound queue |
 | `people.js` | the farmer's routine, the fisher, the occasional walker (people live in `ANIMALS` as `k:'human'`) |
-| `rigs.js` | drawing: 3D flier rig (`LOOK`), quadruped specs (`QSPEC`) and leg IK, the small side-view animals (hare, corvids, duck, heron, wild flock birds) on cards turned to their heading, `drawAnimal`, `animalPost`, `MOVES`/`BOUNDS` |
+| `rigs.js` | drawing: 3D flier rig (`LOOK`), quadruped specs (`QSPEC`) and leg IK, the 3D swimming duck (`drawDuck`, reads `a.wpitch`/`a.wroll` from the wave code), the small side-view animals (hare, corvids, heron, wild flock birds) on cards turned to their heading, `drawAnimal`, `animalPost`, `MOVES`/`BOUNDS` |
 | `figure.js` | quadrupeds and people as 3D figures: ellipsoids and limbs in the figure's own frame, turned to its heading (`hd3`), projected and sun-lit (`ello`, `ellDraw`, `limb`); planted-foot gait (`footAt`); `drawQuad`, `drawCatSit`, `drawHuman` |
 | `wild.js` | small wild flocks passing through (`WILD`, `WILD_SP`): starlings, linnets, fieldfares, snow buntings by season; they fly in, wheel, feed rolling across a field, get flushed by hawks and people, and move on |
 | `light.js` | calendar `CAL`, sun, light overlay and lamps (`LIGHTS`, beams with `dir`), seasons (`applySeason`, crossfade `TRANS`), sky backdrop, how much it snows (`LIGHT.snow`), showers (`RAIN`/`updateWeather`; `drawRain` is the overcast wash and thunder flashes — off in winter), time-of-day grading (`KM`/`KE` keys, `applyGlaze`) |
