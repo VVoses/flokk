@@ -23,6 +23,7 @@
   --space-2: 2px;
   --space-4: 4px;
   --space-5: 5px;
+  --space-6: 6px;
   --space-8: 8px;
   --space-10: 10px;
   --space-14: 14px;
@@ -92,7 +93,7 @@ body.no-hud .hud {
   inset: 0 0 auto 0;
   height: 130px;
   background:
-    radial-gradient(ellipse 260px 120px at 0 0, rgba(14, 20, 16, 0.26), transparent 70%),
+    radial-gradient(ellipse 300px 130px at 0 0, rgba(14, 20, 16, 0.42), transparent 72%),
     radial-gradient(ellipse 320px 110px at 100% 0, rgba(14, 20, 16, 0.24), transparent 70%);
   z-index: -1;
   pointer-events: none;
@@ -101,7 +102,7 @@ body.no-hud .hud {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  width: 96px;
+  width: 168px;
 }
 .count {
   font-weight: 300;
@@ -136,23 +137,35 @@ body.no-hud .hud {
 .meter {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .meter-icon {
   flex: 0 0 auto;
-  width: 11px;
-  height: 11px;
-  color: var(--ink2);
-  filter: drop-shadow(0 1px 6px rgba(10, 16, 12, 0.4));
+  width: 14px;
+  height: 14px;
+  color: var(--ink);
+  filter: drop-shadow(0 0 2px rgba(10, 16, 12, 0.7));
 }
+.meter-label {
+  flex: 0 0 62px;
+  white-space: nowrap;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--ink);
+  text-shadow: var(--text-glow-tight);
+}
+/* a dark track with a hairline edge, so the bar reads on snow as well as in the dark */
 .line {
   flex: 1;
   min-width: 0;
-  height: 2px;
+  height: 5px;
   border-radius: var(--radius-bar);
-  background: rgba(246, 243, 234, 0.18);
+  background: rgba(14, 20, 16, 0.5);
   overflow: hidden;
-  box-shadow: 0 1px 6px rgba(10, 16, 12, 0.25);
+  box-shadow:
+    0 0 0 1px rgba(246, 243, 234, 0.3),
+    0 0 0 2px rgba(14, 20, 16, 0.25);
 }
 .line > i {
   display: block;
@@ -565,6 +578,34 @@ body.no-hud .hud {
   letter-spacing: 0.14em;
   text-transform: lowercase;
   color: var(--ink-muted);
+}
+/* game over: the ground behind the card is often bright snow or busy farmland, so the world sinks into a
+   darker, softly blurred pool under the text instead of competing with it */
+#overOv {
+  background: radial-gradient(
+    ellipse 75% 60% at 50% 50%,
+    rgba(14, 20, 16, 0.72),
+    rgba(14, 20, 16, 0.58) 60%,
+    rgba(14, 20, 16, 0.72)
+  );
+  backdrop-filter: blur(3px) saturate(0.7);
+  -webkit-backdrop-filter: blur(3px) saturate(0.7);
+}
+#overOv h2 {
+  text-shadow: var(--text-glow-tight), var(--text-glow-soft);
+}
+#overOv .stats span {
+  color: var(--ink);
+  font-size: 13px;
+  text-shadow: var(--text-glow-tight);
+}
+#overOv .stats i {
+  color: var(--ink);
+  opacity: 0.8;
+  text-shadow: var(--text-glow-tight);
+}
+#overOv .stats {
+  gap: 36px;
 }
 /* paused: the world steps back further, and resuming is a quiet outline rather than a big button */
 #pauseOv {
