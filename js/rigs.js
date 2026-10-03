@@ -503,7 +503,7 @@ function drawSkyAnimal2(a) {
 
 /* ---------- ground animals ----------
    Four-legged animals and people are 3D figures (figure.js) built on the specs and IK here; the hare,
-   corvids, ducks and heron are side-view rigs. Gait phase comes from distance walked, so strides match
+   corvids and heron are side-view rigs; ducks are 3D figures too. Gait phase comes from distance walked, so strides match
    speed. Heads ease between alert and grazing, ears flick, tails swish. */
 function ik(hx, hy, fx, fy, l1, l2, bend) {
   let dx = fx - hx,
@@ -762,90 +762,102 @@ function drawCorvid(a) {
   ctx.fillRect(hx + 0.4, hy - 0.9, 0.7, 0.7);
   ctx.restore();
 }
+/* a swimming duck, as a 3D figure floating at its waterline (u = 0). Whatever rides the water can nudge it
+   with two optional fields set by the wave code: a.wpitch tips the bow up and a.wroll heels it over. The swell's
+   lift and drift are applied to the whole canvas in drawAnimal before this runs, so the waterline rides along.
+   Dabbling dips the head; diving stands it on its head with only the tail showing. */
 function drawDuck(a) {
-  const bob = Math.sin(T * 2 + a.ph) * 0.5,
-    up = a.st === 'dive';
-  ctx.save();
-  ctx.translate(0, bob);
-  ctx.rotate(a.wpitch || 0);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(-14, -20, 28, 20.5);
-  ctx.clip();
-  if (up) {
-    ctx.rotate(-1.25);
-    ctx.translate(2, 1);
-  }
-  const body = a.drake ? '#A6A59C' : '#86694A',
-    breast = a.drake ? '#7A3E26' : '#76593E';
-  ctx.fillStyle = body;
-  ctx.beginPath();
-  ctx.moveTo(-8, -2.5);
-  ctx.quadraticCurveTo(-7, -6.5, 0, -6);
-  ctx.quadraticCurveTo(6, -5.8, 7.5, -2.5);
-  ctx.quadraticCurveTo(0, 1.5, -8, -2.5);
-  ctx.fill();
-  ctx.fillStyle = breast;
-  ctx.beginPath();
-  ctx.ellipse(5, -3.5, 2.8, 2.6, 0, 0, TAU);
-  ctx.fill();
-  if (!a.drake) {
-    ctx.strokeStyle = 'rgba(60,42,26,.55)';
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      ctx.moveTo(-5 + i * 2.4, -5);
-      ctx.lineTo(-6 + i * 2.4, -3);
+  const drake = !!a.drake,
+    up = a.st === 'dive',
+    wp = a.wpitch || 0,
+    wr = a.wroll || 0,
+    bodyHex = drake ? '#A6A59C' : '#86694A',
+    breastHex = drake ? '#7A3E26' : '#76593E',
+    headHex = drake ? '#1F5A3A' : '#6E5638',
+    beakHex = drake ? '#D8C040' : '#C88A40',
+    dive = up ? 1.1 : 0,
+    // the duck rocks with the water, and (rarely) dips its head to dabble
+    rock = Math.sin(T * 1.6 + a.ph) * 0.03 + wp,
+    dab = up ? 0 : clamp((Math.sin(T * 0.5 + a.ph * 3) - 0.6) * 3, 0, 1),
+    look = Math.sin(T * 0.37 + a.ph * 5) > 0.7 ? 1 : 0;
+  figBegin(a.hd3 ?? (a.f > 0 ? 0 : Math.PI));
+  const cp = Math.cos(rock - dive),
+    sp = Math.sin(rock - dive);
+  // a point in the duck's own frame, tipped by its pitch and heel and lifted by the swell
+  const at = (f, r, u) => [
+    f * cp - u * sp,
+    r + wr * u * 0.5,
+    f * sp + u * cp - dive * 3.5 + 0.4 * Math.sin(T * 2 + a.ph)
+  ];
+  const body = at(0, 0, 1.2 - dive * 0.6),
+    pb = rock - dive;
+  // tail
+  part(dep3(...at(-6.4, 0, 2.6)), () => {
+    const t = at(-6.6, 0, 2.7);
+    ellDraw(ello(...t, 2.6, 1.3, 1.1, pb + 0.35), drake ? '#1C1C1C' : '#5E4A34');
+    if (drake) {
+      const c = at(-8.4, 0, 3.8);
+      ellDraw(ello(...c, 1.2, 0.7, 1.2, pb + 0.9), '#1C1C1C');
     }
-    ctx.stroke();
-  }
-  ctx.fillStyle = a.drake ? '#1C1C1C' : '#5E4A34';
-  ctx.beginPath();
-  ctx.moveTo(-7, -3.5);
-  ctx.lineTo(-10.5, -5.5);
-  ctx.lineTo(-7.5, -5.2);
-  ctx.fill();
-  if (a.drake) {
-    ctx.strokeStyle = '#1C1C1C';
-    ctx.lineWidth = 0.9;
-    ctx.beginPath();
-    ctx.arc(-8.6, -6.8, 1.2, 0, Math.PI * 1.3);
-    ctx.stroke();
-  }
-  ctx.fillStyle = a.drake ? '#4E5A70' : '#4A5A7A';
-  ctx.fillRect(-3, -4.2, 3, 1.2);
+  });
+  // body, breast and folded wings
+  part(dep3(...body), () => ellDraw(ello(...body, 6.8, 3.8, 3.3, pb), bodyHex));
+  part(dep3(...at(4, 0, 2.4)) + 0.01, () => {
+    const c = at(4, 0, 2.6);
+    ellDraw(ello(...c, 3.3, 3.3, 3, pb), breastHex);
+  });
+  for (const sd of [-1, 1])
+    part(dep3(...at(-1, sd * 3, 3)) + 0.02, () => {
+      const c = at(-1.4, sd * 3, 3);
+      ellDraw(ello(...c, 4.6, 1.1, 2, pb + 0.1), drake ? '#8E8D84' : '#6A5238', sideK(sd) * 0.95);
+      if (!drake) return;
+      const sp2 = at(-2.6, sd * 3.8, 3.1);
+      ellDraw(ello(...sp2, 1.6, 0.4, 0.9, pb), '#4E5A70', sideK(sd), null, true);
+    });
+  if (!drake)
+    part(dep3(...at(-1, 0, 5)) + 0.02, () => {
+      // the hen's flecks along her back
+      for (let i = 0; i < 6; i++) {
+        const p = P2(...at(-5 + i * 1.9, ((i * 7) % 3) - 1, 4.9 - Math.abs(i - 2.5) * 0.25));
+        dot(p, 0.55, 'rgba(60,42,26,.6)');
+      }
+    });
   if (!up) {
-    const turn = Math.sin(T * 0.5 + a.ph * 3) > 0.6 ? -2.5 : 0;
-    const hx = 5.4 + turn * 0.3,
-      hy = -7.2;
-    ctx.fillStyle = a.drake ? '#1F5A3A' : '#6E5638';
-    ctx.beginPath();
-    ctx.ellipse(hx, hy, 2.6, 2.3, 0, 0, TAU);
-    ctx.fill();
-    if (a.drake) {
-      ctx.strokeStyle = '#F2F0E8';
-      ctx.lineWidth = 0.9;
-      ctx.beginPath();
-      ctx.moveTo(hx - 2, hy + 2.2);
-      ctx.lineTo(hx + 1.8, hy + 2.4);
-      ctx.stroke();
-    }
-    ctx.fillStyle = a.drake ? '#D8C040' : '#C88A40';
-    ctx.beginPath();
-    ctx.moveTo(hx + 1.8, hy - 0.2);
-    ctx.lineTo(hx + 4.8 + turn, hy + 0.5);
-    ctx.lineTo(hx + 1.8, hy + 1.1);
-    ctx.fill();
-    ctx.fillStyle = '#111';
-    ctx.fillRect(hx + 0.6, hy - 0.9, 0.8, 0.8);
+    // neck, head and bill, with the head dipping forward when it dabbles
+    const hu = 7.6 - dab * 3.8,
+      hf = 5.8 + dab * 2.6,
+      hr = look * 0.9,
+      neck = at((4.6 + hf) / 2, hr * 0.5, (4.6 + hu) / 2),
+      hd = at(hf, hr, hu);
+    part(dep3(...neck) + 0.01, () => {
+      ellDraw(ello(...neck, 1.9, 1.9, 2.6 + dab * 0.8, pb - dab * 0.7), drake ? '#1F5A3A' : '#7D6446');
+      if (drake) ellDraw(ello(...at(4.8, 0, 5), 2, 2, 0.5, pb), '#F2F0E8');
+    });
+    part(dep3(...hd) + 0.02, () => {
+      const head = ello(...hd, 2.6, 2.3, 2.3, pb - dab * 0.4);
+      ellDraw(head, headHex);
+      const bill = ello(...at(hf + 2.8, hr, hu - 0.4 - dab * 0.4), 2.1, 1.1, 0.7, pb - dab * 0.5);
+      ellDraw(bill, beakHex);
+      for (const sd of [-1, 1]) {
+        const e = ellPt(head, 0.55, sd * 0.8, 0.4);
+        if (e[2]) dot([e[0], e[1]], 0.55, '#111');
+      }
+    });
   }
+  // everything below the waterline stays hidden: clip to just under it
+  ctx.save();
+  ctx.beginPath();
+  // (the waterline is a ring on the ground, so it dips lower in front of a body turned toward you)
+  const near = Math.hypot(6.2 * FIG.s, 3.5 * FIG.c) * TILT;
+  ctx.rect(-22, -34, 44, 34 + 0.6 + near);
+  ctx.clip();
+  figEnd();
   ctx.restore();
   ctx.strokeStyle = 'rgba(225,238,238,.5)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.ellipse(0, 0.5, up ? 4 : 8, 1.6, 0, 0, TAU);
+  ctx.ellipse(0, 0.5, up ? 4 : 8, 1.6 + Math.abs(wr) * 0.4, 0, 0, TAU);
   ctx.stroke();
-  ctx.restore();
 }
 function drawHeron(a) {
   const strike = a.st === 'strike',
@@ -927,13 +939,13 @@ function drawAnimal(a) {
     if (a.k === 'cat' && a.st === 'idle') drawCatSit(a);
     else drawQuad(a);
   } else if (a.k === 'human') drawHuman(a);
+  else if (a.k === 'duck') drawDuck(a);
   else {
     const hd = a.hd3 ?? (a.f > 0 ? 0 : Math.PI),
       c = Math.cos(hd);
     ctx.transform(Math.sign(c || 1) * Math.max(0.42, Math.abs(c)), Math.sin(hd) * TILT * 0.5, 0, 1, 0, 0);
     if (a.k === 'hare') drawHare(a);
     else if (a.k === 'crow' || a.k === 'magpie') drawCorvid(a);
-    else if (a.k === 'duck') drawDuck(a);
     else if (a.k === 'heron') drawHeron(a);
     else if (a.wild) drawWildBird(a);
   }
