@@ -40,7 +40,7 @@ void main() {
   // light caught between the leaves: two slow octaves drifting past, so the pool shimmers rather than glows
   vec2 s = p * 0.09;
   float dap = 0.62 + 0.55 * vn(s + vec2(t * 0.35, t * 0.18)) * (0.6 + 0.5 * vn(s * 2.3 - vec2(t * 0.5, 0.0)));
-  float I = (1.0 - exp(-g * 1.15)) * dap * 0.66;
+  float I = (1.0 - exp(-g * 1.15)) * dap * 0.033; // kept barely there: a trace of warmth in the canopy, not a mark
   vec3 c = mix(tint, vec3(1.0, 0.96, 0.82), clamp(core * 0.6, 0.0, 1.0));
   o = vec4(c * I, I);
 }`;
