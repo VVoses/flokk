@@ -737,7 +737,7 @@ function crossfadeUnder(prevSpr, x, y, w, h) {
   if (!prevSpr) return;
   const e = tEase();
   ctx.globalAlpha = 1 - e * 0.6;
-  ctx.drawImage(prevSpr, x, y, w, h);
+  drawTrim(ctx, prevSpr, x, y, w, h);
   ctx.globalAlpha = e;
 }
 
@@ -1028,6 +1028,7 @@ function mkRim(src, side, warm) {
   gr.addColorStop(1, `rgba(${col},0)`);
   q.fillStyle = gr;
   q.fillRect(0, 0, w, h);
+  c.box = boxFrom(src, c); // it only has pixels where the sprite has
   return c;
 }
 const OUTL = { spruce: [], birch: [], decid: [] };
