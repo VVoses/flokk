@@ -4,6 +4,9 @@
    amplitude follows the wind: a gust is a patch of waves drifting across the lake, a lull is glass, the lee of a shore
    stays calm, and in a gale the crests pile up into broken caps with foam streaked back along the wind. A hard wind
    also greys the water, and breakers run in along the fjord shore.
+   Where there is a GPU the surface itself is a fragment shader (see waveShader below): the same smoothed wind
+   amplitude, direction and wave clock, but a fluid height field with a normal and light per pixel and soft foam.
+   Without one the lattice and marching squares below draw it on the 2D canvas.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 const WV = {
@@ -65,6 +68,7 @@ function drawWaves(ctx) {
   const W2 = WEATHER,
     s = W2.s;
   waveGrid();
+  const glm = waveGLInit();
   // the sea does not follow every shift of the wind at once: the wave direction, speed and the wind amplitude
   // each settle slowly, so the crests keep their course and the water doesn't flicker as the gusts sweep by
   const dtv = WV.init && T >= WV.lt && T - WV.lt < 0.5 ? T - WV.lt : 0,
@@ -137,6 +141,7 @@ function drawWaves(ctx) {
         r = rs[kk];
       }
       rc[cj * cw + ci] = r;
+      if (glm) continue;
       // the phase warp that keeps crests from lying straight, and the wave-group envelopes of each train
       wpc[cj * cw + ci] =
         3.2 * Math.sin(x * 0.0091 + y * 0.0127 + T * 0.07) +
@@ -169,6 +174,7 @@ function drawWaves(ctx) {
   const amp = [WV.buf[0].fill(0, 0, vw * vh), WV.buf[1].fill(0, 0, vw * vh)],
     ph = [WV.buf[2].fill(0, 0, vw * vh), WV.buf[3].fill(0, 0, vw * vh)];
   let any = 0;
+  if (glm && (!WV.tex || WV.tex.length < vw * vh)) WV.tex = new Uint8Array(40000);
   const bl = (arr, k0, fx, fy) =>
     (arr[k0] * (1 - fx) + arr[k0 + 1] * fx) * (1 - fy) + (arr[k0 + cw] * (1 - fx) + arr[k0 + cw + 1] * fx) * fy;
   for (let j = 0; j < vh; j++) {
@@ -184,6 +190,15 @@ function drawWaves(ctx) {
         fx = (i % B) / B,
         k0 = cj * cw + ci,
         warp = bl(wpc, k0, fx, fy);
+      if (glm) {
+        const ni = (((lx % nx) + nx) % nx) + ly * nx;
+        let w = ws[ni];
+        if (w < 0) w = ws[ni] = waveDepth(x, y);
+        const r = w > 0 ? bl(rc, k0, fx, fy) : 0;
+        WV.tex[o] = r < 0.04 ? 0 : Math.min(255, ((r * smooth(0.04, 0.4, r) * w * 255) / 1.4 + 0.5) | 0);
+        if (WV.tex[o]) any = 1;
+        continue;
+      }
       // the phase is defined everywhere; only the amplitude is held to the water
       for (let t = 0; t < 2; t++)
         ph[t][o] = (TR[t].kx * (x - ox) + TR[t].ky * (y - oy) - TR[t].om * WV.tw + warp * (1 + 0.5 * t)) / TAU;
@@ -200,6 +215,7 @@ function drawWaves(ctx) {
     }
   }
   if (!any) return;
+  if (glm) return waveShader(ctx, glm, { ix0, iy0, vw, vh, th: th0, dim: dim0 });
   // the surface shaded: light where the water leans toward the sky, dark in the troughs, drawn soft from a small
   // offscreen picture with one pixel per lattice node
   {
@@ -403,4 +419,209 @@ function drawWaterMood(ctx) {
     ctx.setLineDash([]);
   }
   ctx.globalAlpha = 1;
+}
+
+/* The GPU surface. Each pixel of the water adds up eight travelling waves (fixed wavelengths, a spread of directions
+   about the wind, the longer ones always present and the short chop rising with the gust amplitude), keeps the
+   slope of the sum for a normal, and lights it: facets that lean toward the sky go pale, those that lean away go
+   dark, with a few bright glints. In a hard wind the highest crests carry foam in patches that drift over the sea.
+   The wind amplitude comes in as a small texture, one texel per lattice node, that the CPU side has already settled
+   and shaped to the shore, so the shader sees nothing sudden. */
+const WAVE_FS = `#version 300 es
+precision highp float;
+#define LX ${WV.LX}.0
+#define LY ${WV.LY}.0
+#define Y0 ${WV.y0}.0
+uniform vec4 W[8];
+uniform vec4 xf;
+uniform vec4 ti;
+uniform vec2 org;
+uniform vec4 st;
+uniform vec3 mix3;
+uniform sampler2D tex;
+out vec4 o;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+}
+void main() {
+  vec2 p = vec2((gl_FragCoord.x - xf.z) / xf.x, ((st.w - gl_FragCoord.y) - xf.w) / xf.y);
+  vec2 uv = vec2(((p.x / LX - ti.x) + 0.5) / ti.y, (((p.y - Y0) / LY - ti.z) + 0.5) / ti.w);
+  float R = texture(tex, uv).r * 1.4;
+  if (R < 0.01) discard;
+  vec2 q = p - org;
+  float T = st.z, tw = st.y, sm = st.x;
+  float a1 = p.x * 0.0091 + p.y * 0.0127 + T * 0.07, a2 = p.x * 0.021 - p.y * 0.017 + T * 0.11, a3 = p.x * 0.043 + p.y * 0.037 + T * 0.14;
+  float wp = 3.2 * sin(a1) + 1.5 * sin(a2) + 0.8 * sin(a3);
+  vec2 dwp = 3.2 * cos(a1) * vec2(0.0091, 0.0127) + 1.5 * cos(a2) * vec2(0.021, -0.017) + 0.8 * cos(a3) * vec2(0.043, 0.037);
+  float h = 0.0;
+  vec2 g = vec2(0.0);
+  float hmax = 0.0;
+  for (int i = 0; i < 8; i++) {
+    vec4 w = W[i];
+    float fi = float(i);
+    float k = length(w.xy);
+    vec2 pd = w.xy / k;
+    float u = dot(p, vec2(-pd.y, pd.x)), v = dot(p, pd);
+    float grp = 0.12 + 1.15 * (0.5 + 0.5 * sin(u * (0.012 + 0.004 * fi) + 1.3 + 2.1 * fi + 0.9 * sin(T * 0.02 + p.x * 0.004 + fi)))
+              * (0.55 + 0.45 * sin(v * 0.011 - T * 0.04 * (1.0 + fi * 0.3) + 4.1 * fi));
+    float chop = i < 3 ? 1.0 : smoothstep(0.2 + 0.05 * fi, 1.0 + 0.05 * fi, R);
+    float odd = 1.0 + 0.5 * mod(fi, 2.0);
+    float ph = dot(w.xy, q) + w.z + wp * odd;
+    float a = w.w * R * grp * chop;
+    h += a * (cos(ph) + 0.22 * cos(2.0 * ph + 0.5));
+    g += -a * (sin(ph) + 0.44 * sin(2.0 * ph + 0.5)) * (w.xy + odd * dwp);
+    hmax += a * 1.2;
+  }
+  vec3 n = normalize(vec3(-g * 1.4, 1.0));
+  vec3 L = normalize(vec3(-0.4, -0.55, 0.73));
+  float d = dot(n, L) - L.z;
+  float kl = (0.3 + 0.18 * min(1.5, sm)) * mix3.x, kd = (0.24 + 0.15 * min(1.5, sm)) * mix3.x;
+  float al = d > 0.0 ? min(1.2, d * 3.4) * kl : 0.0;
+  float ad = d < 0.0 ? min(1.2, -d * 3.4) * kd : 0.0;
+  // a few broad glints where the facet mirrors the light
+  vec3 hv = normalize(L + vec3(0.0, 0.5, 0.86));
+  float gl = pow(max(dot(n, hv), 0.0), 60.0) * min(1.0, R) * 0.5 * mix3.x;
+  // foam on the highest crests, in drifting patches, only in a hard wind
+  float hn = h / max(hmax, 0.001);
+  vec2 np = q * 0.045 + vec2(tw * 0.03, -tw * 0.02);
+  float pf = vnoise(np) * 0.65 + vnoise(np * 2.3 + 7.0) * 0.35;
+  float lace = 0.7 + 0.3 * vnoise(q * 0.22 + tw * 0.05);
+  float thr = 0.24 - 0.06 * min(1.0, max(0.0, sm - 0.8));
+  float f = smoothstep(thr, thr + 0.22, hn * (0.55 + 0.9 * pf)) * mix3.y * lace;
+  vec3 lc = vec3(0.91, 0.957, 0.933), dc = vec3(0.055, 0.165, 0.2), fc = vec3(0.957, 0.98, 0.973);
+  float aw = min(1.0, al + gl);
+  vec3 rgb = lc * aw + dc * ad;
+  float a = aw + ad;
+  float fa = f * 0.75 * mix3.x;
+  rgb = rgb * (1.0 - fa) + fc * fa;
+  a = a * (1.0 - fa) + fa;
+  o = vec4(rgb, a);
+}`;
+const WAVE_VS = `#version 300 es
+layout(location=0) in vec2 c;
+void main() { gl_Position = vec4(c * 2.0 - 1.0, 0.0, 1.0); }`;
+const WAVES_GL = { tried: false, gl: null, cv: null, prog: null, tx: null, u: {} };
+function waveGLInit() {
+  const G = WAVES_GL;
+  if (G.tried) return G.gl && G.gl.isContextLost() ? null : G.gl;
+  G.tried = true;
+  const c = document.createElement('canvas');
+  let gl = null;
+  try {
+    gl = c.getContext('webgl2', { premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+  } catch {
+    gl = null;
+  }
+  if (!gl) return null;
+  // a software WebGL would be slower than the lattice it replaces
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info'),
+    rn = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+  if (/swiftshader|llvmpipe|softpipe|software/i.test(rn) && !(DEV && (DEV.glWaves || DEV.glBlades))) return null;
+  try {
+    const sh = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, WAVE_VS));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, WAVE_FS));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    G.prog = p;
+    for (const n of ['W', 'xf', 'ti', 'org', 'st', 'mix3', 'tex']) G.u[n] = gl.getUniformLocation(p, n);
+  } catch (e) {
+    console.warn('Flokk: GPU waves unavailable, drawing them on the 2D canvas', e);
+    return null;
+  }
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  G.tx = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, G.tx);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  c.addEventListener('webglcontextlost', e => {
+    e.preventDefault();
+    G.gl = null; // back to the 2D lattice
+  });
+  G.cv = c;
+  G.gl = gl;
+  return gl;
+}
+// WV.tex holds the settled wind amplitude per lattice node of the window; draw the water's surface over it
+function waveShader(ctx, gl, o) {
+  const G = WAVES_GL,
+    c = G.cv,
+    m = ctx.getTransform(),
+    { LX, LY, y0 } = WV;
+  if (c.width !== cv.width || c.height !== cv.height) {
+    c.width = cv.width;
+    c.height = cv.height;
+  }
+  // the part of the frame the window covers
+  const xa = m.a * o.ix0 * LX + m.e,
+    xb = m.a * (o.ix0 + o.vw) * LX + m.e,
+    ya = m.d * (y0 + o.iy0 * LY) + m.f,
+    yb = m.d * (y0 + (o.iy0 + o.vh) * LY) + m.f,
+    sx = Math.max(0, Math.floor(Math.min(xa, xb))),
+    sy = Math.max(0, Math.floor(Math.min(ya, yb))),
+    sw = Math.min(c.width, Math.ceil(Math.max(xa, xb))) - sx,
+    sh = Math.min(c.height, Math.ceil(Math.max(ya, yb))) - sy;
+  if (sw < 1 || sh < 1) return;
+  const th = o.th,
+    sm = WV.sm,
+    ox = LAKE.x > -1000 ? LAKE.x : W / 2,
+    oy = LAKE.x > -1000 ? LAKE.y : H,
+    // eight trains: fixed wavelengths (so the pattern never stretches with the wind), directions spread about it
+    LAM = [52, 41, 34, 27, 21, 17, 14, 12],
+    OFF = [0, 0.5, -0.45, 0.9, -0.9, 0.25, -0.25, 1.25],
+    WT = [1, 0.8, 0.65, 0.5, 0.36, 0.28, 0.22, 0.17],
+    Wd = new Float32Array(32);
+  for (let i = 0; i < 8; i++) {
+    const k = TAU / LAM[i],
+      c0 = 14 * Math.sqrt(LAM[i] / 30),
+      a = th + OFF[i];
+    Wd[i * 4] = Math.cos(a) * k;
+    Wd[i * 4 + 1] = Math.sin(a) * k;
+    Wd[i * 4 + 2] = (((-k * c0 * WV.tw) % TAU) + TAU) % TAU;
+    Wd[i * 4 + 3] = 0.035 * LAM[i] * WT[i];
+  }
+  gl.viewport(0, 0, c.width, c.height);
+  gl.enable(gl.SCISSOR_TEST);
+  gl.scissor(sx, c.height - sy - sh, sw, sh);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(G.prog);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, G.tx);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, o.vw, o.vh, 0, gl.RED, gl.UNSIGNED_BYTE, WV.tex.subarray(0, o.vw * o.vh));
+  gl.uniform1i(G.u.tex, 0);
+  gl.uniform4fv(G.u.W, Wd);
+  gl.uniform4f(G.u.xf, m.a, m.d, m.e, m.f);
+  gl.uniform4f(G.u.ti, o.ix0, o.vw, o.iy0, o.vh);
+  gl.uniform2f(G.u.org, ox, oy);
+  gl.uniform4f(G.u.st, sm, WV.tw, T, c.height);
+  gl.uniform3f(G.u.mix3, o.dim, smooth(0.65, 1.05, sm), 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gl.disable(gl.SCISSOR_TEST);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(c, sx, sy, sw, sh, sx, sy, sw, sh);
+  ctx.restore();
 }
