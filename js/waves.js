@@ -596,10 +596,7 @@ function waveShader(ctx, gl, o) {
     sm = WV.sm,
     ox = LAKE.x > -1000 ? LAKE.x : W / 2,
     oy = LAKE.x > -1000 ? LAKE.y : H,
-    // eight trains: fixed wavelengths (so the pattern never stretches with the wind), directions spread about it
-    LAM = [52, 41, 34, 27, 21, 17, 14, 12],
-    OFF = [0, 0.5, -0.45, 0.9, -0.9, 0.25, -0.25, 1.25],
-    WT = [1, 0.8, 0.65, 0.5, 0.36, 0.28, 0.22, 0.17],
+    { LAM, OFF, WT } = WAVE_TR,
     Wd = new Float32Array(32);
   for (let i = 0; i < 8; i++) {
     const k = TAU / LAM[i],
@@ -633,5 +630,146 @@ function waveShader(ctx, gl, o) {
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   ctx.drawImage(c, sx, sy, sw, sh, sx, sy, sw, sh);
+  ctx.restore();
+}
+
+/* ---- things that float ride the same waves ----
+   The shader's eight trains, summed on the CPU at a point: waveAt(x, y) leaves in WS the height of the water there (ground
+   units), its slope (gx, gy: how far it rises per unit toward +x and +y) and how far the surface carries a floating thing
+   along (dx, dy: the little loop a drifting object makes as each crest goes by). It is zero on land, on calm glass and in
+   winter, and it uses the same settled amplitude the shader reads, so a duck and the water under it always agree. */
+const WAVE_TR = {
+  LAM: [52, 41, 34, 27, 21, 17, 14, 12], // fixed wavelengths, so the pattern never stretches with the wind
+  OFF: [0, 0.5, -0.45, 0.9, -0.9, 0.25, -0.25, 1.25], // directions spread about the wind
+  WT: [1, 0.8, 0.65, 0.5, 0.36, 0.28, 0.22, 0.17]
+};
+const WS = { h: 0, gx: 0, gy: 0, dx: 0, dy: 0, r: 0 };
+function waveAt(x, y) {
+  WS.h = WS.gx = WS.gy = WS.dx = WS.dy = WS.r = 0;
+  const wf = waveFreeze();
+  if (!WV.init || !WV.ws || wf < 0.02) return WS;
+  const w = waveDepth(x, y);
+  if (w <= 0) return WS;
+  let R = waveRough(x, y);
+  {
+    // the block amplitude the water has settled to, blended the way the shader's texture is, where it has been drawn lately
+    const { LX, LY, B, y0, nx, ncx, rs, rt } = WV,
+      fx = x / (LX * B),
+      fy = (y - y0) / (LY * B),
+      bx = Math.floor(fx),
+      by = Math.floor(fy);
+    if (by >= 0) {
+      let sum = 0,
+        ok = true;
+      for (let j = 0; j < 2 && ok; j++)
+        for (let i = 0; i < 2; i++) {
+          const lx = (bx + i) * B,
+            kk = (((lx % nx) + nx) % nx) / B + (by + j) * ncx,
+            q = T - rt[kk];
+          if (!(q >= 0 && q < 1.5)) {
+            ok = false;
+            break;
+          }
+          sum += rs[kk] * (i ? fx - bx : 1 - (fx - bx)) * (j ? fy - by : 1 - (fy - by));
+        }
+      if (ok) R = sum;
+    }
+  }
+  R *= smooth(0.04, 0.4, R) * w * wf;
+  if (R < 0.01) return WS;
+  WS.r = R;
+  const th = WV.th,
+    T_ = T,
+    a1 = x * 0.0091 + y * 0.0127 + T_ * 0.07,
+    a2 = x * 0.021 - y * 0.017 + T_ * 0.11,
+    a3 = x * 0.043 + y * 0.037 + T_ * 0.14,
+    wp = 3.2 * Math.sin(a1) + 1.5 * Math.sin(a2) + 0.8 * Math.sin(a3),
+    dwx = 3.2 * Math.cos(a1) * 0.0091 + 1.5 * Math.cos(a2) * 0.021 + 0.8 * Math.cos(a3) * 0.043,
+    dwy = 3.2 * Math.cos(a1) * 0.0127 - 1.5 * Math.cos(a2) * 0.017 + 0.8 * Math.cos(a3) * 0.037,
+    ox = LAKE.x > -1000 ? LAKE.x : W / 2,
+    oy = LAKE.x > -1000 ? LAKE.y : H;
+  for (let i = 0; i < 8; i++) {
+    const lam = WAVE_TR.LAM[i],
+      k = TAU / lam,
+      c0 = 14 * Math.sqrt(lam / 30),
+      ang = th + WAVE_TR.OFF[i],
+      pdx = Math.cos(ang),
+      pdy = Math.sin(ang),
+      odd = 1 + 0.5 * (i % 2),
+      u = x * -pdy + y * pdx,
+      v = x * pdx + y * pdy,
+      grp =
+        0.12 +
+        1.15 *
+          (0.5 + 0.5 * Math.sin(u * (0.012 + 0.004 * i) + 1.3 + 2.1 * i + 0.9 * Math.sin(T_ * 0.02 + x * 0.004 + i))) *
+          (0.55 + 0.45 * Math.sin(v * 0.011 - T_ * 0.04 * (1 + i * 0.3) + 4.1 * i)),
+      chop = i < 3 ? 1 : smooth(0.2 + 0.05 * i, 1 + 0.05 * i, R),
+      ph = k * (pdx * (x - ox) + pdy * (y - oy)) - k * c0 * WV.tw + wp * odd,
+      a = 0.035 * lam * WAVE_TR.WT[i] * R * grp * chop,
+      s1 = Math.sin(ph),
+      dh = -a * (s1 + 0.44 * Math.sin(2 * ph + 0.5));
+    WS.h += a * (Math.cos(ph) + 0.22 * Math.cos(2 * ph + 0.5));
+    WS.gx += dh * (k * pdx + odd * dwx);
+    WS.gy += dh * (k * pdy + odd * dwy);
+    WS.dx -= 0.6 * a * s1 * pdx;
+    WS.dy -= 0.6 * a * s1 * pdy;
+  }
+  return WS;
+}
+
+/* Lily pads on the lake, drawn live so they ride the waves (they used to be painted into the ground). They keep to the
+   same stretch of shore each world; in summer and autumn only. */
+const lilyW = () => {
+  const on = n => (n === 1 || n === 2 ? 1 : 0);
+  return lerp(on(TRANS.prevSeason), on(SEASON), tEase());
+};
+const LILIES = { key: null, list: [] };
+function lilyList() {
+  const key = NS + ':' + LAKE.x + ':' + LAKE.y;
+  if (LILIES.key === key) return LILIES.list;
+  LILIES.key = key;
+  LILIES.list = [];
+  if (LAKE.x < -1000) return LILIES.list;
+  const base = hash2(LAKE.x | 0, LAKE.y | 0) * TAU;
+  for (let i = 0; i < 34; i++) {
+    const h = n => hash2(i * 131 + n * 17, ((LAKE.x * 7 + LAKE.y) | 0) + n * 1009);
+    const a = base + (h(1) - 0.5) * 0.6,
+      r = lakeR(a) - (20 + 70 * h(2));
+    LILIES.list.push({
+      x: LAKE.x + Math.cos(a) * r,
+      y: LAKE.y + Math.sin(a) * r,
+      s: 4 + 3 * h(3),
+      o: h(4) * TAU,
+      c: h(5) < 0.5 ? '#557F3F' : '#6A9048'
+    });
+  }
+  return LILIES.list;
+}
+function drawLilies(ctx) {
+  const k = lilyW();
+  if (k < 0.02 || LAKE.x < -1000) return;
+  ctx.save();
+  ctx.globalAlpha = k;
+  for (const p of lilyList()) {
+    if (!visG(p.x, p.y, 14)) continue;
+    const w = waveAt(p.x, p.y),
+      x = p.x + w.dx * 1.6,
+      y = p.y + w.dy * 1.1 - w.h * 0.8;
+    ctx.fillStyle = p.c;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    // a pad tips a little with the slope of the water under it, and turns slowly with the drift
+    ctx.ellipse(
+      x,
+      y,
+      p.s,
+      p.s * (1 - Math.min(0.25, Math.hypot(w.gx, w.gy) * 0.4)),
+      p.o + w.gx * 0.8,
+      0.35,
+      TAU - 0.35
+    );
+    ctx.closePath();
+    ctx.fill();
+  }
   ctx.restore();
 }

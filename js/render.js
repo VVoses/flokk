@@ -1685,6 +1685,7 @@ function render() {
     ctx.lineCap = 'round';
     drawWaterMood(ctx);
     if (winterW() < 0.5) {
+      drawLilies(ctx);
       // glints twinkle on calm water and give way to the wind's own waves as it roughens (waves.js)
       for (const s of SPARK) {
         if (!visG(s.x, s.y, 10)) continue;
