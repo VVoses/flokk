@@ -506,6 +506,9 @@ void main() {
   float k = o.w;
   float vy = css.y / sz.y;
   float veil = k * mix(0.55, 0.2, vy);
+  // the air thickens toward the map's northern edge, so the far treeline dissolves into the haze there
+  // instead of standing crisp against it
+  veil += (1.0 - veil) * k * 0.8 * (1.0 - smoothstep(-200.0, 560.0, gy));
   float a = veil + (1.0 - veil) * bank * min(1.0, k * 1.9) * 0.9;
   // a pocket of clearer air round the flock
   float dd = distance(css, pk.xy) / (pk.z * 2.8);
