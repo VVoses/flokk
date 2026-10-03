@@ -1812,6 +1812,7 @@ function render() {
   const items = [],
     wire = [],
     air = [],
+    shelt = [],
     skyA = [],
     hk = [];
   bladesBegin(); // the grass and crop blades go to the GPU layer when there is one (blades.js)
@@ -1861,6 +1862,7 @@ function render() {
       }
       const p = b.perch;
       if (!visU(b.x, b.y, 30, (p ? p.h : 0) * HZ + 20)) continue;
+      if (p && p.cover && coveredNow(b)) shelt.push([b, k]);
       if (p && (p.type === 'wire' || p.type === 'pole')) wire.push([b, k]);
       else items.push([(p ? p.key : b.y) + b.hy * 0.01, 5, b, k]);
     }
@@ -2081,6 +2083,24 @@ function render() {
       setK(k);
       drawSkyAnimal(a);
     }
+  // birds sheltering in a tree are drawn among the leaves and vanish behind them; a faint warm glow and a
+  // pale glint over the canopy keep each findable. It is light on the bird, not a UI ring: it breathes slowly
+  // and every bird keeps its own phase
+  for (const [b, k] of shelt) {
+    setK(k);
+    const s = b.s * 0.95,
+      X = b.x + b.hx,
+      Y = PY(b.y + b.hy, b.z) - s * 0.5,
+      br = 0.5 + 0.5 * Math.sin(T * 1.6 + b.hx * 0.7 + b.hy * 0.3);
+    ctx.globalAlpha = 0.34 + 0.18 * br;
+    ctx.drawImage(HALO_GOLD, X - s * 2, Y - s * 2, s * 4, s * 4);
+    ctx.globalAlpha = 0.5 + 0.2 * br;
+    ctx.fillStyle = 'rgba(255,240,200,1)';
+    ctx.beginPath();
+    ctx.arc(X, Y, Math.max(0.9, s * 0.16), 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
   air.sort((a, b) => a[0].y - b[0].y);
   flightDraw(air, setK); // the flock's pool of light over forest, under the birds themselves
   for (const [b, k] of air) {

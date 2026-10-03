@@ -415,12 +415,12 @@ function drawFlyer(b) {
     Y = PY(b.y, b.z);
   // over canopy the shader pool of light (flocklight.js) marks the flock; without WebGL2 each bird's aura swells instead
   const fq = FLIGHT.on ? 0 : flyerForest(b);
-  ctx.globalAlpha = 0.02 + 0.015 * LIGHT.night + 0.015 * fq * (1 - 0.35 * LIGHT.night);
+  ctx.globalAlpha = 0.035 + 0.015 * LIGHT.night + 0.015 * fq * (1 - 0.35 * LIGHT.night);
   const hr = K * (1.05 + 0.045 * fq);
   ctx.drawImage(HALO, X - hr, Y - hr, hr * 2, hr * 2);
   ctx.globalAlpha = 1;
   if (b === L) {
-    ctx.globalAlpha = 0.08 + 0.025 * Math.sin(T * 2) + 0.01 * fq;
+    ctx.globalAlpha = 0.11 + 0.03 * Math.sin(T * 2) + 0.01 * fq;
     ctx.drawImage(HALO_GOLD, X - K * 1.3, Y - K * 1.3, K * 2.6, K * 2.6);
     ctx.globalAlpha = 1;
   }
