@@ -424,7 +424,7 @@ function drawWaterMood(ctx) {
 /* The GPU surface. Each pixel of the water adds up eight travelling waves (fixed wavelengths, a spread of directions
    about the wind, the longer ones always present and the short chop rising with the gust amplitude), keeps the
    slope of the sum for a normal, and lights it: facets that lean toward the sky go pale, those that lean away go
-   dark, with a few bright glints. In a hard wind the highest crests carry foam in patches that drift over the sea.
+   dark, all soft and matte. In a hard wind the highest crests lighten a little in patches that drift over the sea.
    The wind amplitude comes in as a small texture, one texel per lattice node, that the CPU side has already settled
    and shaped to the shore, so the shader sees nothing sudden. */
 const WAVE_FS = `#version 300 es
@@ -478,24 +478,21 @@ void main() {
   vec3 n = normalize(vec3(-g * 1.4, 1.0));
   vec3 L = normalize(vec3(-0.4, -0.55, 0.73));
   float d = dot(n, L) - L.z;
-  float kl = (0.2 + 0.12 * min(1.5, sm)) * mix3.x, kd = (0.16 + 0.1 * min(1.5, sm)) * mix3.x;
-  float al = d > 0.0 ? min(1.2, d * 2.6) * kl : 0.0;
-  float ad = d < 0.0 ? min(1.2, -d * 2.6) * kd : 0.0;
-  // a few broad glints where the facet mirrors the light
-  vec3 hv = normalize(L + vec3(0.0, 0.5, 0.86));
-  float gl = pow(max(dot(n, hv), 0.0), 60.0) * min(1.0, R) * 0.3 * mix3.x;
+  float kl = (0.28 + 0.14 * min(1.5, sm)) * mix3.x, kd = (0.22 + 0.12 * min(1.5, sm)) * mix3.x;
+  float al = d > 0.0 ? (1.0 - exp(-d * 3.2)) * kl : 0.0; // saturates softly, so no facet ever blazes
+  float ad = d < 0.0 ? (1.0 - exp(d * 3.2)) * kd : 0.0;
   // foam on the highest crests, in drifting patches, only in a hard wind
   float hn = h / max(hmax, 0.001);
   vec2 np = q * 0.045 + vec2(tw * 0.03, -tw * 0.02);
   float pf = vnoise(np) * 0.65 + vnoise(np * 2.3 + 7.0) * 0.35;
   float lace = 0.7 + 0.3 * vnoise(q * 0.22 + tw * 0.05);
   float thr = 0.24 - 0.06 * min(1.0, max(0.0, sm - 0.8));
-  float f = smoothstep(thr, thr + 0.22, hn * (0.55 + 0.9 * pf)) * mix3.y * lace;
-  vec3 lc = vec3(0.91, 0.957, 0.933), dc = vec3(0.055, 0.165, 0.2), fc = vec3(0.957, 0.98, 0.973);
-  float aw = min(1.0, al + gl);
+  float f = smoothstep(thr, thr + 0.6, hn * (0.5 + 0.8 * pf)) * mix3.y * lace;
+  vec3 lc = vec3(0.78, 0.88, 0.86), dc = vec3(0.055, 0.165, 0.2), fc = vec3(0.86, 0.93, 0.92);
+  float aw = al;
   vec3 rgb = lc * aw + dc * ad;
   float a = aw + ad;
-  float fa = f * 0.6 * mix3.x;
+  float fa = f * f * 0.3 * mix3.x; // foam is only a lightening of the crest, never a white edge
   rgb = rgb * (1.0 - fa) + fc * fa;
   a = a * (1.0 - fa) + fa;
   o = vec4(rgb, a);
