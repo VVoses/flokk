@@ -23,7 +23,9 @@ with sync_playwright() as playwright:
     for seed in SEEDS[:COUNT]:
         state = page.evaluate('''seed => {
           genWorld(seed);
-          roadInit();
+          // Let traffic observe the new ROAD reference before any route helper caches it.
+          // Otherwise a car from the previous seed can appear parked in a field in this capture.
+          updateTraffic(0);
           refreshInsects();
           resetWorld(6, START.x, START.y);
           $('titleOv').hidden = $('pauseOv').hidden = true;
