@@ -54,6 +54,18 @@ function update(dt) {
     // a winter storm cuts through anything but the thickest cover
     if (!roost) drain *= 1 + 0.45 * WEATHER.storm;
     st.energy = clamp(st.energy - drain * dt, 0, 1);
+    // a hungry flock eats its stores before it raises more young: a little banked food at a time
+    st.eatT = (st.eatT ?? 0) - dt;
+    if (st.energy < 0.5 && st.food >= 0.5 && st.eatT <= 0) {
+      st.eatT = 0.5;
+      const bite = Math.min(1, st.food);
+      st.food -= bite;
+      feed(0.04 * bite);
+    }
+    if (st.energy <= 0.5 && st.food >= needFor(birds.length))
+      teach('stores', 'a hungry flock eats its stores first: new birds come once it is fed');
+    if (SEASON === 2 && CAL.day % DAYS_PER_SEASON >= 1)
+      teach('autumn', 'the insects are thinning: eat well, winter has none');
     if (st.energy < 0.45) teach('hunger', 'eat insects to keep the flock fed');
     if (SEASON === 3 && st.energy < 0.8)
       teach('winter', 'no insects now: try the feeder and rowan berries, roost in spruce');
