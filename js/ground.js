@@ -1017,23 +1017,7 @@ function* paintGroundGen(season) {
   water(LAKE, lakeR, LAKE.r);
   yield;
   if (POND.x > 0) water(POND, pondR, POND.r);
-  if (season === 1 || season === 2) {
-    const LILY = rnd(0, TAU);
-    for (let i = 0; i < 34; i++) {
-      const a = LILY + rnd(-0.3, 0.3),
-        r = lakeR(a) - rnd(20, 90);
-      const x = LAKE.x + Math.cos(a) * r,
-        y = LAKE.y + Math.sin(a) * r,
-        s = rnd(4, 7),
-        o = rnd(0, TAU);
-      g.fillStyle = R() < 0.5 ? '#557F3F' : '#6A9048';
-      g.beginPath();
-      g.moveTo(x, y);
-      g.arc(x, y, s, o + 0.35, o + TAU - 0.35);
-      g.closePath();
-      g.fill();
-    }
-  }
+  // the lily pads are drawn live over the water, so they ride the waves (waves.js)
   g.lineCap = 'butt';
   g.strokeStyle = 'rgba(20,30,20,.3)';
   g.lineWidth = 14;

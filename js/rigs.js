@@ -767,6 +767,7 @@ function drawDuck(a) {
     up = a.st === 'dive';
   ctx.save();
   ctx.translate(0, bob);
+  ctx.rotate(a.wpitch || 0);
   ctx.save();
   ctx.beginPath();
   ctx.rect(-14, -20, 28, 20.5);
@@ -902,6 +903,17 @@ function drawAnimal(a) {
   ctx.save();
   ctx.globalAlpha = clamp(a.fade ?? 1, 0, 1);
   ctx.translate(a.x, PY(a.y, a.z));
+  // a duck on the water rides it: lifted and carried by the waves, with the pitch (nose up or down along its heading)
+  // and roll (lean to the side) of the surface left in a.wpitch / a.wroll for whatever draws it
+  if (a.k === 'duck' && a.st !== 'dive') {
+    const w = waveAt(a.x, a.y),
+      hd = a.hd3 ?? (a.f > 0 ? 0 : Math.PI),
+      al = w.gx * Math.cos(hd) + w.gy * Math.sin(hd),
+      ac = w.gy * Math.cos(hd) - w.gx * Math.sin(hd);
+    ctx.translate(w.dx * 1.6, w.dy * 1.1 - w.h * 0.8);
+    a.wpitch = -clamp(al * 0.9, -0.3, 0.3);
+    a.wroll = clamp(ac * 0.9, -0.3, 0.3);
+  } else if (a.k === 'duck') a.wpitch = a.wroll = 0;
   if (a.k === 'cat') ctx.scale(0.76, 0.76);
   else if (a.k === 'dog') ctx.scale(0.82, 0.82);
   else if (a.k === 'fox') ctx.scale(0.82, 0.82);
