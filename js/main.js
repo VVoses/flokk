@@ -17,6 +17,8 @@ function hud(dt) {
   ui.count.textContent = birds.length;
   const need = needFor(birds.length);
   ui.foodBar.style.width = (Math.min(1, st.food / need) * 100).toFixed(0) + '%';
+  // a full bar that waits on a hungry flock is dimmed, so it does not read as a stuck bird
+  ui.foodBar.style.opacity = st.energy <= 0.5 && st.food >= need ? 0.4 : 1;
   let cls = '',
     txt = 'Flying';
   let dive = false,

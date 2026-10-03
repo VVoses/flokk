@@ -88,9 +88,27 @@ function pickTarget(h) {
   }
   return best;
 }
+// a winter owl stooping into a big, panicking flock is hard to dodge altogether: it rakes a second bird
+// beside the one it takes, more often the bigger the flock (a small flock is too sparse to hit two)
+function owlRake(h, b) {
+  if (h.kind !== 'owl' || SEASON !== 3 || birds.length < 12) return;
+  if (Math.random() > Math.min(0.5, (birds.length - 10) / 120)) return;
+  let nb = null,
+    bd = 60 * 60;
+  for (const o of birds) {
+    if (!exposed(o)) continue;
+    const q = (o.x - b.x) ** 2 + (o.y - b.y) ** 2;
+    if (q < bd) {
+      bd = q;
+      nb = o;
+    }
+  }
+  if (nb && nb !== L) removeBird(nb);
+}
 function catchBird(h, b) {
   if (!removeBird(b)) return;
   thud(h.kind, h.bold, birds.length === 0, b.x, b.y);
+  owlRake(h, b);
   h.state = 'carry';
   h.target = null;
   h.prey = b;
@@ -333,7 +351,9 @@ function updateHawk(h, dt) {
       pitchT = clamp(Math.atan2((h.z - t.z) * HZ, Math.max(20, d)) * 1.15, 0.15, 1.25);
       h.z = Math.max(t.z + 0.1, h.z - dt * (1.1 + 2.8 * Math.max(0, Math.sin(h.pitch))));
       scareAround(h);
-      if (Math.hypot(t.x - h.x, t.y - h.y) < 17 && h.z - t.z < 0.45) catchBird(h, t);
+      // a big flock is a big target for an owl: its reach grows with the flock
+      const reach = h.kind === 'owl' ? 17 + Math.min(14, birds.length * 0.2) : 17;
+      if (Math.hypot(t.x - h.x, t.y - h.y) < reach && h.z - t.z < 0.45) catchBird(h, t);
       break;
     }
     case 'climb': {
@@ -558,7 +578,7 @@ function perchUpdate(b, dt) {
     const rowan = p.type === 'tree' && p.tree && p.tree.type === 'decid' && p.tree.v % 4 === 3 && SEASON >= 2;
     const rate =
       p.type === 'feeder'
-        ? 0.55
+        ? 0.4
         : rowan
           ? 0.12
           : grd
@@ -567,7 +587,8 @@ function perchUpdate(b, dt) {
               : [0.018, 0.018, 0.018, 0.003][SEASON]
             : 0;
     if (rate && Math.random() < dt * rate) {
-      st.food += 1;
+      // a feeder keeps the flock alive but is poor for raising young: a quarter of the food of a wild find
+      st.food += p.type === 'feeder' ? 0.25 : 1;
       st.eaten += 1;
       feed(p.type === 'feeder' ? 0.03 : 0.04);
       sparkle(b.x + b.hx, b.y + b.hy, b.z + 0.1, rowan ? '#E0503A' : '#E7C98A');
