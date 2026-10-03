@@ -3,11 +3,55 @@
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 let hudT = 0;
+/* quiet milestones: a small aim under the meters; reaching one lights it softly for a few seconds,
+   then it settles back to the next aim. Derived from the run's state, nothing saved. */
+const MILESTONES = [
+  { aim: 'grow to 10 birds', got: 'a flock of 10', ok: () => (st.maxFlock || 0) >= 10 },
+  { aim: 'reach the autumn', got: 'summer behind you', ok: () => SEASON >= 2 || CAL.year > 1 },
+  { aim: 'grow to 20 birds', got: 'a flock of 20', ok: () => (st.maxFlock || 0) >= 20 },
+  { aim: 'reach the winter', got: 'winter has come', ok: () => SEASON === 3 || CAL.year > 1 },
+  { aim: 'grow to 40 birds', got: 'a flock of 40', ok: () => (st.maxFlock || 0) >= 40 },
+  { aim: 'make it to spring', got: 'winter survived', ok: () => CAL.year > 1 || st.mode === 'won' }
+];
+const MS = { done: [], quiet: true, shown: '', t: 0 };
+function resetMilestones() {
+  MS.done = [];
+  MS.quiet = true;
+  MS.t = 0;
+}
+function setAim(text, cls) {
+  if (MS.shown === text + cls) return;
+  MS.shown = text + cls;
+  const el = $('aimEl');
+  el.className = 'aim ' + cls;
+  el.textContent = text;
+}
+function milestones(dt) {
+  if (st.mode !== 'play') return;
+  MS.t -= dt;
+  let next = null;
+  MILESTONES.forEach((m, i) => {
+    if (!MS.done[i] && m.ok()) {
+      MS.done[i] = true;
+      if (!MS.quiet) {
+        MS.t = 5;
+        setAim(m.got, 'got');
+      }
+    }
+    if (!MS.done[i] && !next) next = m;
+  });
+  MS.quiet = false;
+  if (MS.t > 0) return;
+  setAim(next ? 'next · ' + next.aim : '', '');
+}
 function hud(dt) {
   hudT -= dt;
   ui.stBar.style.width = (st.stamina * 100).toFixed(0) + '%';
   if (hudT > 0) return;
   hudT = 0.1;
+  milestones(0.1);
+  $('countLabel').textContent = birds.length === 1 ? 'bird' : 'birds';
+  $('yearName').textContent = `${SEASONS[SEASON]} · day ${(CAL.day % YEAR_DAYS) + 1} of ${YEAR_DAYS}`;
   $('yearMark').style.left =
     ((((CAL.day % YEAR_DAYS) + ((CAL.hour - START_HOUR + 24) % 24) / 24) / YEAR_DAYS) * 100).toFixed(1) + '%';
   $('calIcon').textContent = LIGHT.night > 0.5 ? '☾' : '☀';
