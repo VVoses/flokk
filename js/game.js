@@ -119,8 +119,10 @@ function resetWorld(n, x, y) {
   st.settled = false;
   st.stillT = 0;
 }
+// the cost of the next bird rises faster than the flock does, so a big flock keeps growing but ever more slowly
+// and cannot simply outnumber every hawk
 function needFor(n) {
-  return 4 + Math.floor(n / 5);
+  return 4 + Math.floor(n / 5) + Math.floor((n * n) / 400);
 }
 // spends banked food into a new bird, but only once the flock has some health to spare: a flock
 // already running on empty doesn't have young to spare either, so banked food waits rather than
