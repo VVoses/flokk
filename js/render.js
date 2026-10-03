@@ -1683,47 +1683,21 @@ function render() {
     ctx.strokeStyle = LIGHT.rim > 0.05 ? mixHex('#E8F4EE', LIGHT.eve ? '#FFB060' : '#FFCDA8', LIGHT.rim) : '#E8F4EE';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
-    {
-      // wind on the open water: glints turn to run across the wind and flash brighter and longer in a gust, and
-      // darker roughened streaks (cat's-paws) lie along the wind wherever a gust is over the lake
-      const open = winterW() < 0.5,
-        wc = WEATHER.gc,
-        ws = WEATHER.gs,
-        rough = new Path2D(),
-        rough2 = new Path2D();
-      if (open)
-        for (const s of SPARK) {
-          if (!visG(s.x, s.y, 40)) continue;
-          const r = waterRough(s),
-            bl = Math.min(0.7, r),
-            gx = 1 - bl - ws * bl,
-            gy = wc * bl,
-            len = s.l * (1 + r * 0.35);
-          const al = Math.max(0, Math.sin(T * s.s * (1 + r * 0.6) + s.p)) ** 10 * (0.7 + 0.5 * r);
-          if (al >= 0.04) {
-            ctx.globalAlpha = Math.min(1, al) * 0.65;
-            ctx.beginPath();
-            ctx.moveTo(s.x - (gx * len) / 2, s.y - (gy * len) / 2);
-            ctx.lineTo(s.x + (gx * len) / 2, s.y + (gy * len) / 2);
-            ctx.stroke();
-          }
-          if (r > 0.38) {
-            const L2 = 22 + 26 * r;
-            const P = r > 0.85 ? rough2 : rough;
-            P.moveTo(s.x - wc * L2, s.y - ws * L2);
-            P.lineTo(s.x + wc * L2, s.y + ws * L2);
-          }
-        }
-      ctx.globalAlpha = (1 - LIGHT.night * 0.4) * 0.07;
-      ctx.strokeStyle = '#18323E';
-      ctx.lineCap = 'round';
-      ctx.lineWidth = 9;
-      ctx.stroke(rough);
-      ctx.stroke(rough2);
-      ctx.stroke(rough2);
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = LIGHT.rim > 0.05 ? mixHex('#E8F4EE', LIGHT.eve ? '#FFB060' : '#FFCDA8', LIGHT.rim) : '#E8F4EE';
-      ctx.lineWidth = 2;
+    drawWaterMood(ctx);
+    if (winterW() < 0.5) {
+      // glints twinkle on calm water and give way to the wind's own waves as it roughens (waves.js)
+      for (const s of SPARK) {
+        if (!visG(s.x, s.y, 10)) continue;
+        const a = Math.max(0, Math.sin(T * s.s + s.p));
+        const al = a ** 10 * (1 - smooth(0.15, 0.7, waterRough(s)));
+        if (al < 0.04) continue;
+        ctx.globalAlpha = al * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(s.x - s.l / 2, s.y);
+        ctx.lineTo(s.x + s.l / 2, s.y);
+        ctx.stroke();
+      }
+      drawWaves(ctx);
     }
     {
       const sc = ctx.strokeStyle;
