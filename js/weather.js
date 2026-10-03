@@ -15,8 +15,10 @@ const WEATHER = {
   s: 0.7, // strength: ~0.2 still, ~0.7 a breeze, ~1 fresh, 1.3+ a gale
   sT: 0.7,
   next: 8,
-  ox: 0, // the camera's unwrapped travel along the land, anchoring the wind field in the world
   lastCx: 0,
+  lastCy: 0,
+  tu: 0, // where the gust pattern's frame sits, so a turn of the wind turns it about the view, not about the world's origin
+  tv: 0,
   ft: 0,
   adv: 0,
   gc: 1,
@@ -40,8 +42,9 @@ const GUST_SEASON = [0.8, 0.55, 1, 0.9], // baseline strength per season: summer
   FOG_CHANCE = [0.3, 0.08, 0.4, 0.22];
 function resetWeather() {
   Object.assign(WEATHER, { s: 0.7, sT: 0.7, next: rr(10, 30), fog: 0, fogT: 0, fogNext: rr(50, 110), storm: 0 });
-  WEATHER.ox = 0;
   WEATHER.lastCx = cam.x;
+  WEATHER.lastCy = cam.py / TILT;
+  WEATHER.tu = WEATHER.tv = 0;
   WEATHER.ft = 0;
   WEATHER.adv = 0;
   WEATHER.leaves = [];
@@ -81,7 +84,7 @@ function weatherTick(dt) {
   if (W2.fogT > 0) sT = Math.min(sT, 0.3);
   W2.s += (sT - W2.s) * Math.min(1, dt * 0.08);
   let da = ((((W2.angT - W2.ang + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
-  W2.ang += da * Math.min(1, dt * 0.04);
+  W2.ang += clamp(da * Math.min(1, dt * 0.015), -0.02 * dt, 0.02 * dt); // a veer is slow and never sweeps faster than ~1 degree a second
   WIND.x = Math.cos(W2.ang) * W2.s;
   WIND.y = Math.sin(W2.ang) * W2.s * 0.7;
   W2.fog += ((W2.s > 0.9 ? 0 : W2.fogT) - W2.fog) * Math.min(1, dt * (W2.fogT > W2.fog ? 0.05 : 0.08));
@@ -126,22 +129,38 @@ function viewSpan() {
 function gustTick(dt) {
   const W2 = WEATHER,
     speed = 60 + 130 * W2.s;
-  W2.ox += wdx(cam.x, W2.lastCx);
-  W2.lastCx = cam.x;
   W2.ft += dt;
   W2.adv += speed * dt;
   const a = W2.ang;
   W2.gc = Math.cos(a);
   W2.gs = Math.sin(a);
+  // the pattern is anchored in the world but turned about the camera: as the camera travels the frame slides by the
+  // same step, so nothing moves, and as the wind veers what is in view merely rotates in place instead of being swept
+  // away by the lever of a far-off origin
+  const mx = wdx(cam.x, W2.lastCx),
+    my = cam.py / TILT - W2.lastCy;
+  W2.lastCx = cam.x;
+  W2.lastCy = cam.py / TILT;
+  W2.tu += mx * W2.gc + my * W2.gs;
+  W2.tv += my * W2.gc - mx * W2.gs;
+}
+// a point's place in the gust pattern: u along the wind (less the advance), v across it
+const GUV = { u: 0, v: 0 };
+function gustUV(x, y) {
+  const W2 = WEATHER,
+    dx = wdx(x, cam.x),
+    dy = y - cam.py / TILT;
+  GUV.u = dx * W2.gc + dy * W2.gs + W2.tu - W2.adv;
+  GUV.v = dy * W2.gc - dx * W2.gs + W2.tv;
 }
 // the extra wind at a point (0 in a lull, ~1 in the heart of a gust, up to ~1.3)
 function gustAt(x, y) {
   const W2 = WEATHER,
     amp = smooth(0.2, 0.5, W2.s) * Math.min(1.25, 0.4 + W2.s * 0.7);
   if (amp < 0.01) return 0;
-  const X = W2.ox + wdx(x, cam.x),
-    u = X * W2.gc + y * W2.gs - W2.adv,
-    v = y * W2.gc - X * W2.gs,
+  gustUV(x, y);
+  const u = GUV.u,
+    v = GUV.v,
     t = W2.ft;
   const lo = Math.max(0.08, 0.34 - 0.12 * W2.s),
     front = smooth(
@@ -170,10 +189,10 @@ function gustAt(x, y) {
 // the crests of the wind running through the land, -1..1: the same travelling ripple everything that sways
 // reads, so a gust is seen reaching the grass, the trees and the smoke together
 function windWave(x, y) {
-  const W2 = WEATHER,
-    X = W2.ox + wdx(x, cam.x),
-    u = X * W2.gc + y * W2.gs - W2.adv,
-    v = y * W2.gc - X * W2.gs;
+  const W2 = WEATHER;
+  gustUV(x, y);
+  const u = GUV.u,
+    v = GUV.v;
   return (
     0.65 * Math.sin(u * 0.011 + 0.9 * Math.sin(v * 0.0031 + W2.ft * 0.15)) +
     0.35 * Math.sin((u + W2.adv * 0.3) * 0.0063 - v * 0.0021 + 1.1)

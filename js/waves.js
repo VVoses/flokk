@@ -478,12 +478,12 @@ void main() {
   vec3 n = normalize(vec3(-g * 1.4, 1.0));
   vec3 L = normalize(vec3(-0.4, -0.55, 0.73));
   float d = dot(n, L) - L.z;
-  float kl = (0.3 + 0.18 * min(1.5, sm)) * mix3.x, kd = (0.24 + 0.15 * min(1.5, sm)) * mix3.x;
-  float al = d > 0.0 ? min(1.2, d * 3.4) * kl : 0.0;
-  float ad = d < 0.0 ? min(1.2, -d * 3.4) * kd : 0.0;
+  float kl = (0.2 + 0.12 * min(1.5, sm)) * mix3.x, kd = (0.16 + 0.1 * min(1.5, sm)) * mix3.x;
+  float al = d > 0.0 ? min(1.2, d * 2.6) * kl : 0.0;
+  float ad = d < 0.0 ? min(1.2, -d * 2.6) * kd : 0.0;
   // a few broad glints where the facet mirrors the light
   vec3 hv = normalize(L + vec3(0.0, 0.5, 0.86));
-  float gl = pow(max(dot(n, hv), 0.0), 60.0) * min(1.0, R) * 0.5 * mix3.x;
+  float gl = pow(max(dot(n, hv), 0.0), 60.0) * min(1.0, R) * 0.3 * mix3.x;
   // foam on the highest crests, in drifting patches, only in a hard wind
   float hn = h / max(hmax, 0.001);
   vec2 np = q * 0.045 + vec2(tw * 0.03, -tw * 0.02);
@@ -495,7 +495,7 @@ void main() {
   float aw = min(1.0, al + gl);
   vec3 rgb = lc * aw + dc * ad;
   float a = aw + ad;
-  float fa = f * 0.75 * mix3.x;
+  float fa = f * 0.6 * mix3.x;
   rgb = rgb * (1.0 - fa) + fc * fa;
   a = a * (1.0 - fa) + fa;
   o = vec4(rgb, a);
