@@ -55,6 +55,8 @@ function update(dt) {
     if (!roost) drain *= 1 + 0.45 * WEATHER.storm;
     st.energy = clamp(st.energy - drain * dt, 0, 1);
     if (st.energy < 0.45) teach('hunger', 'eat insects to keep the flock fed');
+    if (SEASON === 3 && st.energy < 0.8)
+      teach('winter', 'no insects now: try the feeder and rowan berries, roost in spruce');
     if (st.energy <= 0) {
       st.starveT -= dt;
       if (st.starveT <= 0) {
@@ -227,7 +229,8 @@ function update(dt) {
       let active = 0;
       for (const h of hawks) if (h.kind === kind && h.state !== 'carry' && h.state !== 'leave') active++;
       let want = st.grace > 0 ? 0 : Math.min(7, Math.max(1, 1 + Math.floor((birds.length - 5) / 6)));
-      if (kind === 'owl') want = Math.min(2, want);
+      // winter nights are the dangerous ones: a large flock can draw up to four owls, not two
+      if (kind === 'owl') want = Math.min(SEASON === 3 ? 4 : 2, want);
       if (SEASON === 3 && kind === 'hawk') want = Math.min(2, want);
       let birdExposed = false;
       for (const b of birds)
