@@ -426,8 +426,12 @@ function update(dt) {
   if (DEV && DEV.zoom) cam.z = DEV.zoom;
   const lx = L.x + L.vx * 0.35,
     ly = PY(L.y + L.vy * 0.35, L.z * 0.7);
-  cam.x += (lx - cam.x) * Math.min(1, dt * 2.6);
-  cam.py += (ly - cam.py) * Math.min(1, dt * 2.6);
+  // the pull tightens with the lag: a calm drift keeps its easy 2.6, but when the leader gets well ahead of
+  // the view (a dash, a hawk chase) the camera hurries up to keep the flock on screen instead of trailing it
+  const lag = Math.hypot(lx - cam.x, (ly - cam.py) * 1.25) * cam.z,
+    cr = 2.6 + 5 * smooth(0.08, 0.3, lag / Math.max(1, Math.min(vw, vh)));
+  cam.x += (lx - cam.x) * Math.min(1, dt * cr);
+  cam.py += (ly - cam.py) * Math.min(1, dt * cr);
   if (st.overT > 0) {
     st.overT -= dt;
     if (st.overT <= 0 && st.mode === 'play') gameOver();
