@@ -210,7 +210,7 @@ function waterRough(s) {
     for (const d of [40, 110, 220]) if (inWater(s.x - W2.gc * d, s.y - W2.gs * d, 0)) n++;
     s.fk = 0.25 + 0.25 * n;
   }
-  return clamp(0.3 * W2.s + gustAt(s.x, s.y), 0, 1.3) * s.fk;
+  return clamp(0.3 * (WV.init ? WV.sm : W2.s) + gustAt(s.x, s.y), 0, 1.3) * s.fk;
 }
 // what a tree, a reed or a flag feels: the steady wind plus whatever gust is on it
 const windAt = (x, y) => WEATHER.s * (0.25 + gustAt(x, y));
