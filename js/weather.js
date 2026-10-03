@@ -453,11 +453,176 @@ const FOG_SPR = puffSprite({
   rMin: 20,
   rRange: 34
 });
+
+/* The GPU fog. Fog is one continuous field of drifting, slowly rolling air, so it is drawn as one: a fragment
+   shader reads a fractal noise in ground coordinates (anchored to the land, drifting downwind), makes banks of
+   it with a thin veil under them, and clears a pocket round the flock. Every input is a smooth float, so
+   nothing steps from frame to frame; the 2D version below (a few dozen stretched sprites a frame, and a hex
+   colour that moves in 8-bit steps) is kept only for where there is no real WebGL2. */
+const FOG_CELL = 360, // ground units per noise cell of the broadest octave
+  FOG_PERIOD = 64; // the lattice repeats every this many cells
+const FOG_DRIFT = { x: 0, y: 0 };
+const FOG_FS = `#version 300 es
+precision highp float;
+uniform vec4 v;    // css px per pixel (1/SQ), z, time
+uniform vec4 o;    // view origin in noise cells (x, y), cells per css px (1/(z*CELL)), k
+uniform vec4 pk;   // flock pocket: x, y (css px), r0 (css px), unused
+uniform vec4 sz;   // view css width, height, ground y at the screen centre
+uniform vec3 col;
+out vec4 fo;
+float hsh(vec2 i) {
+  uvec2 u = uvec2(ivec2(mod(i, 64.0)));
+  u *= uvec2(1597334673u, 3812015801u);
+  uint n = (u.x ^ u.y) * 1597334673u;
+  return float(n >> 8) * (1.0 / 16777216.0);
+}
+float vn(vec2 p) {
+  vec2 i = floor(p), f = p - i;
+  f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y);
+}
+float fbm(vec2 p, float t) {
+  float a = 0.5, s = 0.0;
+  mat2 r = mat2(0.80, 0.60, -0.60, 0.80);
+  for (int i = 0; i < 4; i++) {
+    // each octave rolls past the one beneath at its own pace, so the bank reshapes as it goes
+    s += a * vn(p + vec2(cos(t * 0.021 + float(i) * 1.7), sin(t * 0.017 + float(i) * 2.3)) * (0.5 + 0.35 * float(i)));
+    p = r * p * 2.03 + 11.7;
+    a *= 0.5;
+  }
+  return s / 0.9375;
+}
+void main() {
+  vec2 css = gl_FragCoord.xy * v.x;
+  css.y = sz.y - css.y;
+  vec2 q = o.xy + (css - sz.xy * 0.5) * o.z;
+  q.y = o.y + (css.y - sz.y * 0.5) * o.z / 0.62; // the ground is foreshortened on screen by TILT
+  vec2 w = vec2(vn(q * 0.6 + v.w * 0.011), vn(q * 0.6 + 7.3 - v.w * 0.009)) - 0.5;
+  float d = fbm(q * 0.9 + w * 0.9, v.w);
+  float bank = smoothstep(0.30, 0.68, d);
+  // thins away past the map's north edge, where the sky takes over from the trees the fog lay among
+  float gy = sz.z + (css.y - sz.y * 0.5) / (v.y * 0.62);
+  bank *= smoothstep(-220.0, 0.0, gy);
+  float k = o.w;
+  float vy = css.y / sz.y;
+  float veil = k * mix(0.55, 0.2, vy);
+  float a = veil + (1.0 - veil) * bank * min(1.0, k * 1.9) * 0.9;
+  // a pocket of clearer air round the flock
+  float dd = distance(css, pk.xy) / (pk.z * 2.8);
+  float t0 = 0.2 / 2.8;
+  float clear = dd < t0 ? 0.85 - 0.25 * k : dd < 0.45 ? mix(0.85 - 0.25 * k, 0.45 - 0.2 * k, (dd - t0) / (0.45 - t0)) : mix(0.45 - 0.2 * k, 0.0, smoothstep(0.45, 1.0, dd));
+  a *= 1.0 - clear;
+  a += (hsh(gl_FragCoord.xy) - 0.5) / 255.0;
+  a = clamp(a, 0.0, 1.0);
+  fo = vec4(col * a, a);
+}`;
+const FOG_GL = { tried: false, gl: null, cv: null, prog: null, u: {} };
+function fogGLReady() {
+  const G = FOG_GL;
+  if (G.tried) return !!G.gl && !G.gl.isContextLost();
+  G.tried = true;
+  const c = document.createElement('canvas');
+  let gl = null;
+  try {
+    gl = c.getContext('webgl2', { premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+  } catch {
+    gl = null;
+  }
+  if (!gl) return false;
+  // a software WebGL would be slower than the 2D fog it replaces
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info'),
+    rn = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+  if (/swiftshader|llvmpipe|softpipe|software/i.test(rn) && !(DEV && (DEV.glFog || DEV.glBlades))) return false;
+  try {
+    const sh = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(
+      p,
+      sh(
+        gl.VERTEX_SHADER,
+        '#version 300 es\nlayout(location=0) in vec2 c;\nvoid main(){gl_Position=vec4(c*2.0-1.0,0.0,1.0);}'
+      )
+    );
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, FOG_FS));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    G.prog = p;
+    for (const n of ['v', 'o', 'pk', 'sz', 'col']) G.u[n] = gl.getUniformLocation(p, n);
+  } catch (e) {
+    console.warn('Flokk: GPU fog unavailable, drawing it on the 2D canvas', e);
+    return false;
+  }
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  c.addEventListener('webglcontextlost', e => {
+    e.preventDefault();
+    G.gl = null; // back to the 2D sprites
+  });
+  G.cv = c;
+  G.gl = gl;
+  return true;
+}
+function fogShader(k) {
+  const G = FOG_GL,
+    gl = G.gl,
+    c = G.cv,
+    SQ = 0.5,
+    w = Math.ceil(vw * SQ),
+    h = Math.ceil(vh * SQ),
+    z = cam.z,
+    hex = WEATHER.fogCol;
+  if (c.width !== w || c.height !== h) {
+    c.width = w;
+    c.height = h;
+  }
+  const wrap = x => ((x % FOG_PERIOD) + FOG_PERIOD) % FOG_PERIOD,
+    cx = (cam.x + WX) / FOG_CELL - FOG_DRIFT.x,
+    cy = cam.py / TILT / FOG_CELL - FOG_DRIFT.y;
+  let X = -1e4,
+    Y = -1e4,
+    r0 = 1;
+  if (L && birds.length) {
+    X = (L.x - cam.x) * z + vw / 2;
+    Y = (PY(L.y, L.z) - cam.py) * z + vh / 2;
+    r0 = lerp(260, 90, k) * z;
+  }
+  gl.viewport(0, 0, w, h);
+  gl.disable(gl.BLEND);
+  gl.useProgram(G.prog);
+  gl.uniform4f(G.u.v, 1 / SQ, z, 0, T);
+  gl.uniform4f(G.u.o, wrap(cx), wrap(cy), 1 / (z * FOG_CELL), k);
+  gl.uniform4f(G.u.pk, X, Y, r0, 0);
+  gl.uniform4f(G.u.sz, vw, vh, cam.py / TILT, 0);
+  gl.uniform3f(
+    G.u.col,
+    parseInt(hex.slice(1, 3), 16) / 255,
+    parseInt(hex.slice(3, 5), 16) / 255,
+    parseInt(hex.slice(5, 7), 16) / 255
+  );
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(c, 0, 0, cv.width, cv.height);
+}
 const FOGC = document.createElement('canvas'),
   fgx = FOGC.getContext('2d');
 function fogTick(dt) {
   const W2 = WEATHER,
     nf = LIGHT.night;
+  // the GPU fog's field creeps downwind with what air there is (kept in noise cells, wrapped to the lattice's period)
+  FOG_DRIFT.x = (FOG_DRIFT.x + (WIND.x * 22 * dt) / FOG_CELL) % FOG_PERIOD;
+  FOG_DRIFT.y = (FOG_DRIFT.y + (WIND.y * 22 * dt) / FOG_CELL) % FOG_PERIOD;
   W2.fogCol = mixHex(mixHex('#DCE1E0', LIGHT.skyBot, 0.3), '#6A7580', nf * 0.55);
   if (W2.storm > W2.fog) W2.fogCol = mixHex(W2.fogCol, '#E8EEF4', 0.5);
   if (W2.fog <= 0 && W2.storm <= 0.02) return;
@@ -499,6 +664,7 @@ function drawFog() {
     sm = WEATHER.storm * winterW();
   const k = Math.max(f, sm * 0.7);
   if (k < 0.01) return;
+  if (fogGLReady()) return fogShader(k);
   const SQ = 0.5,
     w = Math.ceil(vw * SQ),
     h = Math.ceil(vh * SQ),
@@ -630,7 +796,7 @@ function weatherItems(items) {
   for (const f of W2.leaves) if (f.z > 0 && visU(f.x, f.y, 10, f.z * HZ + 10)) band(f.y).leaves.push(f);
   for (const b of bands.values()) items.push([b.y, 16, b, 0]);
   const k = Math.max(W2.fog, W2.storm * winterW() * 0.7);
-  if (k > 0.01)
+  if (k > 0.01 && !fogGLReady())
     for (const b of W2.banks)
       for (let i = 0; i < FOG_SLICES; i++) {
         const y = b.y + (i / (FOG_SLICES - 1) - 0.5) * b.r * 0.5;
