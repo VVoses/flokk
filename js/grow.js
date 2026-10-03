@@ -292,17 +292,17 @@ function growUnder(t, x, y, w, h) {
     if (e2 >= 1) return 1;
     const a0 = ctx.globalAlpha;
     // the budding sprite carries its own branches, so once it is fully in the bare one isn't needed
-    if (e1 < 0.99) ctx.drawImage(GROW.leaf.bare[t.type][t.v], x, y, w, h);
+    if (e1 < 0.99) drawTrim(ctx, GROW.leaf.bare[t.type][t.v], x, y, w, h);
     if (e1 > 0.01) {
       ctx.globalAlpha = a0 * e1;
-      ctx.drawImage(GROW.leaf.bud[t.type][t.v], x, y, w, h);
+      drawTrim(ctx, GROW.leaf.bud[t.type][t.v], x, y, w, h);
       ctx.globalAlpha = a0;
     }
     return e2;
   }
   const fall = smooth(0.6 + j, 0.99, p) * (t.type === 'birch' ? 0.85 : 0.7);
   if (fall <= 0.01) return 1;
-  ctx.drawImage(GROW.leaf.bare[t.type][t.v], x, y, w, h);
+  drawTrim(ctx, GROW.leaf.bare[t.type][t.v], x, y, w, h);
   return 1 - fall;
 }
 

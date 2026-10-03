@@ -512,7 +512,7 @@ function drawTree(t) {
   // bare twigs and first leaves under a tree still leafing out, or losing its leaves (grow.js)
   const la = growUnder(t, x, y, w, h);
   ctx.globalAlpha *= la;
-  if (la > 0.005) ctx.drawImage(spr, x, y, w, h);
+  if (la > 0.005) drawTrim(ctx, spr, x, y, w, h);
   ctx.globalAlpha = 1;
   // recede into the sky only past the map's actual northern edge (y<0 - the thin strip generated
   // beyond it purely so the treeline doesn't look clipped): without this, a bare tree's crown out
@@ -532,10 +532,10 @@ function drawTree(t) {
     if (r) {
       const si = LIGHT.rimSide > 0 ? 1 : 0;
       ctx.globalAlpha = LIGHT.rim * 0.3 * la * tEase();
-      ctx.drawImage(r.c[1 - si], x, y, w, h);
+      drawTrim(ctx, r.c[1 - si], x, y, w, h);
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28) * la * tEase();
-      ctx.drawImage(r.w[si], x, y, w, h);
+      drawTrim(ctx, r.w[si], x, y, w, h);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
     }
@@ -1330,6 +1330,7 @@ function mkSil(src) {
   q.globalCompositeOperation = 'source-in';
   q.fillStyle = SHADE;
   q.fillRect(0, 0, c.width, c.height);
+  c.box = boxFrom(src, c);
   return c;
 }
 function hull(P) {
@@ -1422,7 +1423,7 @@ function renderShadows(tx, ty, KS, inK) {
         continue;
       const k = t.k;
       c.setTransform(a1 * px, d1 * py, -a1 * kx, -d1 * ky, a1 * t.x + e1, d1 * t.y + f1);
-      c.drawImage(SSPR[t.type][t.v], -AX * k * (t.ws || 1), -AY * k, SW * k * (t.ws || 1), SHT * k);
+      drawTrim(c, SSPR[t.type][t.v], -AX * k * (t.ws || 1), -AY * k, SW * k * (t.ws || 1), SHT * k);
     }
     G0();
     c.fillStyle = SHADE;

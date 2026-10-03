@@ -4,6 +4,57 @@
 'use strict';
 /* ---------- tree sprites, one set per season ---------- */
 const SPR = { spruce: [], birch: [], decid: [] };
+/* A tree sprite is a 96x109 rectangle of which about half is clear. Drawing the whole rectangle makes the
+   canvas blend and sample the clear half too, and a forest is hundreds of them on top of each other. So each
+   sprite is measured once, as it is made, for the box that holds its pixels (with a margin of clear ones, so
+   the edge filters exactly as before), and sprite.box says which part of it is worth drawing. */
+const TRIM = document.createElement('canvas');
+let TRIMX = null;
+function trimBox(c) {
+  if (!TRIMX) TRIMX = TRIM.getContext('2d', { willReadFrequently: true });
+  const w = c.width,
+    h = c.height;
+  TRIM.width = w;
+  TRIM.height = h;
+  TRIMX.drawImage(c, 0, 0);
+  const d = TRIMX.getImageData(0, 0, w, h).data;
+  let x0 = w,
+    y0 = h,
+    x1 = -1,
+    y1 = -1;
+  for (let y = 0, i = 3; y < h; y++)
+    for (let x = 0; x < w; x++, i += 4)
+      if (d[i]) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        y1 = y;
+      }
+  if (x1 < 0) return null;
+  const m = 3;
+  return [Math.max(0, x0 - m), Math.max(0, y0 - m), Math.min(w, x1 + 1 + m), Math.min(h, y1 + 1 + m)];
+}
+// the box for a canvas made from sprite src (a mask of it, maybe at another size): scaled, and a pixel wider
+function boxFrom(src, c) {
+  const b = src.box;
+  if (!b) return null;
+  const kx = c.width / src.width,
+    ky = c.height / src.height;
+  return [
+    Math.max(0, Math.floor(b[0] * kx) - 1),
+    Math.max(0, Math.floor(b[1] * ky) - 1),
+    Math.min(c.width, Math.ceil(b[2] * kx) + 1),
+    Math.min(c.height, Math.ceil(b[3] * ky) + 1)
+  ];
+}
+// drawImage(spr, x, y, w, h) for a sprite with a box: only the box is drawn, in the same place
+function drawTrim(g, spr, x, y, w, h) {
+  const b = spr.box;
+  if (!b) return g.drawImage(spr, x, y, w, h);
+  const kx = w / spr.width,
+    ky = h / spr.height;
+  g.drawImage(spr, b[0], b[1], b[2] - b[0], b[3] - b[1], x + b[0] * kx, y + b[1] * ky, (b[2] - b[0]) * kx, (b[3] - b[1]) * ky);
+}
 const LEAF = {
   birch: [
     [['#7FA24A', '#9DC05A', '#BCD875', '#DCEBA2']],
@@ -52,6 +103,7 @@ function makeSprite(type, vi, season, stage) {
   g.fillStyle = gr;
   g.fillRect(-AX, -AY, SW, SHT);
   R = keepR;
+  c.box = trimBox(c);
   return c;
 }
 /* spruce: tiers of drooping fronds, lit on top, dark underneath, needle strokes along the edges.
