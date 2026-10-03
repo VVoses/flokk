@@ -2107,6 +2107,7 @@ function render() {
       drawSkyAnimal(a);
     }
   air.sort((a, b) => a[0].y - b[0].y);
+  flightDraw(air, setK); // the flock's pool of light over forest, under the birds themselves
   for (const [b, k] of air) {
     setK(k);
     drawFlyer(b);
