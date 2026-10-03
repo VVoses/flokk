@@ -121,6 +121,13 @@ body.no-hud .hud {
 .count.safe {
   color: var(--count-safe);
 }
+.count.hungry {
+  color: var(--energy-caution);
+}
+.count.starving {
+  color: var(--hawk);
+  animation: pulse 0.9s infinite alternate;
+}
 .count.danger {
   color: var(--count-danger);
   animation: pulse 0.6s infinite alternate;
