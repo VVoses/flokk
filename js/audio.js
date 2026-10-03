@@ -611,11 +611,11 @@ function songbird(v = 1) {
     }
   }
 }
-function owlHoot(v, x, y) {
+function owlHoot(v, x, y, range = 900) {
   if (!ac || muted) return;
   const t = ac.currentTime + 0.05,
     out = ac.createGain(),
-    sp = x == null ? null : spatial(x, y, 900);
+    sp = x == null ? null : spatial(x, y, range);
   out.gain.value = sp ? v * (1 - sp.d * 0.5) : v;
   const p = panned(out, sp ? sp.pan : rr(-0.8, 0.8));
   p.connect(master);
@@ -1679,6 +1679,17 @@ function audioTick(dt) {
       if (nf > 0.6) owlHoot(hawks.some(h => h.kind === 'owl') ? 0.05 : 0.025);
       amb.owlT = rr(9, 22);
     }
+    // a hunting owl gives itself away to the ear first: you hear it from where it is before you can see it
+    const hunter = hawks.find(
+      h => h.kind === 'owl' && (h.state === 'patrol' || h.state === 'stalk' || h.state === 'hover')
+    );
+    if (hunter) {
+      amb.owlHuntT = (amb.owlHuntT ?? 0.8) - dt;
+      if (amb.owlHuntT <= 0) {
+        owlHoot(0.16, hunter.x, hunter.y, 1500);
+        amb.owlHuntT = rr(5, 9);
+      }
+    } else amb.owlHuntT = undefined;
     amb.frogT = (amb.frogT || 5) - dt;
     if (amb.frogT <= 0) {
       if (SEASON === 0 && GROW.p > 0.2 && nf > 0.4 && L && Math.hypot(wdx(L.x, LAKE.x), L.y - LAKE.y) < LAKE.r + 700)

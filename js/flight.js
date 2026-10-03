@@ -236,7 +236,7 @@ function updateHawk(h, dt) {
       if (h.bored > h.patience) {
         h.state = 'leave';
         h.t = 0;
-        st.hawkT = Math.max(st.hawkT, rr(9, 15));
+        st.hawkT = Math.max(st.hawkT, SEASON < 2 ? rr(40, 80) : rr(9, 15));
         break;
       }
       if (h.scan <= 0) {

@@ -243,7 +243,9 @@ function update(dt) {
       let want = st.grace > 0 ? 0 : Math.min(7, Math.max(1, 1 + Math.floor((birds.length - 5) / 6)));
       // winter nights are the dangerous ones: a large flock can draw up to four owls, not two
       if (kind === 'owl') want = Math.min(SEASON === 3 ? 4 : 2, want);
-      if (SEASON === 3 && kind === 'hawk') want = Math.min(2, want);
+      // by day the sky is mostly empty in spring and summer: a hawk now and then, with long calm stretches
+      // between, so the flock can glide along the fields and feed
+      if (kind === 'hawk') want = Math.min([1, 2, 2, 2][SEASON], want);
       let birdExposed = false;
       for (const b of birds)
         if (exposed(b)) {
@@ -252,7 +254,7 @@ function update(dt) {
         }
       if (active < want && st.hawkT <= 0 && birdExposed) {
         spawnHawk(kind);
-        st.hawkT = rr(7, 13);
+        st.hawkT = kind === 'hawk' ? [rr(45, 90), rr(60, 110), rr(18, 35), rr(14, 26)][SEASON] : rr(7, 13);
         // hawk or owl plays the same from the flock's side, so one shared tip rather than two
         teach('predator', 'a predator is chasing you, hide in the trees');
       }
