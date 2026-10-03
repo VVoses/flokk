@@ -342,19 +342,6 @@ function applyLight(tx, ty, KS, inK) {
   if (nf > 0.02) {
     const src = LIGHTS.concat(trainLights(), trafficLights(), xmasLights());
     if (L && birds.includes(L)) src.push({ x: L.x, y: L.y, h: L.z, r: 170, i: 0.32, fl: 0, soft: 1 });
-    // an owl on the hunt carries a faint pale pool of its own (pale underwings catching what light there is),
-    // so the night shows it coming; it swells as it commits to a stoop
-    for (const h of hawks)
-      if (h.kind === 'owl' && h.alpha > 0.05)
-        src.push({
-          x: h.x,
-          y: h.y,
-          h: h.z,
-          r: h.state === 'dive' ? 120 : 90,
-          i: (h.state === 'dive' ? 0.75 : 0.5) * h.alpha,
-          fl: 0,
-          soft: 1
-        });
     // in winter the barn doors glow warmer and a little unsteadily: a lantern lit for the stock bedded down inside
     const lantern = winterW();
     const K = l =>
