@@ -97,3 +97,7 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
   `python3 tools/scene.py "js:dev.season(2)" "js:dev.to(1200,1500,1.2)" wait:2000 shot:autumn`
   Screenshots go to `tools/out/`. `TRACE.start(()=>[...])` records changes; read `TRACE.log`.
 - `dev.*`: `to(x,y,zoom)`, `zoom(z)`, `calm()`, `season(s,hour)`, `grow(p)` (pin season progress 0..1), `hour(h)`, `find(kind)`, `hawk()`, `wild(species)`, `land()`, `weather({s, ang, fog})` (pin wind strength, direction, fog; no argument unpins), `stats()`.
+
+## License
+
+Copyright (c) 2026 Karl (VVoses). All rights reserved. See [LICENSE](LICENSE).
