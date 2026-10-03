@@ -115,7 +115,7 @@ function flightDraw(air, setK) {
       K = b.s * (0.95 + 0.04 * b.z);
     P[n * 4] = (m.a * b.x + m.e) / S;
     P[n * 4 + 1] = (m.d * PY(b.y, b.z) + m.f) / S;
-    P[n * 4 + 2] = (K * 3.4 * m.a) / S;
+    P[n * 4 + 2] = (K * 2.0 * m.a) / S;
     P[n * 4 + 3] = fq * (b === L ? 1.25 : 1);
     n++;
   }
