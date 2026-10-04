@@ -1965,6 +1965,34 @@ function render() {
           }
         }
         ctx.globalAlpha = 1;
+        // in the dark, at dusk, in rain and under the canopy dark specks vanish into the ground, so the
+        // cloud takes on a faint warm shimmer of its own, like pollen in a sunbeam: gentle, never neon
+        if (!(s.fqT > T)) {
+          s.fqT = T + 0.25 + Math.random() * 0.1;
+          s.fqTo = smooth(0.42, 0.66, forestness(s.x, s.y));
+        }
+        s.fq = (s.fq || 0) + ((s.fqTo || 0) - (s.fq || 0)) * 0.08;
+        const dim = clamp(Math.max(LIGHT.night, s.fq * 0.75, LIGHT.rain * 0.4) * (1 - LIGHT.glow * 0.3), 0, 1);
+        if (dim > 0.05) {
+          const sh = softPuff('255,232,168'),
+            ao = ctx.globalCompositeOperation;
+          ctx.globalCompositeOperation = 'lighter';
+          for (const m of s.m) {
+            const [mx, my, mz] = motePos(s, m),
+              py = PY(my, mz),
+              tw = 0.7 + 0.3 * Math.sin(T * 2.1 + m.ph * 5);
+            ctx.globalAlpha = 0.17 * dim * tw;
+            ctx.drawImage(sh, mx - 13, py - 16, 26, 32);
+            const g = Math.max(0, Math.sin(T * 4.3 + m.ph * 9)) ** 4;
+            if (g > 0.05) {
+              ctx.globalAlpha = 0.6 * dim * g;
+              ctx.fillStyle = '#FFF0C0';
+              ctx.fillRect(mx + Math.sin(T * 5 + m.ph) * 5 - 0.8, py + Math.cos(T * 4 + m.ph) * 6 - 0.8, 1.6, 1.6);
+            }
+          }
+          ctx.globalCompositeOperation = ao;
+          ctx.globalAlpha = 1;
+        }
       }
       for (const m of s.m) {
         const [mx, my, mz] = motePos(s, m);
