@@ -9,6 +9,8 @@
    Without one the lattice and marching squares below draw it on the 2D canvas.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
+// Keep curvature weaker than the longest wave’s slope, so it cannot fold a crest into a flat band.
+const WAVE_WARP = [0.65, 0.3, 0.12];
 const WV = {
   LX: 10, // the wave field is sampled on a lattice 10 wide, 7 deep (ground units); a block of 4 shares one gust reading
   LY: 7,
@@ -175,9 +177,9 @@ function drawWaves(ctx) {
       if (glm) continue;
       // the phase warp that keeps crests from lying straight, and the wave-group envelopes of each train
       wpc[cj * cw + ci] =
-        3.2 * Math.sin(phaseX * 0.0091 + y * 0.0127 + T * 0.07) +
-        1.5 * Math.sin(phaseX * 0.021 - y * 0.017 - T * 0.11) +
-        0.8 * Math.sin(phaseX * 0.043 + y * 0.037 + T * 0.14);
+        WAVE_WARP[0] * Math.sin(phaseX * 0.0091 + y * 0.0127 + T * 0.07) +
+        WAVE_WARP[1] * Math.sin(phaseX * 0.021 - y * 0.017 - T * 0.11) +
+        WAVE_WARP[2] * Math.sin(phaseX * 0.043 + y * 0.037 + T * 0.14);
       for (let t = 0; t < 2; t++) {
         const gk = t ? 0.023 : 0.0151;
         (t ? g1c : g0c)[cj * cw + ci] =
@@ -242,8 +244,8 @@ function drawWaves(ctx) {
       const r = bl(rc, k0, fx, fy);
       if (r < 0.04) continue;
       const rf = waveLevel(r);
-      amp[0][o] = rf * w * TR[0].wgt * (0.3 + 0.95 * bl(g0c, k0, fx, fy));
-      amp[1][o] = rf * w * TR[1].wgt * (0.3 + 0.95 * bl(g1c, k0, fx, fy));
+      amp[0][o] = rf * w * TR[0].wgt * (0.65 + 0.45 * bl(g0c, k0, fx, fy));
+      amp[1][o] = rf * w * TR[1].wgt * (0.65 + 0.45 * bl(g1c, k0, fx, fy));
       any = 1;
     }
   }
@@ -504,8 +506,8 @@ void main() {
   vec2 q = p - org;
   float T = st.z, tw = st.y, sm = st.x;
   float a1 = p.x * 0.0091 + p.y * 0.0127 + T * 0.07, a2 = p.x * 0.021 - p.y * 0.017 + T * 0.11, a3 = p.x * 0.043 + p.y * 0.037 + T * 0.14;
-  float wp = 3.2 * sin(a1) + 1.5 * sin(a2) + 0.8 * sin(a3);
-  vec2 dwp = 3.2 * cos(a1) * vec2(0.0091, 0.0127) + 1.5 * cos(a2) * vec2(0.021, -0.017) + 0.8 * cos(a3) * vec2(0.043, 0.037);
+  float wp = ${WAVE_WARP[0]} * sin(a1) + ${WAVE_WARP[1]} * sin(a2) + ${WAVE_WARP[2]} * sin(a3);
+  vec2 dwp = ${WAVE_WARP[0]} * cos(a1) * vec2(0.0091, 0.0127) + ${WAVE_WARP[1]} * cos(a2) * vec2(0.021, -0.017) + ${WAVE_WARP[2]} * cos(a3) * vec2(0.043, 0.037);
   float h = 0.0;
   vec2 g = vec2(0.0);
   float hmax = 0.0;
@@ -514,7 +516,7 @@ void main() {
     float fi = float(i);
     vec2 pd = PD[i];
     float u = dot(p, vec2(-pd.y, pd.x)), v = dot(p, pd);
-    float grp = 0.3 + 0.95 * (0.5 + 0.5 * sin(u * (0.012 + 0.004 * fi) + 1.3 + 2.1 * fi + 0.9 * sin(T * 0.02 + p.x * 0.004 + fi)))
+    float grp = 0.65 + 0.45 * (0.5 + 0.5 * sin(u * (0.012 + 0.004 * fi) + 1.3 + 2.1 * fi + 0.9 * sin(T * 0.02 + p.x * 0.004 + fi)))
               * (0.55 + 0.45 * sin(v * 0.011 - T * 0.04 * (1.0 + fi * 0.3) + 4.1 * fi));
     float chop = i < 3 ? 1.0 : 0.5 + 0.5 * smoothstep(0.2 + 0.05 * fi, 1.0 + 0.05 * fi, R);
     float odd = 1.0 + 0.5 * mod(fi, 2.0);
@@ -743,9 +745,11 @@ function waveAt(x, y) {
     a1 = x * 0.0091 + y * 0.0127 + T_ * 0.07,
     a2 = x * 0.021 - y * 0.017 + T_ * 0.11,
     a3 = x * 0.043 + y * 0.037 + T_ * 0.14,
-    wp = 3.2 * Math.sin(a1) + 1.5 * Math.sin(a2) + 0.8 * Math.sin(a3),
-    dwx = 3.2 * Math.cos(a1) * 0.0091 + 1.5 * Math.cos(a2) * 0.021 + 0.8 * Math.cos(a3) * 0.043,
-    dwy = 3.2 * Math.cos(a1) * 0.0127 - 1.5 * Math.cos(a2) * 0.017 + 0.8 * Math.cos(a3) * 0.037,
+    wp = WAVE_WARP[0] * Math.sin(a1) + WAVE_WARP[1] * Math.sin(a2) + WAVE_WARP[2] * Math.sin(a3),
+    dwx =
+      WAVE_WARP[0] * Math.cos(a1) * 0.0091 + WAVE_WARP[1] * Math.cos(a2) * 0.021 + WAVE_WARP[2] * Math.cos(a3) * 0.043,
+    dwy =
+      WAVE_WARP[0] * Math.cos(a1) * 0.0127 - WAVE_WARP[1] * Math.cos(a2) * 0.017 + WAVE_WARP[2] * Math.cos(a3) * 0.037,
     ox = LAKE.x > -1000 ? LAKE.x : W / 2,
     oy = LAKE.x > -1000 ? LAKE.y : H;
   for (let i = 0; i < 8; i++) {
@@ -759,8 +763,8 @@ function waveAt(x, y) {
       u = x * -pdy + y * pdx,
       v = x * pdx + y * pdy,
       grp =
-        0.3 +
-        0.95 *
+        0.65 +
+        0.45 *
           (0.5 + 0.5 * Math.sin(u * (0.012 + 0.004 * i) + 1.3 + 2.1 * i + 0.9 * Math.sin(T_ * 0.02 + x * 0.004 + i))) *
           (0.55 + 0.45 * Math.sin(v * 0.011 - T_ * 0.04 * (1 + i * 0.3) + 4.1 * i)),
       chop = i < 3 ? 1 : 0.5 + 0.5 * smooth(0.2 + 0.05 * i, 1 + 0.05 * i, R),

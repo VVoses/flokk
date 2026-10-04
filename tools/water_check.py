@@ -15,6 +15,11 @@ with sync_playwright() as p:
     page.click('#startBtn')
     page.wait_for_function("st.mode==='play' && !MENU_JOB")
     page.evaluate("st.mode='pause';hideBanner();dev.season(1,13);dev.to(W-18,H+550,.8);WEATHER.s=1.2;WEATHER.gc=1;WEATHER.gs=0;WX=0;gustTick(0);render();")
+    assert page.evaluate('''(() => {
+      const f=[[.0091,.0127],[.021,-.017],[.043,.037]];
+      const maxWarp=1.5*WAVE_WARP.reduce((sum,a,i)=>sum+a*Math.hypot(...f[i]),0);
+      return maxWarp < TAU/Math.max(...WAVE_TR.LAM)*.5;
+    })()'''), 'curvature cannot cancel or reverse the underlying wave slope'
     assert page.evaluate("waveX(W-10)===waveX(-10)"), 'neighbouring copies share phase'
     assert page.evaluate("""(() => {
       const x=cam.x, phase=waveX(x), a={...waveAt(x,H+550)};
@@ -45,5 +50,8 @@ with sync_playwright() as p:
       return lull===0 && gust>0 && calm===gust && frozen===gust;
     })()"""), 'foam follows gusts and stays absent in calm or frozen water'
     print('ok shader compilation and gust/calm/frozen foam')
+    for name in ['LAKE', 'POND']:
+        page.evaluate(f'dev.to({name}.x,{name}.y,.9);render();')
+        page.screenshot(path=str(out / (name.lower() + '.png')))
     assert not errors, errors
     browser.close()
