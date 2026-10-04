@@ -383,8 +383,8 @@ function growTick(dt) {
   }
   // bales only lie on a field once it has been cut
   if (SEASON === 2)
-    for (const p of perches) {
-      if (p.type !== 'bale' || p.fi === undefined || p.fi < 0) continue;
+    for (const p of perchesOfType('bale')) {
+      if (p.fi === undefined || p.fi < 0) continue;
       const off = !fieldHarvested(p.fi);
       if (off === !!p.off) continue;
       p.off = off;

@@ -227,12 +227,11 @@ function boatPose() {
   BP.roll = clamp(Math.atan2(hp - hq, 14) * 1.5, -0.4, 0.4) + idle * 0.02 * Math.sin(T * 0.95 + 2.1);
   // birds sitting in the boat rise and fall with it
   const sp = Math.sin(BP.pitch);
-  for (const p of perches)
-    if (p.type === 'boat') {
-      const lx = (p.x - BOAT.x) * cs + (p.y - BOAT.y) * sn;
-      p.h = 0.12 + BP.lift + (lx * sp) / HR;
-      if (p.occ && p.occ.perch === p && p.occ.state === 'perch') p.occ.z = p.h;
-    }
+  for (const p of perchesOfType('boat')) {
+    const lx = (p.x - BOAT.x) * cs + (p.y - BOAT.y) * sn;
+    p.h = 0.12 + BP.lift + (lx * sp) / HR;
+    if (p.occ && p.occ.perch === p && p.occ.state === 'perch') p.occ.z = p.h;
+  }
   return BP;
 }
 

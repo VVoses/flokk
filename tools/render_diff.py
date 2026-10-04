@@ -34,6 +34,7 @@ SCENES = [
     ("summer_dusk", f"dev.calm();dev.season(1,20.2);dev.to(W*0.5,1500,1.0);{dry}dev.weather({{s:0.8,ang:0.2,fog:0}})"),
     ("summer_noon", f"dev.calm();dev.season(1,12);dev.to(W*0.5,1500,1.0);{dry}dev.weather({{s:0.8,ang:0.2,fog:0}})"),
     ("spring_leafout", f"dev.calm();dev.season(0,9);dev.to(W*0.5,1500,1.0);{dry}dev.weather({{s:0.5,ang:0.2,fog:0}});dev.grow(0.45)"),
+    ("boat_noon", f"dev.calm();dev.season(1,12);dev.to(BOAT.x,BOAT.y+60,1.0);{dry}dev.weather({{s:0.8,ang:0.2,fog:0}})"),
     ("autumn_leaffall", f"dev.calm();dev.season(2,15);dev.to(W*0.5,1500,1.0);{dry}dev.weather({{s:1.2,ang:0.3,fog:0}});dev.grow(0.8)"),
 ]
 only = set(filter(None, args.only.split(",")))
