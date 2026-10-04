@@ -646,7 +646,6 @@ function landLabels() {
     LAND_NAME + (flock ? ` · best flock ${flock}` : '') + (days ? ` · ${days} ${days === 1 ? 'day' : 'days'}` : '');
 }
 function newLand(btn, then) {
-  clearSession();
   const old = btn.textContent;
   btn.textContent = 'Shaping the land…';
   btn.disabled = true;
@@ -842,6 +841,13 @@ $('confirmNewFlightBtn').onclick = () => {
   $('newFlightOv').hidden = true;
   startGame();
 };
+// back to the title with the flight saved: a reload rebuilds the menu world and offers Continue
+function goTitle() {
+  saveSession();
+  location.reload();
+}
+$('pauseTitleBtn').onclick = goTitle;
+$('wonTitleBtn').onclick = goTitle;
 $('keepBtn').onclick = keepFlying;
 $('wonNewBtn').onclick = e => newLand(e.currentTarget, startGame);
 $('againBtn').onclick = startGame;

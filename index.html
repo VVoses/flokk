@@ -153,9 +153,11 @@
         </ul>
         <div class="actions">
           <span id="saveNote" role="status"></span>
-          <button class="btn main" id="continueBtn" hidden>Continue flight</button>
+          <button class="btn main" id="continueBtn" hidden>
+            <span>Continue flight</span><small id="continueInfo"></small>
+          </button>
           <button class="btn main" id="startBtn">Take off</button>
-          <button class="btn" id="newLandBtn">New land</button>
+          <button class="btn link" id="newLandBtn" title="Show a different land">↻ new land</button>
         </div>
         <div class="fine" id="bestTitle"></div>
       </div>
@@ -164,10 +166,10 @@
     <div class="overlay" id="newFlightOv" role="dialog" aria-modal="true" aria-labelledby="newFlightTitle" hidden>
       <div class="card confirm-card">
         <h2 id="newFlightTitle">Start a new flight?</h2>
-        <p class="sub">Your current saved flight will be replaced.</p>
+        <p class="sub" id="newFlightNote">Your current saved flight will be replaced.</p>
         <div class="actions">
           <button class="btn main" id="cancelNewFlightBtn">Keep saved flight</button>
-          <button class="btn danger" id="confirmNewFlightBtn">Start new flight</button>
+          <button class="btn danger" id="confirmNewFlightBtn">New flight</button>
         </div>
       </div>
     </div>
@@ -178,7 +180,8 @@
         <p class="sub" id="wonSub">the flock made it through</p>
         <div class="stats" id="wonStats"></div>
         <div class="actions">
-          <button class="btn main" id="keepBtn">Keep flying</button><button class="btn" id="wonNewBtn">New land</button>
+          <button class="btn main" id="keepBtn">Keep flying</button><button class="btn" id="wonNewBtn">New land</button
+          ><button class="btn" id="wonTitleBtn">Title</button>
         </div>
         <button class="btn share" id="shareBtn" aria-live="polite">Share</button>
       </div>
@@ -188,7 +191,9 @@
       <div class="card">
         <h2>Paused</h2>
         <div class="stats" id="pauseStats"></div>
-        <div class="actions"><button class="btn main" id="resumeBtn">Resume</button></div>
+        <div class="actions">
+          <button class="btn main" id="resumeBtn">Resume</button><button class="btn" id="pauseTitleBtn">Title</button>
+        </div>
       </div>
     </div>
 
