@@ -3,14 +3,7 @@
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 /* ---------- game state ---------- */
-// a world's seed comes from the clock to the millisecond, scrambled so two starts a moment apart get unrelated worlds
-const newSeed = () => {
-  const t = Date.now();
-  let h = (t ^ Math.imul(Math.floor(t / 4294967296) + 1, 0x9e3779b1)) | 0;
-  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
-  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-  return (h ^ (h >>> 16)) >>> 0;
-};
+const newSeed = () => (Math.random() * 1e9) >>> 0;
 const PAL = [
   ['#54402C', '#7A6048', '#62574D'],
   ['#4B3B2D', '#735A43', '#5E534A'],
