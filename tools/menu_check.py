@@ -32,6 +32,11 @@ with sync_playwright() as p:
     check(page.evaluate('document.activeElement === cv && !cv.inert'), 'taking off returns focus to flight')
     page.keyboard.press('Escape')
     keyboard_boundary('pauseOv')
+    check(page.evaluate('''[...document.querySelectorAll('#pauseControls kbd')].every(el => {
+      const s=getComputedStyle(el);
+      return s.textTransform==='none' && (parseFloat(s.letterSpacing)||0)===0 && s.height==='28px';
+    })'''), 'keycaps keep consistent dimensions and typography')
+    page.screenshot(path=str(out / 'pause-keycaps.png'))
     check(page.get_by_role('button', name='Sound', exact=True).get_attribute('aria-pressed') in ['true', 'false'], 'sound toggle has a stable accessible name and state')
     page.evaluate('const originalSave = saveSession; saveSession = () => false; goNewLand(); saveSession = originalSave')
     check(page.evaluate('st.mode === "pause"') and 'Could not save' in page.locator('#pauseSaveNote').inner_text(), 'new land stays open when saving fails')
