@@ -12,7 +12,7 @@ with sync_playwright() as playwright:
     first.click('#startBtn')
     original = first.evaluate('''() => {
       st.mode = 'pause'; saveSession();
-      return JSON.parse(localStorage.getItem(SESSION_KEY)).worldSignature;
+      return JSON.parse(localStorage.getItem(slotKey(listSlots()[0].id))).worldSignature;
     }''')
     assert original, 'snapshot identifies its generated world'
     second = context.new_page()
@@ -20,10 +20,10 @@ with sync_playwright() as playwright:
     second.click('#continueBtn')
     second.evaluate('''() => {st.energy = 0.81; saveSession();}''')
     first.wait_for_function('sessionConflict')
-    newer = second.evaluate('localStorage.getItem(SESSION_KEY)')
+    newer = second.evaluate('localStorage.getItem(slotKey(listSlots()[0].id))')
     protected = first.evaluate('''() => {
       st.energy = 0.01; saveSession(); clearSession();
-      return {raw: localStorage.getItem(SESSION_KEY),
+      return {raw: localStorage.getItem(slotKey(listSlots()[0].id)),
         warning: $('sessionWarning').textContent, visible: !$('sessionWarning').hidden};
     }''')
     assert protected['raw'] == newer, 'stale tab neither overwrites nor clears the newer save'
@@ -46,30 +46,31 @@ with sync_playwright() as playwright:
     damaged.click('#continueBtn')
     assert damaged.evaluate('FEEDER && FEEDER.raidCool > 10 && FEEDER.raidCool <= 17'), 'winter feeder state restores after world rebuild'
     damaged.evaluate('''() => {
-      const snapshot = JSON.parse(localStorage.getItem(SESSION_KEY));
+      const snapshot = JSON.parse(localStorage.getItem(slotKey(listSlots()[0].id)));
       snapshot.worldSignature = 'wrong-world';
-      localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
+      localStorage.setItem(slotKey(listSlots()[0].id), JSON.stringify(snapshot));
     }''')
     damaged.reload()
     damaged.click('#continueBtn')
     mismatch = damaged.evaluate('''() => ({
-      stored: !!localStorage.getItem(SESSION_KEY),
+      stored: listSlots().length === 1,
       note: $('saveNote').textContent,
       title: !$('titleOv').hidden
     })''')
     assert mismatch['stored'] and mismatch['title'] and 'could not be restored safely' in mismatch['note']
     damaged.evaluate('''() => {
-      const snapshot = JSON.parse(localStorage.getItem(SESSION_KEY));
+      const snapshot = JSON.parse(localStorage.getItem(slotKey(listSlots()[0].id)));
       snapshot.version = 1;
       delete snapshot.worldSignature;
-      localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
+      localStorage.setItem(slotKey(listSlots()[0].id), JSON.stringify(snapshot));
     }''')
     damaged.reload()
-    assert damaged.locator('#continueBtn').is_hidden()
-    assert damaged.locator('#startBtn').inner_text() == 'New flight'
+    assert damaged.locator('#continueBtn').is_hidden(), 'an unreadable save cannot be continued'
+    assert damaged.locator('.slot').count() == 1, 'but it stays listed so it can be deleted'
+    damaged.click('#newFlightBtn')
     damaged.click('#startBtn')
-    assert damaged.locator('#newFlightOv').is_visible(), 'replacing a legacy save still requires confirmation'
-    assert damaged.evaluate('hasStoredSession()'), 'opening confirmation preserves the legacy save'
+    damaged.evaluate('saveSession()')
+    assert damaged.evaluate('listSlots().length') == 2, 'a new flight never replaces an unreadable save'
     damaged_context.close()
 
     blocked_context = browser.new_context()

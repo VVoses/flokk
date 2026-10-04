@@ -441,8 +441,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if ((e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) dash();
   if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) {
-    if (!$('newFlightOv').hidden) closeNewFlightConfirm();
-    else if (st.mode === 'play') pause();
+    if (st.mode === 'play') pause();
     else if (st.mode === 'pause') resume();
   }
 });
@@ -642,10 +641,13 @@ function refreshInsects() {
 function landLabels() {
   const flock = getBest('flock'),
     days = getBest('days');
-  $('bestTitle').textContent =
-    LAND_NAME + (flock ? ` · best flock ${flock}` : '') + (days ? ` · ${days} ${days === 1 ? 'day' : 'days'}` : '');
+  $('landName').textContent = LAND_NAME;
+  $('bestTitle').textContent = [flock && `best flock ${flock}`, days && `${days} ${days === 1 ? 'day' : 'days'}`]
+    .filter(Boolean)
+    .join(' · ');
 }
-function newLand(btn, then) {
+// roll a different land for the title world (Reroll); nothing saved is touched
+function newLand(btn) {
   const old = btn.textContent;
   btn.textContent = 'Shaping the land…';
   btn.disabled = true;
@@ -655,18 +657,15 @@ function newLand(btn, then) {
     landLabels();
     btn.textContent = old;
     btn.disabled = false;
-    if (then) then();
-    else {
-      resetWorld(14, START.x, START.y - 150);
-      cam.x = L.x;
-      cam.py = PY(L.y, L.z * 0.7);
-      demo.tx = 0;
-      demo.rest = 0;
-    }
+    resetWorld(14, START.x, START.y - 150);
+    cam.x = L.x;
+    cam.py = PY(L.y, L.z * 0.7);
+    demo.tx = 0;
+    demo.rest = 0;
   }, 40);
 }
 function startGame() {
-  clearSession();
+  claimSlot();
   initAudio();
   // always start in spring, with a full year ahead
   CAL.t = 0;
@@ -824,38 +823,27 @@ function gameOver() {
   syncHud();
   $('againBtn').focus();
 }
-function closeNewFlightConfirm() {
-  $('newFlightOv').hidden = true;
-  $('titleOv').hidden = false;
-  $('startBtn').focus();
-}
-function requestNewFlight() {
-  if (!hasStoredSession()) return startGame();
-  $('titleOv').hidden = true;
-  $('newFlightOv').hidden = false;
-  $('cancelNewFlightBtn').focus();
-}
-$('startBtn').onclick = requestNewFlight;
-$('cancelNewFlightBtn').onclick = closeNewFlightConfirm;
-$('confirmNewFlightBtn').onclick = () => {
-  $('newFlightOv').hidden = true;
-  startGame();
-};
-// back to the title with the flight saved: a reload rebuilds the menu world and offers Continue
-function goTitle() {
+// "New land" from a run, the pause card or a finished year: the flight is saved as it stands, then a
+// reload rebuilds the menu world and opens on a fresh land to Take off on or Reroll
+function goNewLand() {
   saveSession();
+  try {
+    sessionStorage.setItem('flokk-view', 'land');
+  } catch {
+    /* no session storage: the reload lands on the saved flights instead */
+  }
   location.reload();
 }
-$('pauseTitleBtn').onclick = goTitle;
-$('wonTitleBtn').onclick = goTitle;
-$('keepBtn').onclick = keepFlying;
-$('wonNewBtn').onclick = e => newLand(e.currentTarget, startGame);
-$('againBtn').onclick = startGame;
-$('newLandBtn').onclick = e => {
+$('startBtn').onclick = startGame;
+$('rerollBtn').onclick = e => {
   initAudio();
   newLand(e.currentTarget);
 };
-$('overNewBtn').onclick = e => newLand(e.currentTarget, startGame);
+$('pauseNewBtn').onclick = goNewLand;
+$('wonNewBtn').onclick = goNewLand;
+$('overNewBtn').onclick = goNewLand;
+$('keepBtn').onclick = keepFlying;
+$('againBtn').onclick = startGame;
 $('resumeBtn').onclick = resume;
 $('pauseBtn').onclick = () => {
   if (st.mode === 'play') pause();
