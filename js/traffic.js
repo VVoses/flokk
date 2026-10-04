@@ -260,25 +260,55 @@ function vBox(o, x0, x1, hd, h0, h1, col, glass) {
   return P;
 }
 const glassCol = () => (LIGHT.night > 0.4 ? '#1A2230' : mixHex('#5E7482', '#9DB4C0', 0.4));
-function wheel(P, lx, ly, r) {
-  const c = P(lx, ly, r / HZ);
-  ctx.fillStyle = '#1C1A18';
-  ctx.beginPath();
-  ctx.ellipse(c[0], c[1], r * 0.95, r, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = '#6A6660';
-  ctx.beginPath();
-  ctx.ellipse(c[0], c[1], r * 0.35, r * 0.38, 0, 0, TAU);
-  ctx.fill();
+// a tyre is a disc in the vehicle's side plane, so it is a full circle seen from the side and narrows to a
+// sliver as the vehicle turns toward or away from you (same language as the tractor in rigs.js)
+function wheel(o, P, lx, ly, r, w = 1.6) {
+  const cs = Math.cos(o.ang),
+    sq = Math.max(0.16, Math.abs(cs)),
+    out = Math.sign(ly) || 1,
+    inner = P(lx, ly, r / HZ),
+    outer = P(lx, ly + out * w, r / HZ),
+    showsOuter = out * cs > 0, // the outer face is the one nearer the camera
+    [cb, c] = showsOuter ? [inner, outer] : [outer, inner];
+  for (const [q, f] of [
+    [cb, '#141210'],
+    [c, '#1C1A18']
+  ]) {
+    ctx.fillStyle = f;
+    ctx.beginPath();
+    ctx.ellipse(q[0], q[1], r * 0.95 * sq, r, 0, 0, TAU);
+    ctx.fill();
+  }
+  if (Math.abs(cs) > 0.2) {
+    ctx.fillStyle = '#6A6660';
+    ctx.beginPath();
+    ctx.ellipse(c[0], c[1], r * 0.35 * sq, r * 0.38, 0, 0, TAU);
+    ctx.fill();
+  }
 }
+// wheels on the far side of the body are drawn before it, the near ones after, whatever the heading
+function wheels(o, P, list, far) {
+  const cs = Math.cos(o.ang),
+    sn = Math.sin(o.ang);
+  for (const [lx, ly, r, w] of list) if (lx * sn + ly * cs < 0 === far) wheel(o, P, lx, ly, r, w);
+}
+const vProj = o => {
+  const cs = Math.cos(o.ang),
+    sn = Math.sin(o.ang);
+  return (lx, ly, h) => [o.x + lx * cs - ly * sn, (o.y + lx * sn + ly * cs) * TILT - h * HZ];
+};
 function drawVehicle(v) {
   const hl = v.len / 2,
-    hd = v.hd,
-    side = Math.cos(v.ang) >= 0 ? 1 : -1; // the long side facing the camera
+    hd = v.hd;
   if (v.tr) {
-    const t = { x: v.tr.x, y: v.tr.y, ang: v.tr.ang };
+    const t = { x: v.tr.x, y: v.tr.y, ang: v.tr.ang },
+      tw = [
+        [0, -7.5, 4],
+        [0, 7.5, 4]
+      ];
+    wheels(t, vProj(t), tw, true);
     const P = vBox(t, -14, 14, 7.5, 0.1, 0.2, '#6E6258');
-    wheel(P, 0, side * 7.5, 4);
+    wheels(t, P, tw, false);
     if (v.bales) {
       ctx.fillStyle = '#E1E5DE';
       for (const lx of [-7, 7]) {
@@ -289,11 +319,18 @@ function drawVehicle(v) {
       }
     }
   }
+  const side = Math.cos(v.ang) >= 0 ? 1 : -1; // the long side facing the camera
   if (v.kind === 'tractor') {
+    const tw = [
+      [-hl * 0.55, -(hd + 1), 7.5, 2.5],
+      [-hl * 0.55, hd + 1, 7.5, 2.5],
+      [hl * 0.62, -hd * 0.7, 4.5, 2],
+      [hl * 0.62, hd * 0.7, 4.5, 2]
+    ];
+    wheels(v, vProj(v), tw, true);
     const P = vBox(v, -hl * 0.1, hl, hd * 0.62, 0.12, 0.3, v.col); // bonnet
     vBox(v, -hl, -hl * 0.1, hd, 0.12, 0.52, v.col, true); // cab
-    wheel(P, -hl * 0.55, side * (hd + 1), 7.5);
-    wheel(P, hl * 0.62, side * (hd * 0.7), 4.5);
+    wheels(v, P, tw, false);
     const ex = P(hl * 0.55, -side * 2, 0.46),
       eb = P(hl * 0.55, -side * 2, 0.3);
     ctx.strokeStyle = '#2A2826';
@@ -304,12 +341,18 @@ function drawVehicle(v) {
     ctx.stroke();
     return;
   }
-  const van = v.kind === 'van';
+  const van = v.kind === 'van',
+    cw = [
+      [-hl * 0.62, -hd, 3.4],
+      [-hl * 0.62, hd, 3.4],
+      [hl * 0.62, -hd, 3.4],
+      [hl * 0.62, hd, 3.4]
+    ];
+  wheels(v, vProj(v), cw, true);
   const P = vBox(v, -hl, hl, hd, 0.07, van ? 0.24 : 0.2, v.col);
   if (van) vBox(v, -hl, hl * 0.35, hd * 0.96, 0.24, 0.44, v.col, true);
   else vBox(v, -hl * 0.55, hl * 0.3, hd * 0.9, 0.2, 0.34, v.col, true);
-  wheel(P, -hl * 0.62, side * hd, 3.4);
-  wheel(P, hl * 0.62, side * hd, 3.4);
+  wheels(v, P, cw, false);
   if (v.doorT > 0) {
     const open = Math.sin(clamp(v.doorT / 2.2, 0, 1) * Math.PI),
       hinge = P(-hl * 0.25, side * hd, 0.19),
