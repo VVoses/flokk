@@ -69,6 +69,10 @@ body {
   touch-action: none;
   cursor: crosshair;
 }
+/* the system cursor can't be faded, so it simply goes away after a few idle seconds */
+#game.cursor-idle {
+  cursor: none;
+}
 .hud {
   position: fixed;
   top: 0;
