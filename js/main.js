@@ -7,9 +7,9 @@ let hudT = 0;
    then it settles back to the next aim. Derived from the run's state, nothing saved. */
 const MILESTONES = [
   { aim: 'grow to 10 birds', got: 'a flock of 10', ok: () => (st.maxFlock || 0) >= 10 },
-  { aim: 'reach the autumn', got: 'summer behind you', ok: () => SEASON >= 2 || CAL.year > 1 },
+  { aim: 'live to see autumn', got: 'summer behind you', ok: () => SEASON >= 2 || CAL.year > 1 },
   { aim: 'grow to 20 birds', got: 'a flock of 20', ok: () => (st.maxFlock || 0) >= 20 },
-  { aim: 'reach the winter', got: 'winter has come', ok: () => SEASON === 3 || CAL.year > 1 },
+  { aim: 'live to see winter', got: 'winter has come', ok: () => SEASON === 3 || CAL.year > 1 },
   { aim: 'grow to 40 birds', got: 'a flock of 40', ok: () => (st.maxFlock || 0) >= 40 },
   { aim: 'make it to spring', got: 'winter survived', ok: () => CAL.year > 1 || st.mode === 'won' }
 ];
@@ -25,6 +25,7 @@ function setAim(text, cls) {
   const el = $('aimEl');
   el.className = 'aim ' + cls;
   el.textContent = text;
+  $('goalRow').hidden = !text;
 }
 function milestones(dt) {
   if (st.mode !== 'play') return;
@@ -42,7 +43,7 @@ function milestones(dt) {
   });
   MS.quiet = false;
   if (MS.t > 0) return;
-  setAim(next ? 'next · ' + next.aim : '', '');
+  setAim(next ? next.aim : '', '');
 }
 function hud(dt) {
   hudT -= dt;
@@ -51,7 +52,7 @@ function hud(dt) {
   hudT = 0.1;
   milestones(0.1);
   $('countLabel').textContent = birds.length === 1 ? 'bird' : 'birds';
-  $('yearName').textContent = `${SEASONS[SEASON]} · day ${(CAL.day % YEAR_DAYS) + 1} of ${YEAR_DAYS}`;
+  $('yearName').textContent = `${SEASONS[SEASON]} · day ${(CAL.day % YEAR_DAYS) + 1} / ${YEAR_DAYS}`;
   $('yearMark').style.left =
     ((((CAL.day % YEAR_DAYS) + ((CAL.hour - START_HOUR + 24) % 24) / 24) / YEAR_DAYS) * 100).toFixed(1) + '%';
   $('calIcon').textContent = LIGHT.night > 0.5 ? '☾' : '☀';
@@ -103,7 +104,7 @@ function hud(dt) {
   const hunger = en < 0.25 ? 'starving' : en < 0.5 ? 'hungry' : 'well fed';
   ui.count.setAttribute(
     'aria-label',
-    `${birds.length} birds, ${hunger}. ${txt}. ${SEASONS[SEASON]}, day ${(CAL.day % YEAR_DAYS) + 1} of ${YEAR_DAYS}`
+    `${birds.length} birds, ${hunger}. ${txt}. ${SEASONS[SEASON]}, day ${(CAL.day % YEAR_DAYS) + 1} / ${YEAR_DAYS}`
   );
 }
 
