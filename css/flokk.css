@@ -538,13 +538,13 @@ body.no-hud .hud {
   color: var(--ink);
   border-color: rgba(246, 243, 234, 0.5);
 }
-#wonOv .card > * {
+#wonOv .end-panel > * {
   animation: wonIn 1.4s ease-out both;
 }
-#wonOv .card > :nth-child(2) {
+#wonOv .end-panel > :nth-child(2) {
   animation-delay: 0.25s;
 }
-#wonOv .card > :nth-child(n + 3) {
+#wonOv .end-panel > :nth-child(n + 3) {
   animation-delay: 0.6s;
 }
 #wonOv h2 {
@@ -560,7 +560,7 @@ body.no-hud .hud {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  #wonOv .card > * {
+  #wonOv .end-panel > * {
     animation: none;
   }
 }
@@ -888,6 +888,143 @@ body.no-hud .hud {
   }
   #pauseSaveNote:not(:empty) {
     text-align: left;
+  }
+}
+/* Title and flight results share the pause menu's quiet framed surface. */
+#titleOv {
+  background: rgba(10, 19, 17, 0.42);
+  backdrop-filter: blur(3px) saturate(0.8);
+  -webkit-backdrop-filter: blur(3px) saturate(0.8);
+}
+#titleOv,
+#wonOv,
+#overOv {
+  align-items: safe center;
+}
+.title-panel {
+  width: min(100%, 740px);
+}
+.title-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 285px);
+  gap: 38px;
+  align-items: center;
+  padding: 36px 0;
+}
+.title-summary h1 {
+  margin: 0 0 15px;
+  font-weight: 300;
+  font-size: clamp(68px, 10vw, 100px);
+  line-height: 0.9;
+  letter-spacing: -0.065em;
+}
+.screen-panel .sub {
+  text-shadow: none;
+  line-height: 1.5;
+}
+.title-summary .keys {
+  justify-items: start;
+  margin-top: 30px;
+  gap: 9px;
+  letter-spacing: 0.03em;
+  text-shadow: none;
+}
+.title-flight {
+  min-width: 0;
+  padding-left: 25px;
+  border-left: 1px solid var(--line);
+}
+.title-flight .view {
+  width: 100%;
+  justify-items: stretch;
+  gap: 12px;
+}
+.screen-label {
+  color: var(--ink-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+.title-flight .land-name {
+  text-shadow: none;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.title-flight .btn {
+  border-radius: 8px;
+  padding: 11px 13px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.title-flight .slot-go {
+  text-align: left;
+  min-width: 0;
+}
+.title-flight .slot-go small {
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+}
+.title-flight #newFlightBtn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.title-flight .fine {
+  line-height: 1.5;
+  letter-spacing: 0.03em;
+}
+.title-panel #saveNote:empty {
+  display: none;
+}
+.screen-panel .pause-summary .sub {
+  margin-top: 12px;
+}
+#wonOv .end-panel {
+  border-color: rgba(242, 201, 76, 0.38);
+}
+#wonOv .end-panel h2 {
+  text-shadow: none;
+}
+#wonOv .end-panel .stats span,
+#wonOv .end-panel .stats i,
+#overOv .end-panel .stats span,
+#overOv .end-panel .stats i {
+  text-shadow: none;
+}
+.end-actions .share {
+  font-size: 13px;
+  padding: 10px 15px;
+}
+@media (max-width: 560px) {
+  .title-main {
+    grid-template-columns: 1fr;
+    gap: 25px;
+    padding: 25px 0;
+  }
+  .title-summary h1 {
+    font-size: 72px;
+    margin-bottom: 10px;
+  }
+  .title-summary .keys {
+    margin-top: 18px;
+    gap: 6px;
+  }
+  .title-flight {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 20px 0 0;
+  }
+  .title-flight .slots {
+    max-height: 28vh;
+  }
+  .screen-panel .pause-topline {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+  }
+  .end-actions .btn:not(.main) {
+    grid-column: 1 / -1;
   }
 }
 .fine {
