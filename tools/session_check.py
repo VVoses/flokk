@@ -44,8 +44,7 @@ with sync_playwright() as playwright:
     assert winter, 'winter feeder exists before saving'
     damaged.reload()
     damaged.click('#continueBtn')
-    # the world rebuilds after the click; a slow runner has not finished when the next line runs
-    damaged.wait_for_function('FEEDER && FEEDER.raidCool > 10 && FEEDER.raidCool <= 17', timeout=15000)
+    assert damaged.evaluate('FEEDER && FEEDER.raidCool > 10 && FEEDER.raidCool <= 17'), 'winter feeder state restores after world rebuild'
     damaged.evaluate('''() => {
       const snapshot = JSON.parse(localStorage.getItem(SESSION_KEY));
       snapshot.worldSignature = 'wrong-world';
