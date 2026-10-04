@@ -64,6 +64,211 @@ function yardPath(c, Y, grow) {
   }
   c.closePath();
 }
+/* the marks of use on a farmyard's gravel, all translucent in the ground's own hue so they sink into it by night:
+   desire-line paths between the doors, a tractor's turning sweep before the barn, wet ruts with a grass ridge, damp
+   drip lines and weeds along the walls, and (after the dust speckle, wet = true) puddles, straw, chips and oil */
+function yardLines(Y) {
+  const out = [],
+    gate = Y.gate,
+    bs = Y.builds || [],
+    house = bs.find(b => b.windows),
+    end = (b, k) => [b.cx + k * (b.len / 2 + 14) * Math.cos(b.ang), b.cy + k * (b.len / 2 + 14) * Math.sin(b.ang)];
+  for (const b of bs) if (b.door && gate) out.push({ a: gate, b: end(b, 1), car: true });
+  if (house) {
+    const hd = [
+      house.cx - Math.sin(house.ang) * (house.dep / 2 + 10),
+      house.cy + Math.cos(house.ang) * (house.dep / 2 + 10)
+    ];
+    for (const b of bs) if (b !== house && b.door) out.push({ a: hd, b: end(b, -1), car: false });
+    const wp = PROPS.find(p => p.k === 'wood' && p.fm && p.fm.yard === Y);
+    if (wp) out.push({ a: hd, b: [wp.x, wp.y + 10], car: false });
+  }
+  return out;
+}
+function paintYardWear(g, Y, winter, season) {
+  const bs = Y.builds || [],
+    lines = yardLines(Y);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  // churned mud where traffic turns (gate, doors), and grass that has taken back the quiet corners
+  const soft = (x, y, r, c) => {
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(${c})`);
+    gr.addColorStop(1, 'rgba(0,0,0,0)'.replace('0,0,0,0', c.split(',').slice(0, 3).join(',') + ',0'));
+    g.fillStyle = gr;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  };
+  if (!winter) {
+    for (const L of lines) if (L.car) soft(L.b[0], L.b[1], 58, season === 1 ? '92,78,54,.3' : '70,56,38,.4');
+    if (Y.gate) soft(Y.gate[0], Y.gate[1], 50, season === 1 ? '92,78,54,.26' : '70,56,38,.34');
+    for (let i = 0, k = 0; k < 9 && i < 120; i++) {
+      const [x, y] = yardAt(Y, rnd(0.05, 0.95), rnd(0.05, 0.95)),
+        [u, v] = yardLocal(Y, x, y),
+        e = Math.min(Y.lw / 2 - Math.abs(u), Y.lh / 2 - Math.abs(v));
+      if (
+        e > 70 ||
+        buildAt(x, y, 24) ||
+        (Y.park && Math.hypot(Y.park.x - x, Y.park.y - y) < 80) ||
+        lines.some(L => Math.hypot(L.b[0] - x, L.b[1] - y) < 50)
+      )
+        continue;
+      k++;
+      soft(x, y, rnd(26, 52), season === 2 ? '128,124,66,.5' : '96,136,60,.5');
+    }
+  }
+  const pt = (L, t, off) => {
+    const dx = L.b[0] - L.a[0],
+      dy = L.b[1] - L.a[1],
+      d = Math.hypot(dx, dy) || 1,
+      bow = L.bow * Math.sin(Math.PI * t);
+    return [L.a[0] + dx * t - (dy / d) * (bow + off), L.a[1] + dy * t + (dx / d) * (bow + off)];
+  };
+  for (const L of lines) {
+    L.bow = rnd(-22, 22);
+    // a desire line is worn bare and darker down the middle; a wheel track is two ruts with a ridge between
+    const tr = L.car ? [-7, 7] : [0];
+    for (const off of tr) {
+      g.beginPath();
+      for (let i = 0; i <= 16; i++) {
+        const q = pt(L, i / 16, off + (L.car ? 0 : rnd(-0.6, 0.6)));
+        i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]);
+      }
+      g.lineWidth = L.car ? 6 : 8;
+      g.strokeStyle = winter ? 'rgba(130,126,128,.2)' : L.car ? 'rgba(72,58,38,.42)' : 'rgba(112,94,64,.34)';
+      g.stroke();
+    }
+    if (L.car && !winter) {
+      g.beginPath();
+      for (let i = 0; i <= 16; i++) {
+        const q = pt(L, i / 16, 0);
+        i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]);
+      }
+      g.lineWidth = 6;
+      g.setLineDash([9, 7]);
+      g.strokeStyle = season === 2 ? 'rgba(128,124,64,.4)' : 'rgba(100,134,62,.42)';
+      g.stroke();
+      g.setLineDash([]);
+    }
+  }
+  // the sweep a tractor makes turning out of the barn: two arcs and the track it leaves, in front of the biggest door
+  const barn = bs.filter(b => b.door).sort((a, b) => b.len - a.len)[0];
+  if (barn) {
+    const k = R() < 0.5 ? 1 : -1,
+      [ex, ey] = [
+        barn.cx + k * (barn.len / 2 + 40) * Math.cos(barn.ang),
+        barn.cy + k * (barn.len / 2 + 40) * Math.sin(barn.ang)
+      ],
+      sw = rnd(0, 1) < 0.5 ? 1 : -1;
+    for (const [rr, w] of [
+      [34, 5],
+      [50, 5]
+    ]) {
+      g.beginPath();
+      g.ellipse(ex, ey, rr, rr, barn.ang, sw > 0 ? -1.2 : 0.6, sw > 0 ? 1.6 : 3.4);
+      g.lineWidth = w;
+      g.strokeStyle = winter ? 'rgba(128,124,130,.24)' : 'rgba(72,58,38,.36)';
+      g.stroke();
+    }
+  }
+  // damp drip line under the eaves and weeds that grow where nothing is walked
+  for (const b of bs) {
+    const c = Math.cos(b.ang),
+      s = Math.sin(b.ang),
+      loc = (u, v) => [b.cx + u * c - v * s, b.cy + u * s + v * c];
+    g.save();
+    g.translate(b.cx, b.cy);
+    g.rotate(b.ang);
+    g.lineWidth = 10;
+    g.strokeStyle = winter ? 'rgba(120,124,132,.16)' : 'rgba(70,58,42,.16)';
+    g.strokeRect(-b.len / 2 - 4, -b.dep / 2 - 4, b.len + 8, b.dep + 8);
+    g.restore();
+    if (winter) continue;
+    g.fillStyle = season === 2 ? 'rgba(138,122,64,.55)' : 'rgba(92,134,56,.5)';
+    g.beginPath();
+    for (let i = 0; i < b.len / 3; i++) {
+      const side = R() < 0.5 ? -1 : 1,
+        [x, y] = loc(rnd(-b.len / 2, b.len / 2), side * (b.dep / 2 + rnd(4, 11)));
+      g.rect(x, y, rnd(1.5, 3), rnd(2, 5));
+    }
+    g.fill();
+  }
+}
+function paintYardMarks(g, Y, winter, season) {
+  const bs = Y.builds || [],
+    inY = (x, y) =>
+      inYard(Y, x, y, -8) && !buildAt(x, y, 4) && !(Y.park && Math.hypot(Y.park.x - x, Y.park.y - y) < 60);
+  // wet weather puddles lie in the ruts and low spots: many in the thaw and the autumn rain, a few in summer
+  const n = winter ? 0 : season === 0 ? 12 : season === 2 ? 9 : 4;
+  for (let i = 0, k = 0; k < n && i < 200; i++) {
+    const [x, y] = yardAt(Y, rnd(0.08, 0.92), rnd(0.08, 0.92));
+    if (!inY(x, y)) continue;
+    k++;
+    const rx = rnd(10, 34) * (season === 1 ? 0.65 : 1),
+      ry = rx * rnd(0.38, 0.55),
+      a = rnd(-0.4, 0.4) + Y.ang;
+    g.fillStyle = 'rgba(70,56,40,.22)';
+    g.beginPath();
+    g.ellipse(x, y, rx + 3, ry + 2, a, 0, TAU);
+    g.fill();
+    g.fillStyle = season === 1 ? 'rgba(104,120,128,.3)' : 'rgba(96,114,126,.42)';
+    g.beginPath();
+    g.ellipse(x, y, rx, ry, a, 0, TAU);
+    g.fill();
+    g.fillStyle = 'rgba(214,226,232,.16)';
+    g.beginPath();
+    g.ellipse(x - rx * 0.12, y - ry * 0.28, rx * 0.6, ry * 0.4, a, 0, TAU);
+    g.fill();
+  }
+  // loose stones and gravel kicked to the edges, oil under where the machines stand
+  g.fillStyle = winter ? 'rgba(130,128,132,.3)' : 'rgba(128,120,102,.4)';
+  g.beginPath();
+  for (let i = 0; i < 160; i++) {
+    const [x, y] = yardAt(Y, rnd(0.02, 0.98), rnd(0.02, 0.98));
+    if (inY(x, y)) {
+      g.moveTo(x + 3, y);
+      g.ellipse(x, y, rnd(1.5, 3.2), rnd(1, 2), rnd(0, 3), 0, TAU);
+    }
+  }
+  g.fill();
+  const barn = bs.find(b => b.door);
+  if (barn && !winter)
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = [barn.cx + rnd(-1, 1) * barn.len * 0.9, barn.cy + rnd(-1, 1) * barn.dep * 0.9];
+      if (!inY(x, y)) continue;
+      g.fillStyle = 'rgba(38,32,26,.22)';
+      g.beginPath();
+      g.ellipse(x, y, rnd(5, 11), rnd(3, 6), rnd(0, 3), 0, TAU);
+      g.fill();
+    }
+  // straw and hay dropped by the barn doors, bark and chips round the woodpile
+  g.lineWidth = 1;
+  g.lineCap = 'butt';
+  for (const b of bs.filter(q => q.door)) {
+    if (winter) break;
+    g.strokeStyle = 'rgba(184,160,96,.42)';
+    g.beginPath();
+    for (let i = 0; i < 34; i++) {
+      const k = R() < 0.5 ? 1 : -1,
+        r = rnd(8, 52),
+        t = rnd(0, TAU),
+        x = b.cx + k * (b.len / 2 + 8) * Math.cos(b.ang) + Math.cos(t) * r,
+        y = b.cy + k * (b.len / 2 + 8) * Math.sin(b.ang) + Math.sin(t) * r * 0.7;
+      if (!inY(x, y)) continue;
+      g.moveTo(x, y);
+      g.lineTo(x + rnd(-5, 5), y + rnd(-1.5, 1.5));
+    }
+    g.stroke();
+  }
+  const wp = PROPS.find(p => p.k === 'wood' && p.fm && p.fm.yard === Y);
+  if (wp) {
+    g.fillStyle = winter ? 'rgba(120,112,108,.35)' : 'rgba(150,118,76,.45)';
+    g.beginPath();
+    for (let i = 0; i < 40; i++)
+      g.rect(wp.x + rnd(-wp.len * 0.8, wp.len * 0.8), wp.y + rnd(-14, 24), rnd(1.4, 3.2), rnd(1, 1.8));
+    g.fill();
+  }
+  g.lineCap = 'round';
+}
 /* the churchyard: close-cut grass inside a low dry-stone wall, a gravel path from the gate to the tower door */
 function paintChurchyard(C, winter, season, edgeOffs) {
   const Y = C.yard,
@@ -624,6 +829,7 @@ function* paintGroundGen(season) {
           g.stroke();
         }
       }
+      paintYardWear(g, YARD, winter, season);
       if (YARD.park) drawParkingPad(g, YARD.park, winter);
       g.fillStyle = winter ? 'rgba(150,160,175,.25)' : 'rgba(90,80,60,.25)';
       g.beginPath();
@@ -633,6 +839,7 @@ function* paintGroundGen(season) {
       g.beginPath();
       for (let i = 0; i < 900; i++) g.rect(rnd(YARD.x, YARD.x + YARD.w), rnd(YARD.y, YARD.y + YARD.h), 1.6, 1.6);
       g.fill();
+      paintYardMarks(g, YARD, winter, season);
       g.restore();
       // grass creeping in along the edge
       if (!winter) {

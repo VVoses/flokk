@@ -16,6 +16,7 @@ function yardSpot(Y, taken, m, pref) {
     if (buildAt(x, y, m)) continue;
     if (taken.some(t => Math.hypot(t[0] - x, t[1] - y) < (t[2] || 0) + m + 18)) continue;
     if (Y.gate && Math.hypot(Y.gate[0] - x, Y.gate[1] - y) < 60) continue;
+    if (Y.park && Math.hypot(Y.park.x - x, Y.park.y - y) < 70) continue;
     const s = pref(x, y) + rnd(0, 40);
     if (s < bs) ((bs = s), (best = [x, y]));
   }
@@ -75,6 +76,35 @@ function placeProps(fm, taken) {
       col: pick(['#3E6A4A', '#B3302A', '#5A6E80']),
       ang: rnd(-0.5, 0.5)
     });
+  // what a working yard collects: wrapped round bales by the barn, a pile of sawn timber under the eaves of an
+  // outbuilding, and the chopping block by the woodpile with its axe stuck in
+  const barn = fm.builds && fm.builds.find(b => b.door),
+    shed = fm.builds && fm.builds.find(b => b !== h && b !== barn);
+  if (barn)
+    add(
+      'bales',
+      yardSpot(Y, taken, 24, (x, y) =>
+        Math.hypot(
+          barn.cx + (barn.len / 2 + 48) * Math.cos(barn.ang) - x,
+          barn.cy + (barn.len / 2 + 48) * Math.sin(barn.ang) - y
+        )
+      ),
+      22,
+      {
+        n: 2 + ((R() * 2) | 0),
+        ang: rnd(-0.5, 0.5),
+        col: pick(['#E6E9E4', '#DCE3DA', '#C9D3C4'])
+      }
+    );
+  if (shed && R() < 0.8)
+    add('timber', yardSpot(Y, taken, 22, near(shed)), 22, { len: rnd(34, 46), ang: rnd(-0.3, 0.3) });
+  if (fm.wood)
+    add(
+      'block',
+      yardSpot(Y, taken, 12, (x, y) => Math.hypot(fm.wood.x - x - 26, fm.wood.y - y - 14)),
+      10,
+      {}
+    );
   // Jul: a decorated tree in the yard and, on the main farm, a straw julebukk goat by the woodpile -
   // both stand there year-round like everything else here, but drawProp only shows them at midwinter
   if (fm.main || R() < 0.4)
@@ -137,6 +167,9 @@ function propShadows(c, cap) {
       cap(p.x - 22, p.y, LINE_H, 1.6);
       cap(p.x + 22, p.y, LINE_H, 1.6);
     } else if (p.k === 'barrow') cap(p.x, p.y, 0.25, 9);
+    else if (p.k === 'bales') cap(p.x, p.y, 0.7, 14);
+    else if (p.k === 'timber') cap(p.x, p.y, 0.55, p.len * 0.3);
+    else if (p.k === 'block') cap(p.x, p.y, 0.3, 5);
     else if (p.k === 'grave') cap(p.x, p.y, p.h / HZ, p.w * 0.8);
     else if (p.k === 'xtree' && isYule()) cap(p.x, p.y, XTREE_H, 3.5);
     else if (p.k === 'goat' && isYule()) cap(p.x, p.y, 0.16, 5.5);
@@ -147,6 +180,100 @@ function drawProp(p) {
   const X = p.x,
     gy = p.y * TILT,
     snow = SEASON === 3;
+  if (p.k === 'bales') {
+    // wrapped round bales on their sides, the front ones first, snow-capped in winter
+    for (let i = 0; i < p.n; i++) {
+      const bx = X + (i - (p.n - 1) / 2) * 17 + (i % 2) * 3,
+        by = gy + (i % 2) * 5,
+        r = 8.5;
+      ctx.fillStyle = 'rgba(0,0,0,.16)';
+      ctx.beginPath();
+      ctx.ellipse(bx + 2, by + 1, r + 1.5, 3.4, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = shade(p.col, 0.84);
+      ctx.beginPath();
+      ctx.ellipse(bx, by - r, r, r, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.ellipse(bx, by - r, r * 0.92, r * 0.92, 0, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90,100,84,.35)';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.arc(bx, by - r, r * 0.55, 0.3, 4.6);
+      ctx.arc(bx, by - r, r * 0.25, 1, 5);
+      ctx.stroke();
+      if (snow) {
+        ctx.fillStyle = '#F4F7FA';
+        ctx.beginPath();
+        ctx.arc(bx, by - r, r + 0.4, Math.PI * 1.05, -Math.PI * 0.05);
+        ctx.fill();
+      }
+    }
+    return;
+  }
+  if (p.k === 'timber') {
+    // sawn boards stacked on bearers and left to season
+    const L2 = p.len / 2,
+      d = 6,
+      hh = 8,
+      fy = (p.y + d) * TILT,
+      by = (p.y - d) * TILT;
+    ctx.save();
+    ctx.translate(X, 0);
+    ctx.rotate(p.ang * 0.15);
+    ctx.fillStyle = snow ? '#EEF2F6' : '#C4AE86';
+    ctx.beginPath();
+    ctx.moveTo(-L2, fy - hh);
+    ctx.lineTo(L2, fy - hh);
+    ctx.lineTo(L2, by - hh);
+    ctx.lineTo(-L2, by - hh);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#A88F66';
+    ctx.fillRect(-L2, fy - hh, p.len, hh);
+    ctx.strokeStyle = 'rgba(70,52,30,.5)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    for (let row = 1; row < 4; row++) {
+      ctx.moveTo(-L2, fy - hh + row * (hh / 4));
+      ctx.lineTo(L2, fy - hh + row * (hh / 4));
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#4A3E30';
+    ctx.fillRect(-L2 + 4, fy, 3, 1.4);
+    ctx.fillRect(L2 - 7, fy, 3, 1.4);
+    if (snow) {
+      ctx.fillStyle = '#F4F7FA';
+      ctx.fillRect(-L2 - 0.5, fy - hh - 1.6, p.len + 1, 2.2);
+    }
+    ctx.restore();
+    return;
+  }
+  if (p.k === 'block') {
+    ctx.fillStyle = '#5A4632';
+    ctx.fillRect(X - 4.2, gy - 6, 8.4, 6);
+    ctx.fillStyle = '#B48E5C';
+    ctx.beginPath();
+    ctx.ellipse(X, gy - 6, 4.2, 2, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#6E5A42';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(X + 1.5, gy - 6.6);
+    ctx.lineTo(X + 5.5, gy - 10.5);
+    ctx.stroke();
+    ctx.fillStyle = '#6A6E72';
+    ctx.fillRect(X + 0.4, gy - 7.6, 2.6, 1.6);
+    if (snow) {
+      ctx.fillStyle = '#F4F7FA';
+      ctx.beginPath();
+      ctx.ellipse(X, gy - 6.2, 4.4, 2.1, 0, Math.PI, 0);
+      ctx.fill();
+    }
+    return;
+  }
   if (p.k === 'grave') {
     ctx.save();
     ctx.translate(X, gy);
