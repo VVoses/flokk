@@ -257,8 +257,8 @@ function update(dt) {
       if (active < want && st.hawkT <= 0 && birdExposed) {
         spawnHawk(kind);
         st.hawkT = kind === 'hawk' ? [rr(45, 90), rr(60, 110), rr(18, 35), rr(14, 26)][SEASON] : rr(7, 13);
-        // hawk or owl plays the same from the flock's side, so one shared tip rather than two
-        teach('predator', 'a predator is chasing you, hide in the trees');
+        // it always appears just off screen, so this is the first sight of the orange edge arrow
+        teach('hawkEdge', `the orange arrow at the screen edge points to a ${kind}: it is coming, get ready`);
       }
     }
     // a white-tailed eagle: a rare, once-in-a-while sight rather than a standing threat like the
@@ -281,7 +281,17 @@ function update(dt) {
       st.eagleT = rr(700, 1200);
     }
   }
-  for (const h of hawks) updateHawk(h, dt);
+  for (const h of hawks) {
+    updateHawk(h, dt);
+    // hawk or owl plays the same from the flock's side, so one shared tip rather than two
+    if (h.state === 'stalk' || h.state === 'hover') teach('predator', 'a predator has spotted you: hide in the trees');
+    // the dash is a dodge: the first diving hawk that closes in is when to say so
+    if (h.state === 'dive' && Math.hypot(h.x - L.x, h.y - L.y) < 420)
+      teach(
+        'dash',
+        `diving! ${matchMedia('(pointer:coarse)').matches ? 'tap ›' : 'press space'} to dash sideways out of its way`
+      );
+  }
   let hawkWrite = 0;
   for (const h of hawks) if ((h.alpha ?? 1) > 0) hawks[hawkWrite++] = h;
   hawks.length = hawkWrite;

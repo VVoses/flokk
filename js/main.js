@@ -97,6 +97,9 @@ function hud(dt) {
   } else if (st.mode === 'play' && st.grace > 0) txt = 'Flying · the sky is calm';
   ui.count.classList.toggle('danger', cls === 'danger');
   ui.count.classList.toggle('safe', cls !== 'danger' && birds.length > 0 && hidden === birds.length);
+  // a second hunger cue beyond the bar colour: the flock count itself turns amber, then pulses when starving
+  ui.count.classList.toggle('hungry', cls !== 'danger' && en < 0.5);
+  ui.count.classList.toggle('starving', cls !== 'danger' && en < 0.25);
   const hunger = en < 0.25 ? 'starving' : en < 0.5 ? 'hungry' : 'well fed';
   ui.count.setAttribute(
     'aria-label',

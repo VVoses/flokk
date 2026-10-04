@@ -2187,6 +2187,26 @@ function render() {
   }
   V = V0;
   setK(0);
+  // a dash leaves soft light streaks trailing every flier, fading as the burst ends
+  if (st.dashT > 0 && st.mode === 'play') {
+    const f = clamp(st.dashT / 0.6, 0, 1),
+      sp = Math.hypot(L.vx, L.vy) || 1,
+      ux = L.vx / sp,
+      uy = L.vy / sp;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `rgba(255,246,222,${0.85 * f})`;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for (const b of birds) {
+      if (b.state !== 'fly') continue;
+      const X = b.x + b.hx,
+        Y = PY(b.y + b.hy, b.z),
+        len = 34 + 26 * f;
+      ctx.moveTo(X, Y);
+      ctx.lineTo(X - ux * len, Y - uy * len * TILT);
+    }
+    ctx.stroke();
+  }
   if (pointer.down && st.mode === 'play') {
     const w = screenToWorld(pointer.x, pointer.y, L.z);
     ctx.strokeStyle = 'rgba(242,201,76,.65)';
@@ -2241,7 +2261,10 @@ function render() {
     ctx.save();
     ctx.translate(ex2, ey2);
     ctx.rotate(a);
-    ctx.globalAlpha = clamp(1.3 - dist / (1600 * seeK()), 0.3, 1);
+    // a gentle throb so the arrow reads as a signal; a little larger until the dash has been taught
+    const throb = (1 + 0.12 * Math.sin(T * 5)) * (LEARN.dash ? 1 : 1.25);
+    ctx.scale(throb, throb);
+    ctx.globalAlpha = clamp(1.4 - dist / (1600 * seeK()), 0.45, 1);
     ctx.fillStyle = h.state === 'patrol' ? '#E0A33F' : '#E5573F';
     ctx.beginPath();
     ctx.moveTo(12, 0);
