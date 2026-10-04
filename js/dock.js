@@ -75,7 +75,7 @@ function jettyItems(items, k) {
     const s = ((i + 0.5) / n) * L,
       x = lerp(JET.x0, JET.x1, s / L),
       y = lerp(JET.y0, JET.y1, s / L);
-    if (visU(x, y, JETTY.seg + 10, 30)) items.push([y, 18, i, k]);
+    if (visU(x, y, JETTY.seg + 10, 30)) items.push([y, 20, i, k]);
   }
 }
 function drawJetty(i) {
