@@ -1677,7 +1677,7 @@ function audioTick(dt) {
     amb.owlT = (amb.owlT || 8) - dt;
     if (amb.owlT <= 0) {
       if (nf > 0.6) owlHoot(hawks.some(h => h.kind === 'owl') ? 0.05 : 0.025);
-      amb.owlT = rr(9, 22);
+      amb.owlT = rr(18, 44);
     }
     // a hunting owl gives itself away to the ear first: you hear it from where it is before you can see it
     const hunter = hawks.find(
