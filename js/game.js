@@ -687,7 +687,7 @@ function startGame() {
   syncHud();
   seasonBanner();
   setTimeout(() => {
-    if (st.mode === 'play') teach('goal', 'bring the flock safely through to spring');
+    if (st.mode === 'play') teach('goal', 'bring the flock through to spring');
   }, 14000);
 }
 function yearWon() {

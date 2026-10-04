@@ -63,14 +63,14 @@ function update(dt) {
       feed(0.04 * bite);
     }
     if (st.energy <= 0.5 && st.food >= needFor(birds.length))
-      teach('stores', 'a hungry flock eats its stores first: new birds come once it is fed');
+      teach('stores', 'hunger takes the stores first: new birds come once the flock is fed');
     goalLine();
     // the winter warning comes with the last summer day, a full season before the insects are gone
     if (SEASON === 1 && CAL.day % DAYS_PER_SEASON >= 2)
-      teach('autumn', 'summer is ending: the insects will thin, eat well and bring the flock up');
-    if (st.energy < 0.45) teach('hunger', 'eat insects to keep the flock fed');
+      teach('autumn', 'summer is ending: the insects will thin, eat now');
+    if (st.energy < 0.45) teach('hunger', 'the flock is hungry: find insects');
     if (SEASON === 3 && st.energy < 0.8)
-      teach('winter', 'no insects now: try the feeder and rowan berries, roost in spruce');
+      teach('winter', 'the cold burns through the flock: berries, feeders, spruce to roost in');
     if (st.energy <= 0) {
       st.starveT -= dt;
       if (st.starveT <= 0) {

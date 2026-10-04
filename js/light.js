@@ -727,10 +727,10 @@ function seasonBanner() {
   $('bSeason').textContent = SEASONS[SEASON];
   // what the season means for food, a soft second line under the name
   $('bSub').textContent = [
-    'insects wake in the meadows: eat well and the flock grows',
-    'insects are thick: eat and raise the flock',
-    'the insects are thinning: eat well, winter has none',
-    'no insects now: try the feeder and rowan berries, roost in spruce'
+    'the meadows are waking: eat, and the flock grows',
+    'midges hang thick over the fields: eat while they last',
+    'the swarms are thinning: winter has none',
+    'nothing flies now: feeders, rowan berries, spruce to roost in'
   ][SEASON];
   el.classList.remove('show');
   void el.offsetWidth;
