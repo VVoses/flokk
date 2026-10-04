@@ -2207,26 +2207,6 @@ function render() {
   }
   V = V0;
   setK(0);
-  // a dash leaves soft light streaks trailing every flier, fading as the burst ends
-  if (st.dashT > 0 && st.mode === 'play') {
-    const f = clamp(st.dashT / 0.6, 0, 1),
-      sp = Math.hypot(L.vx, L.vy) || 1,
-      ux = L.vx / sp,
-      uy = L.vy / sp;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = `rgba(255,246,222,${0.85 * f})`;
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    for (const b of birds) {
-      if (b.state !== 'fly') continue;
-      const X = b.x + b.hx,
-        Y = PY(b.y + b.hy, b.z),
-        len = 34 + 26 * f;
-      ctx.moveTo(X, Y);
-      ctx.lineTo(X - ux * len, Y - uy * len * TILT);
-    }
-    ctx.stroke();
-  }
   if (pointer.down && st.mode === 'play') {
     const w = screenToWorld(pointer.x, pointer.y, L.z);
     ctx.strokeStyle = 'rgba(242,201,76,.65)';
