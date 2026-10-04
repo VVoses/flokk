@@ -6,9 +6,10 @@ decisions a change should respect, and the recurring patterns worth reusing rath
 
 ## The one deliberate constraint: plain scripts, one shared scope, no build step
 
-There is no bundler, no modules, no `import`/`export`, and (deliberately) no framework. `index.html` loads 28
-scripts in a fixed order, and every top-level `const`/`let`/`function` in every file lands in the same global
-scope. This is not an oversight — it's what makes the rest of the toolchain possible:
+There is no bundler, no modules, no `import`/`export`, and (deliberately) no framework. `index.html` loads 35
+game scripts in a fixed order (plus `dev.js` with `?dev` or `admin.js` with `?debug=1`). Every top-level
+`const`/`let`/`function` in those plain scripts lands in the same shared scope. This is not an oversight —
+it's what makes the rest of the toolchain possible:
 
 - **Tests reach live state directly.** `tools/*.py` drive the game with Playwright and read or poke state with
   `page.evaluate("ANIMALS.find(a => a.k==='fox')")`, `page.evaluate("dev.season(2, 12)")`, and so on. There is no
@@ -54,13 +55,20 @@ camera, hawks and weather may drift slightly past that range and get recentred b
   picks the shorter way round the seam. Plain subtraction is a bug waiting for a flock near `x=0` or `x=W`.
 - **Perches and trees near the seam have twins** (`p.gh`/`p.orig`, built by `buildGhosts()` in `world.js`) so a
   lookup working from either side of the seam finds the same object.
-- **World generation is layered, in this order:** `genLayout()` (lake, road, rail route, farm plots cut from
-  tracts with balks/ditches/hedges between them, field polygons) → `genWorld(seed)` (trees, hedges, bales,
-  fences, poles scattered onto that layout) → `buildGhosts()` (the seam twins). Each stage assumes the previous
-  one is complete; don't reorder them.
+- **World generation is layered inside `genWorld(seed)`:** `genLayout()` sets the lake, pond, road and rail,
+  then chooses a north-to-fjord bekk. It places farms, services and fields clear of the water and records small
+  road, rail and track crossings. `genWorld` scatters trees, hedges, bales, fences and poles onto that layout,
+  then calls `buildGhosts()` for seam twins. Each stage assumes the previous one is complete; don't reorder them.
 - **The seam must never show**, in any season, hour, zoom or crossfade — this is the one piece of rendering with
   its own regression suite (`tools/seam_check.py`), because a visible seam is exactly the kind of thing that's
   invisible in a quick look and glaring the moment someone actually plays.
+- **The bekk is a different water scale from the lake and fjord.** `streamXAt` and `inWater` in `world.js` give
+  placement and movement one clearance rule, with bridge decks passable at their crossings. `paintStream` in
+  `ground.js` bakes the narrow bed and banks into seasonal ground. Open-water waves in `waves.js` are reserved
+  for the lake, pond and fjord; the bekk uses seeded bed stones and local downstream ripple and foam trains
+  (`drawStreamFlow` in `render.js`), with a quiet nearby ambience. The riffles skip bridge decks and narrow
+  into the open channel in winter. Source boulders draw after the mirrored northern ground so the
+  heap appears once; a small source clearing lets trees stand immediately behind it.
 
 ## Time and seasons: two clocks, and a rebuild that happens *once*, on the boundary
 
@@ -102,8 +110,8 @@ Two details worth knowing before touching anything here, because both were real 
 
 `GROW` (`grow.js`) is the separate, continuous mechanism for change *within* a season: snow retreating in
 patches, fields sprouting/ripening/being harvested one at a time, first snow settling. It reads `seasonP()`
-every frame; nothing about it is baked or crossfaded, which is why it can be gradual and specific in a way the
-sprite/ground rebuild (necessarily a discrete, expensive rebuild) can't be.
+every frame. Its live crop and snow overlays are captured in the outgoing ground snapshot at a season boundary,
+but within a season they remain gradual and specific in a way the discrete sprite/ground rebuild can't be.
 
 ## Rendering: draw at a place, sort with everything else, let what's in front hide it
 
@@ -119,9 +127,25 @@ get backwards:
   the roof hides it), not as a layer over the frame.
 - Drawing logic is already split by *domain*, not by "big file, small file": `rigs.js` is the shared 3D flier
   rig, `figure.js` is quadrupeds/people as 3D figures, `sky.js` is bushes/clouds/shoreline, `yard.js`/`rail.js`/
-  `traffic.js` are their own props. `render.js` itself stays large because painter-sorting requires knowing
-  about every drawable kind in one place — that's an inherent cost of the sort, not disorganisation, so don't
-  split it along an arbitrary line just to shrink it.
+  `traffic.js` are their own props. `grass.js` and `crops.js` feed blade strokes to `blades.js`, which uses
+  WebGL2 when available and Path2D otherwise. Open-water waves similarly use a shader with a canvas fallback;
+  `flocklight.js` adds a soft light under birds over forest. `render.js` itself stays large because painter-sorting
+  requires knowing about every drawable kind in one place — that's an inherent cost of the sort, not
+  disorganisation, so don't split it along an arbitrary line just to shrink it.
+
+## Local flights and the title
+
+`session.js` keeps at most six versioned localStorage slots. `claimSlot()` gives a new flight its own slot;
+when full, it removes the oldest. `saveSession()` records the current run and a title summary, checks that
+another tab has not changed the same slot, and reports whether the write succeeded. `restoreSession(id)`
+rebuilds the seeded static world, verifies its signature and unpacks the dynamic state. An active flight
+resumes play; a completed year returns to its year-end card.
+
+The title has saved-flight and new-land views (`showTitle`); selecting **New flight** previews a land and
+**Reroll** changes its seed before takeoff. The pause menu saves before returning to the title, and stays open
+if that write fails. Its separate **New land** action attempts a save, then reloads into the land view. Death
+clears only that flight's slot. Tests for these paths live in `session_check.py`
+and `flows.py`.
 
 ## Animals and people: a shared movement toolkit, a per-kind behaviour switch
 
@@ -196,9 +220,12 @@ jitter on top of its parameters — per `DESIGN.md`, no call should come out exa
 no separate "test mode" data path to keep in sync with the real one.
 
 `tools/*.py` are headless Playwright drivers, each aimed at one concern: `flows.py` (every screen and mode
-transition), `seam_check.py` (the world-wrap, described above), `road_check.py`/`grow_check.py`/`weather_check.py`
-(generation and season/weather regressions across many seeds), `survey.py`/`seasons.py`/`timelapse.py`/`night.py`
+transition), `session_check.py` (saved flights), `seam_check.py` (the world-wrap, described above),
+`road_check.py`/`stream_check.py`/`visual_smoke.py` (seeded geometry and rendered views),
+`grow_check.py`/`weather_check.py` (season/weather regressions), `survey.py`/`seasons.py`/`timelapse.py`/`night.py`
 (visual contact sheets for a human to actually look at — `DESIGN.md`'s "did you look at it?" is not rhetorical).
+`render_diff.py --base /path/to/other/checkout` compares fixed seeded frames from two checkouts after a
+rendering change.
 `npm run lint` runs ESLint over every script *as one program* so cross-file globals resolve correctly; `npm run
 format` is Prettier over `js/*.js`, `css/*.css`, `tools/*.{cjs,mjs}`, `index.html` (not the Markdown docs, including this one — match
 the surrounding prose by hand). `sh tools/check.sh` is the fast smoke test: syntax-check every file, then

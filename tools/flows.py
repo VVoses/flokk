@@ -38,6 +38,41 @@ with sync_playwright() as p:
     check('keyboard steers',pg.evaluate("Math.hypot(L.vx,L.vy)")>30)
     pg.keyboard.press('Escape');pg.wait_for_timeout(300)
     check('escape pauses',pg.evaluate("st.mode")=='pause' and vis('#pauseOv'));shot('pause')
+    pg.keyboard.press('Shift+Tab')
+    check('pause focus wraps backward',pg.evaluate("document.activeElement.id")=='pauseNewBtn')
+    pg.keyboard.press('Tab')
+    check('pause focus wraps forward',pg.evaluate("document.activeElement.id")=='resumeBtn')
+    pg.click('#pauseSoundBtn')
+    check('pause menu sound off',pg.evaluate("muted") and pg.locator('#pauseSoundBtn').inner_text()=='Sound off')
+    pg.click('#pauseSoundBtn')
+    check('pause menu sound on',not pg.evaluate("muted") and pg.locator('#pauseSoundBtn').inner_text()=='Sound on')
+    before=pg.evaluate("[SEED,CAL.t,birds.length]")
+    pg.click('#returnTitleBtn')
+    check('save and title',pg.evaluate("st.mode")=='title' and vis('#titleOv') and pg.evaluate("$('titleCard').dataset.view")=='saves' and vis('#continueBtn'))
+    pg.click('#continueBtn');pg.wait_for_timeout(500)
+    restored=pg.evaluate("[SEED,CAL.t,birds.length]")
+    check('saved flight restored',pg.evaluate("st.mode")=='play' and restored[0]==before[0] and restored[2]==before[2] and before[1]<=restored[1]<before[1]+3)
+    pg.keyboard.press('Escape');pg.wait_for_timeout(300)
+    check('failed save keeps pause open',pg.evaluate("""(() => {
+      const original = saveSession;
+      saveSession = () => false;
+      returnToTitle();
+      const stayed = st.mode === 'pause' && !$('pauseOv').hidden &&
+        $('pauseSaveNote').textContent.includes('Could not save');
+      saveSession = original;
+      return stayed;
+    })()"""))
+    check('no slot can return to title',pg.evaluate("""(() => {
+      const slot = curSlot;
+      curSlot = null;
+      returnToTitle();
+      const left = st.mode === 'title' && !$('titleOv').hidden &&
+        $('saveNote').textContent.includes('no save slot');
+      curSlot = slot;
+      return left;
+    })()"""))
+    pg.click('#continueBtn');pg.wait_for_timeout(500)
+    pg.keyboard.press('Escape');pg.wait_for_timeout(300)
     pg.click('#resumeBtn');pg.wait_for_timeout(300)
     check('resume',pg.evaluate("st.mode")=='play' and not vis('#pauseOv'))
     pg.click('#pauseBtn');pg.wait_for_timeout(200);check('pause button',pg.evaluate("st.mode")=='pause');pg.keyboard.press('Escape');pg.wait_for_timeout(200);check('escape resumes',pg.evaluate("st.mode")=='play')
@@ -123,6 +158,9 @@ with sync_playwright() as p:
     pg.tap('#startBtn');pg.wait_for_timeout(800)
     check('phone: dash button',pg.evaluate("!dashBtn.hidden"))
     pg.screenshot(path=os.path.join(out,'flow_phone_play.png'))
+    pg.tap('#pauseBtn');pg.wait_for_timeout(200)
+    check('phone: pause actions fit',pg.evaluate("st.mode")=='pause' and pg.evaluate("dashBtn.hidden") and pg.evaluate("(() => { const p=document.querySelector('.pause-panel').getBoundingClientRect(); return p.left>=0 && p.right<=innerWidth && p.top>=0 && p.bottom<=innerHeight; })()"))
+    pg.screenshot(path=os.path.join(out,'flow_phone_pause.png'))
     b.close()
     print('page errors:',errs or 'none')
     sys.exit(1 if fails or errs else 0)

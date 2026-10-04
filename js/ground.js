@@ -31,6 +31,184 @@ function strokePoly(c, P, w, col) {
   c.lineCap = 'round';
   c.stroke();
 }
+// The glacial bekk is ground, not a screen overlay. The narrow bed winds out of a small ice
+// tongue and broadens only near its fjord mouth; bridges are laid back over it below.
+function paintStreamRock(c, rock, winter, lit = false) {
+  const color = hex => (lit ? tintHex(hex) : hex);
+  const { x, y, r, p } = rock;
+  c.save();
+  c.translate(x, y);
+  c.fillStyle = 'rgba(23,36,32,.3)';
+  c.beginPath();
+  c.ellipse(1.5, 2.5, r * 1.2, r * 0.75, 0, 0, TAU);
+  c.fill();
+  const outline = () => {
+    c.beginPath();
+    for (let j = 0; j < 7; j++) {
+      const a = (j / 7) * TAU + p,
+        k = 0.8 + 0.2 * Math.sin(j * 3.7 + p * 12),
+        px = Math.cos(a) * r * k,
+        py = Math.sin(a) * r * k * 1.1 - r * 0.3;
+      j ? c.lineTo(px, py) : c.moveTo(px, py);
+    }
+    c.closePath();
+  };
+  outline();
+  c.fillStyle = color(winter ? '#9BA9AF' : p > 0.5 ? '#7A827B' : '#687772');
+  c.fill();
+  c.clip();
+  c.fillStyle = color(winter ? '#DAE3E7' : '#A0A69A');
+  c.beginPath();
+  c.moveTo(-r, -r);
+  c.lineTo(r, -r);
+  c.lineTo(r * 0.25, 0);
+  c.lineTo(-r * 0.5, r * 0.12);
+  c.closePath();
+  c.fill();
+  c.strokeStyle = 'rgba(37,48,43,.35)';
+  c.lineWidth = 0.8;
+  c.beginPath();
+  c.moveTo(-r * 0.5, r * 0.12);
+  c.lineTo(r * 0.25, 0);
+  c.lineTo(r * 0.4, r);
+  c.stroke();
+  c.restore();
+}
+function paintStream(winter) {
+  if (!STREAM) return;
+  const P = STREAM.points;
+  g.save();
+  g.lineJoin = g.lineCap = 'round';
+  // One continuous tapered ribbon per layer prevents the regular dark bands that overlapping
+  // translucent segment strokes made. Tiny width changes give the banks an unsurveyed edge.
+  const ribbon = (extra, k = 1) => {
+    const side = sign => {
+      for (let i = sign > 0 ? 0 : P.length - 1; sign > 0 ? i < P.length : i >= 0; i += sign) {
+        const a = P[Math.max(0, i - 1)],
+          b = P[Math.min(P.length - 1, i + 1)],
+          len = Math.hypot(b[0] - a[0], b[1] - a[1]),
+          nx = (b[1] - a[1]) / len,
+          ny = -(b[0] - a[0]) / len,
+          w =
+            streamWidth(P[i][1]) * k +
+            extra +
+            0.7 * Math.sin(i * 0.71 + SEED) +
+            1.3 * Math.sin(i * 0.23 + SEED * 1.7) * k,
+          x = P[i][0] + nx * w * sign,
+          y = P[i][1] + ny * w * sign;
+        if (i === 0 && sign > 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+    };
+    g.beginPath();
+    side(1);
+    side(-1);
+    g.closePath();
+  };
+  // Summer: a wet dark strip along the banks, a pale shallow margin, and deeper water down the middle.
+  // Winter: snow lips on both banks, ice shelves, and a dark thread of open water that still reads on snow.
+  ribbon(9);
+  g.fillStyle = winter ? 'rgba(226,234,240,.55)' : 'rgba(52,64,44,.26)';
+  g.fill();
+  ribbon(3.5);
+  g.fillStyle = winter ? '#D3DFE5' : '#6F8478';
+  g.fill();
+  ribbon(0);
+  g.fillStyle = winter ? '#BCCDD6' : '#587A78';
+  g.fill();
+  ribbon(0, 0.5);
+  g.fillStyle = winter ? '#56788A' : '#3F5F62';
+  g.fill();
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1],
+      b = P[i],
+      w = streamWidth((a[1] + b[1]) * 0.5);
+    if (hash2(i * 19, SEED) < 0.12) {
+      const x = (a[0] + b[0]) * 0.5,
+        y = (a[1] + b[1]) * 0.5;
+      g.strokeStyle = winter ? 'rgba(224,235,239,.36)' : 'rgba(186,224,218,.3)';
+      g.lineWidth = 1.2;
+      g.beginPath();
+      g.moveTo(x - w * 0.55, y - 2);
+      g.lineTo(x + w * 0.35, y + 1);
+      g.stroke();
+    }
+    if (hash2(i * 43, SEED) < 0.3) {
+      // reed and sedge tufts on the banks; in winter only dry stems standing out of the snow
+      const side = hash2(i * 7, SEED) < 0.5 ? -1 : 1,
+        x0 = (a[0] + b[0]) * 0.5 + side * (w + 4 + hash2(i, SEED) * 4),
+        y0 = (a[1] + b[1]) * 0.5;
+      g.strokeStyle = winter ? 'rgba(150,132,98,.75)' : 'rgba(86,110,60,.8)';
+      g.lineWidth = 1.1;
+      for (let k = 0; k < 4; k++) {
+        const lean = (k - 1.5) * 1.6 + side * 1.2;
+        g.beginPath();
+        g.moveTo(x0 + (k - 1.5), y0);
+        g.lineTo(x0 + (k - 1.5) + lean, y0 - 6 - hash2(i + k, SEED) * 5);
+        g.stroke();
+      }
+    }
+    if (hash2(i * 31, SEED) < 0.2) {
+      const side = hash2(i, SEED) < 0.5 ? -1 : 1,
+        x = (a[0] + b[0]) * 0.5 + side * (w + 9),
+        y = (a[1] + b[1]) * 0.5;
+      g.fillStyle = winter ? 'rgba(226,231,235,.8)' : 'rgba(132,139,122,.72)';
+      g.beginPath();
+      g.ellipse(x, y, 3 + hash2(i + 1, SEED) * 4, 2.2, 0, 0, TAU);
+      g.fill();
+    }
+  }
+  // Source boulders are drawn after the mirrored northern ground, so the heap appears only once.
+  for (const rock of STREAM.rocks)
+    if (!rock.source && !onStreamBridge(rock.x, rock.y)) paintStreamRock(g, rock, winter);
+  // Where it reaches the tide, a little wider shallow fan disappears beneath the fjord paint.
+  const [mx, my] = STREAM.mouth;
+  g.fillStyle = winter ? 'rgba(156,183,196,.7)' : 'rgba(75,127,128,.7)';
+  g.beginPath();
+  g.ellipse(mx, my - 3, 20, 13, 0, 0, TAU);
+  g.fill();
+  g.restore();
+}
+function paintStreamBridges(winter) {
+  for (const c of STREAM_CROSSINGS) {
+    const w = streamWidth(c.y),
+      half = c.kind === 'road' ? 15 : c.kind === 'rail' ? 12 : c.kind === 'lane' ? 10 : 6,
+      span = w + (c.kind === 'road' || c.kind === 'rail' ? 17 : 11);
+    g.save();
+    g.translate(c.x, c.y);
+    g.rotate(c.rang);
+    g.fillStyle = 'rgba(20,26,22,.2)';
+    g.fillRect(-span + 2, -half + 3, span * 2, half * 2);
+    g.fillStyle = winter
+      ? c.kind === 'rail'
+        ? '#B5BEC5'
+        : '#E0E5E9'
+      : c.kind === 'rail'
+        ? '#766F61'
+        : c.kind === 'road'
+          ? '#BDAF8A'
+          : '#A99B78';
+    g.fillRect(-span, -half, span * 2, half * 2);
+    // deck planks
+    g.strokeStyle = winter ? 'rgba(113,128,140,.35)' : 'rgba(78,72,60,.3)';
+    g.lineWidth = 1;
+    for (let x = -span + 4; x < span - 2; x += 5) {
+      g.beginPath();
+      g.moveTo(x, -half);
+      g.lineTo(x, half);
+      g.stroke();
+    }
+    g.strokeStyle = winter ? 'rgba(113,128,140,.8)' : 'rgba(78,72,60,.75)';
+    g.lineWidth = c.kind === 'track' ? 1.5 : 2.5;
+    for (const side of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(-span, side * half);
+      g.lineTo(span, side * half);
+      g.stroke();
+    }
+    g.restore();
+  }
+}
 // a farmyard's outline: its rounded rectangle, pushed in and out by noise so no two yards are the same shape;
 // built in the yard's own frame and turned with it
 function yardPath(c, Y, grow) {
@@ -1118,6 +1296,8 @@ function* paintGroundGen(season) {
     }
   }
   paintCrossings(winter);
+  paintStream(winter);
+  paintStreamBridges(winter);
   paintRailSteel();
   function water(c, rf, R0) {
     blobPath(g, c.x, c.y, rf, 20);

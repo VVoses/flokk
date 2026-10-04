@@ -53,6 +53,9 @@ jobs:
       - name: farms meet the road cleanly
         run: python3 tools/road_check.py
 
+      - name: glacial stream clears land use and crosses on bridges
+        run: python3 tools/stream_check.py
+
       - name: seeded visual smoke
         run: python3 tools/visual_smoke.py
 

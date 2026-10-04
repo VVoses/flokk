@@ -159,11 +159,14 @@ function randomSpot() {
   for (let i = 0; i < 30; i++) {
     const u = Math.random();
     let x, y;
-    if (u < 0.45) {
+    if (u < 0.42) {
       const a = rr(0, TAU),
         d = lakeR(a) + rr(-60, 220);
       x = LAKE.x + Math.cos(a) * d;
       y = LAKE.y + Math.sin(a) * d;
+    } else if (u < 0.57 && STREAM) {
+      y = rr(160, STREAM.mouth[1] - 50);
+      x = streamXAt(y) + rr(-65, 65);
     } else if (u < 0.8) {
       const f = pickP(FIELDS);
       x = rr(f.x, f.x + f.w);
@@ -800,17 +803,48 @@ function pause() {
   pauseIcon(true);
   st.mode = 'pause';
   pointer.down = false;
+  dashBtn.hidden = true;
   syncHud();
   $('pauseStats').innerHTML = statsHTML();
+  $('pauseSeason').textContent = `${SEASONS[CAL.season]} · year ${CAL.year}`;
+  $('pauseControls').textContent = coarse
+    ? 'hold where you want to fly · tap dash to burst'
+    : 'move with mouse or arrows · dash with space';
+  syncPauseSound();
   $('pauseOv').hidden = false;
   $('resumeBtn').focus();
-  saveSession();
+  const saved = saveSession();
+  $('pauseSaveNote').textContent =
+    saved === true
+      ? 'Your flight is saved automatically.'
+      : saved === null
+        ? 'No active save slot for this flight.'
+        : 'This flight could not be saved.';
 }
 function resume() {
   st.mode = 'play';
   $('pauseOv').hidden = true;
+  dashBtn.hidden = !coarse;
   pauseIcon(false);
   syncHud();
+}
+function syncPauseSound() {
+  $('pauseSoundBtn').textContent = muted ? 'Sound off' : 'Sound on';
+  $('pauseSoundBtn').setAttribute('aria-pressed', String(!muted));
+}
+function returnToTitle() {
+  const saved = saveSession();
+  if (saved === false) {
+    $('pauseSaveNote').textContent = 'Could not save. Stay here or try again.';
+    return;
+  }
+  st.mode = 'title';
+  $('pauseOv').hidden = true;
+  dashBtn.hidden = true;
+  pauseIcon(false);
+  syncHud();
+  showTitle('saves');
+  if (saved === null) $('saveNote').textContent = 'This flight had no save slot.';
 }
 function gameOver() {
   clearSession();
@@ -845,6 +879,21 @@ $('overNewBtn').onclick = goNewLand;
 $('keepBtn').onclick = keepFlying;
 $('againBtn').onclick = startGame;
 $('resumeBtn').onclick = resume;
+$('returnTitleBtn').onclick = returnToTitle;
+$('pauseSoundBtn').onclick = () => $('muteBtn').click();
+$('pauseOv').addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const buttons = [...$('pauseOv').querySelectorAll('button:not([hidden]):not(:disabled)')],
+    first = buttons[0],
+    last = buttons[buttons.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
 $('pauseBtn').onclick = () => {
   if (st.mode === 'play') pause();
   else if (st.mode === 'pause') resume();
@@ -855,6 +904,7 @@ $('muteBtn').onclick = () => {
   if (master) master.gain.value = muted ? 0 : 0.9;
   $('waves').style.display = muted ? 'none' : '';
   $('muteBtn').setAttribute('aria-label', muted ? 'Unmute sound' : 'Mute sound');
+  syncPauseSound();
 };
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && st.mode === 'play') pause();

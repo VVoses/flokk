@@ -135,6 +135,8 @@ function genBorderBits() {
       inBuild(x, y, r + 10) ||
       inBlob(x, y, LAKE, lakeR, r) ||
       inBlob(x, y, POND, pondR, r) ||
+      inStream(x, y, r + 22) ||
+      inGlacier(x, y, r) ||
       roadDist(x, y) < 30 + r ||
       railDist(x, y) < 24 + r
     )
@@ -178,6 +180,8 @@ function genBushes() {
       inBuild(x, y, r + 8) ||
       inBlob(x, y, LAKE, lakeR, r) ||
       inBlob(x, y, POND, pondR, r) ||
+      inStream(x, y, r + 6) ||
+      inGlacier(x, y, r) ||
       roadDist(x, y) < 26 + r ||
       railDist(x, y) < 20 + r ||
       underTree(x, y)

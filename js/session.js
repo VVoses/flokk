@@ -197,9 +197,13 @@ function claimSlot() {
   sessionWarning('');
 }
 function saveSession() {
-  if (!curSlot || !['play', 'pause', 'won'].includes(st.mode) || !birds.length || sessionConflict) return;
+  if (!curSlot || !['play', 'pause', 'won'].includes(st.mode) || !birds.length) return null;
+  if (sessionConflict) return false;
   try {
-    if (localStorage.getItem(sessionKey()) !== sessionLastRaw) return sessionChangedElsewhere();
+    if (localStorage.getItem(sessionKey()) !== sessionLastRaw) {
+      sessionChangedElsewhere();
+      return false;
+    }
     const data = packSession({
       st,
       cal: CAL,
@@ -236,9 +240,11 @@ function saveSession() {
     localStorage.setItem(sessionKey(), raw);
     sessionLastRaw = raw;
     sessionWarning('');
+    return true;
   } catch (error) {
     sessionWarning('This flight could not be saved. Check available browser storage.');
     console.warn('Flokk session save failed:', error);
+    return false;
   }
 }
 // the end of a flight (taken or starved) deletes its slot; other flights are never touched
