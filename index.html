@@ -32,7 +32,7 @@
     <link rel="stylesheet" href="css/flokk.css" />
   </head>
   <body>
-    <canvas id="game" aria-label="Flokk"></canvas>
+    <canvas id="game" tabindex="0" aria-label="Flokk"></canvas>
 
     <div class="hud">
       <div class="tl">
@@ -142,12 +142,12 @@
     <div class="hint" id="hintEl" aria-live="polite"></div>
     <div class="goal" id="goalEl" aria-live="polite"></div>
 
-    <div class="overlay" id="titleOv">
+    <div class="overlay" id="titleOv" role="dialog" aria-modal="true" aria-labelledby="titleHeading">
       <div class="pause-panel screen-panel title-panel" id="titleCard" data-view="land">
         <div class="pause-topline"><span>a year on the wing</span><span>Flokk</span></div>
         <div class="title-main">
           <div class="title-summary">
-            <h1>Flokk</h1>
+            <h1 id="titleHeading">Flokk</h1>
             <p class="sub">a year with a flock of sparrows</p>
             <ul class="keys" id="keysTxt" aria-label="How to fly">
               <li>hold the mouse or arrow keys to fly</li>
@@ -158,12 +158,12 @@
           <div class="title-flight">
             <div class="view view-saves">
               <span class="screen-label">Your flights</span>
-              <div class="slots" id="slotList"></div>
+              <div class="slots" id="slotList" role="list" aria-label="Saved flights"></div>
               <button class="btn" id="newFlightBtn">New flight <span aria-hidden="true">＋</span></button>
             </div>
             <div class="view view-land">
               <span class="screen-label">Explore this land</span>
-              <div class="land-name" id="landName"></div>
+              <div class="land-name" id="landName" role="status"></div>
               <div class="actions">
                 <button class="btn main" id="startBtn">Take off</button>
                 <button class="btn" id="rerollBtn">Reroll</button>
@@ -180,7 +180,15 @@
       </div>
     </div>
 
-    <div class="overlay" id="wonOv" hidden>
+    <div
+      class="overlay"
+      id="wonOv"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="wonTitle"
+      aria-describedby="wonSub"
+      hidden
+    >
       <div class="pause-panel screen-panel end-panel">
         <div class="pause-topline"><span>a year together</span><span>Flokk</span></div>
         <div class="pause-main">
@@ -192,7 +200,9 @@
           <div class="pause-actions end-actions">
             <button class="btn main" id="keepBtn">Keep flying <span aria-hidden="true">↗</span></button>
             <button class="btn" id="wonNewBtn">New land</button>
-            <button class="btn share" id="shareBtn" aria-live="polite">Share flight</button>
+            <button class="btn share" id="shareBtn">Copy flight summary</button>
+            <span class="note" id="shareNote" role="status"></span>
+            <textarea id="shareFallback" aria-label="Flight summary to copy" readonly hidden></textarea>
           </div>
         </div>
         <div class="pause-foot"><span>another spring awaits</span><span>your flock flies on</span></div>
@@ -209,7 +219,7 @@
           </div>
           <div class="pause-actions">
             <button class="btn main" id="resumeBtn">Resume flight <span aria-hidden="true">↗</span></button>
-            <button class="btn" id="pauseSoundBtn" aria-pressed="false">Sound on</button>
+            <button class="btn" id="pauseSoundBtn" aria-label="Sound" aria-pressed="false">Sound on</button>
             <button class="btn" id="returnTitleBtn">Save &amp; title</button>
             <button class="btn" id="pauseNewBtn">New land</button>
           </div>
@@ -221,7 +231,7 @@
       </div>
     </div>
 
-    <div class="overlay" id="overOv" hidden>
+    <div class="overlay" id="overOv" role="dialog" aria-modal="true" aria-labelledby="overTitle" hidden>
       <div class="pause-panel screen-panel end-panel">
         <div class="pause-topline"><span>flight ended</span><span>Flokk</span></div>
         <div class="pause-main">
@@ -235,6 +245,25 @@
           </div>
         </div>
         <div class="pause-foot"><span>a new flight begins in spring</span><span>six sparrows, a fresh start</span></div>
+      </div>
+    </div>
+
+    <div
+      class="overlay"
+      id="confirmOv"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="confirmTitle"
+      aria-describedby="confirmText"
+      hidden
+    >
+      <div class="pause-panel confirm-panel">
+        <h2 id="confirmTitle"></h2>
+        <p id="confirmText"></p>
+        <div class="actions">
+          <button class="btn" id="confirmCancelBtn">Cancel</button>
+          <button class="btn danger" id="confirmActionBtn"></button>
+        </div>
       </div>
     </div>
 

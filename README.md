@@ -102,6 +102,7 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
 - `python3 tools/seasonpick.py`: checks the hidden season picker.
 - `python3 tools/road_check.py [N]`: over N generated lands, fails if a farm lane runs alongside the road before
   turning in, or the road cuts through a farmyard.
+- `python3 tools/menu_check.py`: checks menu keyboard focus, dialog semantics, safe confirmations, clipboard fallback and narrow-screen layouts.
 - `python3 tools/stream_check.py [N]`: checks the glacial bekk's fjord outlet, bridges, and clearance from fields,
   courtyards, buildings, and other water over N generated lands.
 - `python3 tools/visual_smoke.py [N]`: seeded world, farm, and service screenshots plus route and parking assertions.

@@ -136,16 +136,21 @@ get backwards:
 ## Local flights and the title
 
 `session.js` keeps at most six versioned localStorage slots. `claimSlot()` gives a new flight its own slot;
-when full, it removes the oldest. `saveSession()` records the current run and a title summary, checks that
+when full, the Take off action requires a confirmation before the oldest is removed. `saveSession()` records the current run and a title summary, checks that
 another tab has not changed the same slot, and reports whether the write succeeded. `restoreSession(id)`
 rebuilds the seeded static world, verifies its signature and unpacks the dynamic state. An active flight
 resumes play; a completed year returns to its year-end card.
 
 The title has saved-flight and new-land views (`showTitle`); selecting **New flight** previews a land and
 **Reroll** changes its seed before takeoff. The pause menu saves before returning to the title, and stays open
-if that write fails. Its separate **New land** action attempts a save, then reloads into the land view. Death
+if that write fails. Its separate **New land** action saves before reloading into the land view, and stays open if saving fails. Death
 clears only that flight's slot. Tests for these paths live in `session_check.py`
 and `flows.py`.
+
+All four menus are named modal dialogs. Shared keyboard handling contains focus, isolates the canvas and
+HUD with `inert`, and returns focus to flight when menus close. Deletion and full-slot replacement use an
+alert dialog focused on Cancel. Copying the year-end summary has a live status message and selectable-text
+fallback. `menu_check.py` verifies these interactions and narrow-screen reflow.
 
 ## Animals and people: a shared movement toolkit, a per-kind behaviour switch
 

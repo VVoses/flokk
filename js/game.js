@@ -439,9 +439,10 @@ const exposed = b => !coveredNow(b) && !b.joining;
 const keys = {};
 const pointer = { down: false, x: 0, y: 0, id: null };
 addEventListener('keydown', e => {
+  if (activeMenu()?.id === 'confirmOv') return;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) && st.mode === 'play')
     e.preventDefault();
-  keys[e.code] = true;
+  keys[e.code] = st.mode === 'play';
   if ((e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) dash();
   if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) {
     if (st.mode === 'play') pause();
@@ -665,6 +666,7 @@ function newLand(btn) {
     cam.py = PY(L.y, L.z * 0.7);
     demo.tx = 0;
     demo.rest = 0;
+    if ($('titleCard').dataset.view === 'land') btn.focus({ preventScroll: true });
   }, 40);
 }
 function startGame() {
@@ -727,7 +729,8 @@ function yearWon() {
   $('wonStats').innerHTML = overHTML(true);
   $('wonTitle').textContent = CAL.year > 1 ? `${CAL.year} years` : 'A year';
   $('wonSub').textContent = `${birds.length} ${birds.length === 1 ? 'bird' : 'birds'} greet the spring`;
-  $('shareBtn').textContent = 'Share';
+  $('shareNote').textContent = '';
+  $('shareFallback').hidden = true;
   $('wonOv').hidden = false;
   dashBtn.hidden = true;
   syncHud();
@@ -754,7 +757,7 @@ async function copyText(text) {
     ta.value = text;
     ta.setAttribute('readonly', '');
     ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
-    document.body.appendChild(ta);
+    (activeMenu() || document.body).appendChild(ta);
     ta.select();
     let ok = false;
     try {
@@ -766,13 +769,21 @@ async function copyText(text) {
     return ok;
   }
 }
-let shareTimer = 0;
 $('shareBtn').onclick = async () => {
   const b = $('shareBtn'),
-    ok = await copyText(shareText());
-  b.textContent = ok ? 'Copied' : 'Copy failed';
-  clearTimeout(shareTimer);
-  shareTimer = setTimeout(() => (b.textContent = 'Share'), 2000);
+    text = shareText();
+  b.disabled = true;
+  const ok = await copyText(text);
+  b.disabled = false;
+  $('shareNote').textContent = ok
+    ? 'Flight summary copied.'
+    : 'Could not copy automatically. Select and copy the summary below.';
+  $('shareFallback').hidden = ok;
+  if (!ok) {
+    $('shareFallback').value = text;
+    $('shareFallback').focus();
+    $('shareFallback').select();
+  } else b.focus();
 };
 function keepFlying() {
   if (st.mode !== 'won') return;
@@ -791,6 +802,8 @@ function hideBanner() {
 // menu/pause/win screens read as clean and atmospheric, not gameplay HUD - only actual flight shows it
 function syncHud() {
   document.body.classList.toggle('no-hud', st.mode !== 'play');
+  syncMenuAccess();
+  if (st.mode === 'play' && document.activeElement?.closest('.overlay')) cv.focus({ preventScroll: true });
 }
 // the pause button shows play while paused
 function pauseIcon(paused) {
@@ -803,8 +816,8 @@ function pause() {
   pauseIcon(true);
   st.mode = 'pause';
   pointer.down = false;
+  for (const k in keys) keys[k] = false;
   dashBtn.hidden = true;
-  syncHud();
   $('pauseStats').innerHTML = statsHTML();
   $('pauseSeason').textContent = `${SEASONS[CAL.season]} · year ${CAL.year}`;
   $('pauseControls').textContent = coarse
@@ -812,6 +825,7 @@ function pause() {
     : 'move with mouse or arrows · dash with space';
   syncPauseSound();
   $('pauseOv').hidden = false;
+  syncHud();
   $('resumeBtn').focus();
   const saved = saveSession();
   $('pauseSaveNote').textContent =
@@ -860,7 +874,11 @@ function gameOver() {
 // "New land" from a run, the pause card or a finished year: the flight is saved as it stands, then a
 // reload rebuilds the menu world and opens on a fresh land to Take off on or Reroll
 function goNewLand() {
-  saveSession();
+  if (saveSession() === false) {
+    const note = st.mode === 'pause' ? $('pauseSaveNote') : $('shareNote');
+    note.textContent = 'Could not save. Stay here or try again before changing land.';
+    return;
+  }
   try {
     sessionStorage.setItem('flokk-view', 'land');
   } catch {
@@ -868,7 +886,7 @@ function goNewLand() {
   }
   location.reload();
 }
-$('startBtn').onclick = startGame;
+$('startBtn').onclick = requestStartGame;
 $('rerollBtn').onclick = e => {
   initAudio();
   newLand(e.currentTarget);
@@ -877,22 +895,92 @@ $('pauseNewBtn').onclick = goNewLand;
 $('wonNewBtn').onclick = goNewLand;
 $('overNewBtn').onclick = goNewLand;
 $('keepBtn').onclick = keepFlying;
-$('againBtn').onclick = startGame;
+$('againBtn').onclick = requestStartGame;
 $('resumeBtn').onclick = resume;
 $('returnTitleBtn').onclick = returnToTitle;
 $('pauseSoundBtn').onclick = () => $('muteBtn').click();
-$('pauseOv').addEventListener('keydown', e => {
-  if (e.key !== 'Tab') return;
-  const buttons = [...$('pauseOv').querySelectorAll('button:not([hidden]):not(:disabled)')],
-    first = buttons[0],
-    last = buttons[buttons.length - 1];
-  if (e.shiftKey && document.activeElement === first) {
-    e.preventDefault();
-    last.focus();
-  } else if (!e.shiftKey && document.activeElement === last) {
-    e.preventDefault();
-    first.focus();
-  }
+// One modal boundary for every menu, including confirmations layered above another screen.
+function activeMenu() {
+  for (const id of ['confirmOv', 'pauseOv', 'wonOv', 'overOv', 'titleOv']) if (!$(id).hidden) return $(id);
+  return null;
+}
+function menuControls(menu) {
+  return [...menu.querySelectorAll('button:not(:disabled), textarea:not([hidden])')].filter(
+    el => el.getClientRects().length && !el.hidden
+  );
+}
+function syncMenuAccess() {
+  const menu = activeMenu();
+  cv.inert = !!menu;
+  document.querySelector('.hud').inert = !!menu;
+  dashBtn.inert = !!menu;
+  for (const id of ['titleOv', 'pauseOv', 'wonOv', 'overOv']) $(id).inert = !!menu && $(id) !== menu;
+}
+let confirmation = null;
+function confirmMenu(title, text, actionLabel, action) {
+  confirmation = { action, focus: document.activeElement };
+  $('confirmTitle').textContent = title;
+  $('confirmText').textContent = text;
+  $('confirmActionBtn').textContent = actionLabel;
+  $('confirmOv').hidden = false;
+  syncMenuAccess();
+  $('confirmCancelBtn').focus();
+}
+function closeConfirmation(accept) {
+  const pending = confirmation;
+  if (!pending) return;
+  confirmation = null;
+  $('confirmOv').hidden = true;
+  syncMenuAccess();
+  if (accept) pending.action();
+  else if (pending.focus?.isConnected && pending.focus.getClientRects().length) pending.focus.focus();
+  else menuControls(activeMenu())[0]?.focus();
+}
+$('confirmCancelBtn').onclick = () => closeConfirmation(false);
+$('confirmActionBtn').onclick = () => closeConfirmation(true);
+function requestStartGame() {
+  const rows = listSlots();
+  if (rows.length < MAX_SLOTS) return startGame();
+  const oldest = rows[rows.length - 1];
+  confirmMenu(
+    'Replace the oldest flight?',
+    `All save slots are used. Taking off will delete the oldest flight${oldest.summary?.land ? ' in ' + oldest.summary.land : ''}. This cannot be undone.`,
+    'Replace & take off',
+    startGame
+  );
+}
+document.addEventListener(
+  'keydown',
+  e => {
+    const menu = activeMenu();
+    if (!menu) return;
+    if (e.key === 'Escape' && !e.repeat) {
+      if (confirmation) closeConfirmation(false);
+      else if (menu.id === 'pauseOv') resume();
+      else if (menu.id === 'titleOv' && $('titleCard').dataset.view === 'land' && !$('landBackBtn').hidden)
+        showTitle('saves');
+      else return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    } else if (e.key === 'Tab') {
+      const controls = menuControls(menu),
+        first = controls[0],
+        last = controls[controls.length - 1];
+      if (!first) return;
+      if (
+        !menu.contains(document.activeElement) ||
+        (e.shiftKey ? document.activeElement === first : document.activeElement === last)
+      ) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    }
+  },
+  true
+);
+document.addEventListener('focusin', e => {
+  const menu = activeMenu();
+  if (menu && !menu.contains(e.target)) menuControls(menu)[0]?.focus();
 });
 $('pauseBtn').onclick = () => {
   if (st.mode === 'play') pause();

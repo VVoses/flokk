@@ -370,11 +370,14 @@ function showTitle(view) {
   if (!rows.length) view = 'land';
   $('titleCard').dataset.view = view;
   $('titleOv').hidden = false;
+  syncMenuAccess();
   if (view === 'saves') renderSlots(rows);
   $('landBackBtn').hidden = !rows.length;
   $('startBtn').textContent = 'Take off';
   const full = rows.length >= MAX_SLOTS;
-  $('landNote').textContent = full ? 'All save slots are used: taking off replaces the oldest flight.' : '';
+  $('landNote').textContent = full
+    ? 'All save slots are used. You’ll be asked before replacing the oldest flight.'
+    : '';
   (
     $(view === 'saves' ? (rows[0] && rows[0].ok ? 'continueBtn' : 'newFlightBtn') : 'startBtn') || $('startBtn')
   ).focus();
@@ -389,38 +392,37 @@ function renderSlots(rows) {
       title = document.createElement('span'),
       info = document.createElement('small');
     row.className = 'slot';
+    row.setAttribute('role', 'listitem');
     go.className = 'btn slot-go' + (i === 0 && r.ok ? ' main' : '');
     if (i === 0 && r.ok) go.id = 'continueBtn';
-    title.textContent = r.ok
-      ? i === 0
-        ? 'Continue flight'
-        : summaryText(r.summary) || 'saved flight'
-      : 'older flight';
+    title.textContent = r.ok ? (i === 0 ? 'Continue flight' : 'Resume flight') : 'older flight';
     info.textContent = r.ok
-      ? [i === 0 ? summaryText(r.summary) : '', r.summary && r.summary.land, agoText(r.updated)]
-          .filter(Boolean)
-          .join(' · ')
+      ? [summaryText(r.summary), r.summary && r.summary.land, agoText(r.updated)].filter(Boolean).join(' · ')
       : "can't be restored after this update";
-    if (i === 0 && r.ok) info.id = 'continueInfo';
+    info.id = i === 0 && r.ok ? 'continueInfo' : `slotInfo${i}`;
+    go.setAttribute('aria-describedby', info.id);
+    go.setAttribute(
+      'aria-label',
+      `${r.ok ? (i === 0 ? 'Continue' : 'Resume') : 'Unavailable'} flight${r.summary?.land ? ' in ' + r.summary.land : ''}`
+    );
     go.append(title, info);
     go.disabled = !r.ok;
     go.onclick = () => restoreSession(r.id);
     del.className = 'btn link slot-del';
     del.textContent = '×';
-    del.setAttribute('aria-label', 'Delete this saved flight');
-    del.onclick = () => {
-      if (!del.classList.contains('sure')) {
-        del.classList.add('sure');
-        del.textContent = 'delete?';
-        setTimeout(() => {
-          del.classList.remove('sure');
-          del.textContent = '×';
-        }, 3000);
-        return;
-      }
-      deleteSlot(r.id);
-      showTitle('saves');
-    };
+    const identity =
+      [r.summary?.land, summaryText(r.summary), agoText(r.updated)].filter(Boolean).join(', ') || 'older flight';
+    del.setAttribute('aria-label', `Delete saved flight: ${identity}`);
+    del.onclick = () =>
+      confirmMenu(
+        'Delete this flight?',
+        `Remove ${identity}? This saved flight cannot be recovered.`,
+        'Delete flight',
+        () => {
+          deleteSlot(r.id);
+          showTitle('saves');
+        }
+      );
     row.append(go, del);
     list.append(row);
   });
