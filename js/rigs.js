@@ -914,7 +914,7 @@ function drawAnimal(a) {
   }
   ctx.save();
   ctx.globalAlpha = clamp(a.fade ?? 1, 0, 1);
-  ctx.translate(a.x, PY(a.y, a.z));
+  ctx.translate(a.x, PY(a.y, a.z + (a.k === 'human' && !a.ice ? jettyLift(a.x, a.y) : 0)));
   // a duck on the water rides it: lifted and carried by the waves, with the pitch (nose up or down along its heading)
   // and roll (lean to the side) of the surface left in a.wpitch / a.wroll for whatever draws it
   if (a.k === 'duck' && a.st !== 'dive') {

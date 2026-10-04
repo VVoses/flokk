@@ -1018,31 +1018,7 @@ function* paintGroundGen(season) {
   yield;
   if (POND.x > 0) water(POND, pondR, POND.r);
   // the lily pads are drawn live over the water, so they ride the waves (waves.js)
-  g.lineCap = 'butt';
-  g.strokeStyle = 'rgba(20,30,20,.3)';
-  g.lineWidth = 14;
-  g.beginPath();
-  g.moveTo(JET.x0 + 6, JET.y0 + 6);
-  g.lineTo(JET.x1 + 6, JET.y1 + 6);
-  g.stroke();
-  g.strokeStyle = winter ? '#C9CBC8' : '#7A6247';
-  g.lineWidth = 13;
-  g.beginPath();
-  g.moveTo(JET.x0, JET.y0);
-  g.lineTo(JET.x1, JET.y1);
-  g.stroke();
-  const jl = Math.hypot(JET.x1 - JET.x0, JET.y1 - JET.y0);
-  g.strokeStyle = winter ? '#A9ABA8' : '#9C8160';
-  g.lineWidth = 1;
-  for (let s = 3; s < jl; s += 6) {
-    const t = s / jl,
-      x = lerp(JET.x0, JET.x1, t),
-      y = lerp(JET.y0, JET.y1, t);
-    g.beginPath();
-    g.moveTo(x - tg[0] * 6, y - tg[1] * 6);
-    g.lineTo(x + tg[0] * 6, y + tg[1] * 6);
-    g.stroke();
-  }
+  // the jetty and the boat are drawn live (dock.js)
   composeG();
   paintTracks(season);
   R = keepR;
