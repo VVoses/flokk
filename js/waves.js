@@ -122,6 +122,11 @@ function drawWaves(ctx) {
   const st = glm ? Math.max(1, Math.ceil(Math.sqrt((vw * vh) / 40000))) : 1,
     texW = Math.ceil(vw / st),
     texH = Math.ceil(vh / st);
+  // the amplitude settles over seconds, so the GPU path rebuilds its texture ten times a second, not every frame
+  const tkey = glm ? WV.key + ':' + ix0 + ':' + iy0 + ':' + vw + ':' + vh + ':' + st : '';
+  if (glm && WV.texOK && WV.texKey === tkey && T >= WV.texT && T - WV.texT < 0.1)
+    return waveShader(ctx, glm, { ix0, iy0, vw, vh, texW, texH, st, thd: WV.th, dim: 1 - 0.45 * LIGHT.night });
+  WV.texOK = false;
   // wind amplitude at the corners of the 4x4 blocks, with the lee-of-the-shore factor, then blended across each block
   const cw = Math.ceil((vw - 1) / B) + 1,
     ch = Math.ceil((vh - 1) / B) + 1,
@@ -238,7 +243,12 @@ function drawWaves(ctx) {
     }
   }
   if (!any) return;
-  if (glm) return waveShader(ctx, glm, { ix0, iy0, vw, vh, texW, texH, st, thd: th0, dim: dim0 });
+  if (glm) {
+    WV.texKey = tkey;
+    WV.texT = T;
+    WV.texOK = true;
+    return waveShader(ctx, glm, { ix0, iy0, vw, vh, texW, texH, st, thd: th0, dim: dim0 });
+  }
   // the surface shaded: light where the water leans toward the sky, dark in the troughs, drawn soft from a small
   // offscreen picture with one pixel per lattice node
   {
@@ -458,6 +468,7 @@ precision highp float;
 #define LY ${WV.LY}.0
 #define Y0 ${WV.y0}.0
 uniform vec4 W[8];
+uniform vec2 PD[8];
 uniform vec4 xf;
 uniform vec4 ti;
 uniform vec2 org;
@@ -487,8 +498,7 @@ void main() {
   for (int i = 0; i < 8; i++) {
     vec4 w = W[i];
     float fi = float(i);
-    float k = length(w.xy);
-    vec2 pd = w.xy / k;
+    vec2 pd = PD[i];
     float u = dot(p, vec2(-pd.y, pd.x)), v = dot(p, pd);
     float grp = 0.3 + 0.95 * (0.5 + 0.5 * sin(u * (0.012 + 0.004 * fi) + 1.3 + 2.1 * fi + 0.9 * sin(T * 0.02 + p.x * 0.004 + fi)))
               * (0.55 + 0.45 * sin(v * 0.011 - T * 0.04 * (1.0 + fi * 0.3) + 4.1 * fi));
@@ -525,6 +535,7 @@ void main() {
 const WAVE_VS = `#version 300 es
 layout(location=0) in vec2 c;
 void main() { gl_Position = vec4(c * 2.0 - 1.0, 0.0, 1.0); }`;
+const WAVE_PX = 700000; // shaded pixels a frame may have before the surface drops below full resolution
 const WAVES_GL = { tried: false, gl: null, cv: null, prog: null, tx: null, u: {} };
 function waveGLInit() {
   const G = WAVES_GL;
@@ -556,7 +567,7 @@ function waveGLInit() {
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     G.prog = p;
-    for (const n of ['W', 'xf', 'ti', 'org', 'st', 'mix3', 'tex']) G.u[n] = gl.getUniformLocation(p, n);
+    for (const n of ['W', 'PD', 'xf', 'ti', 'org', 'st', 'mix3', 'tex']) G.u[n] = gl.getUniformLocation(p, n);
   } catch (e) {
     console.warn('Flokk: GPU waves unavailable, drawing them on the 2D canvas', e);
     return null;
@@ -590,26 +601,34 @@ function waveShader(ctx, gl, o) {
     c = G.cv,
     m = ctx.getTransform(),
     { LX, LY, y0 } = WV;
-  if (c.width !== cv.width || c.height !== cv.height) {
-    c.width = cv.width;
-    c.height = cv.height;
+  // the surface is soft, so it is shaded at fewer pixels than the frame has and stretched back up: the shader is the
+  // cost, and it grows with the pixels. A big or dense screen gets a smaller share of them.
+  const shr = Math.min(1, Math.max(0.5, Math.sqrt(WAVE_PX / (cv.width * cv.height)))),
+    gw = Math.round(cv.width * shr),
+    gh = Math.round(cv.height * shr);
+  if (c.width !== gw || c.height !== gh) {
+    c.width = gw;
+    c.height = gh;
   }
+  const rx = gw / cv.width,
+    ry = gh / cv.height;
   // the part of the frame the window covers
   const xa = m.a * o.ix0 * LX + m.e,
     xb = m.a * (o.ix0 + o.vw) * LX + m.e,
     ya = m.d * (y0 + o.iy0 * LY) + m.f,
     yb = m.d * (y0 + (o.iy0 + o.vh) * LY) + m.f,
-    sx = Math.max(0, Math.floor(Math.min(xa, xb))),
-    sy = Math.max(0, Math.floor(Math.min(ya, yb))),
-    sw = Math.min(c.width, Math.ceil(Math.max(xa, xb))) - sx,
-    sh = Math.min(c.height, Math.ceil(Math.max(ya, yb))) - sy;
+    sx = Math.max(0, Math.floor(Math.min(xa, xb) * rx)),
+    sy = Math.max(0, Math.floor(Math.min(ya, yb) * ry)),
+    sw = Math.min(gw, Math.ceil(Math.max(xa, xb) * rx)) - sx,
+    sh = Math.min(gh, Math.ceil(Math.max(ya, yb) * ry)) - sy;
   if (sw < 1 || sh < 1) return;
   const th = o.thd,
     sm = WV.sm,
     ox = LAKE.x > -1000 ? LAKE.x : W / 2,
     oy = LAKE.x > -1000 ? LAKE.y : H,
     { LAM, OFF, WT } = WAVE_TR,
-    Wd = new Float32Array(32);
+    Wd = new Float32Array(32),
+    Pd = new Float32Array(16);
   for (let i = 0; i < 8; i++) {
     const k = TAU / LAM[i],
       c0 = 14 * Math.sqrt(LAM[i] / 30),
@@ -618,6 +637,8 @@ function waveShader(ctx, gl, o) {
     Wd[i * 4 + 1] = Math.sin(a) * k;
     Wd[i * 4 + 2] = (((-k * c0 * WV.tw) % TAU) + TAU) % TAU;
     Wd[i * 4 + 3] = 0.035 * LAM[i] * WT[i];
+    Pd[i * 2] = Math.cos(a);
+    Pd[i * 2 + 1] = Math.sin(a);
   }
   gl.viewport(0, 0, c.width, c.height);
   gl.enable(gl.SCISSOR_TEST);
@@ -640,7 +661,8 @@ function waveShader(ctx, gl, o) {
   );
   gl.uniform1i(G.u.tex, 0);
   gl.uniform4fv(G.u.W, Wd);
-  gl.uniform4f(G.u.xf, m.a, m.d, m.e, m.f);
+  gl.uniform2fv(G.u.PD, Pd);
+  gl.uniform4f(G.u.xf, m.a * rx, m.d * ry, m.e * rx, m.f * ry);
   gl.uniform4f(G.u.ti, o.ix0, o.texW, o.iy0, o.texH);
   gl.uniform2f(G.u.org, ox, oy);
   gl.uniform4f(G.u.st, sm, WV.tw, T, c.height);
@@ -651,7 +673,7 @@ function waveShader(ctx, gl, o) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(c, sx, sy, sw, sh, sx, sy, sw, sh);
+  ctx.drawImage(c, sx, sy, sw, sh, sx / rx, sy / ry, sw / rx, sh / ry);
   ctx.restore();
 }
 
