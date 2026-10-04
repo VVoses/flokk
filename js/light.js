@@ -1035,7 +1035,7 @@ function mkRim(src, side, warm) {
   gr.addColorStop(1, `rgba(${col},0)`);
   q.fillStyle = gr;
   q.fillRect(0, 0, w, h);
-  c.box = boxFrom(src, c); // it only has pixels where the sprite has
+  c.box = trimBox(c); // the gradient reaches only one side of the sprite, so most of its rectangle is clear
   return c;
 }
 const OUTL = { spruce: [], birch: [], decid: [] };
