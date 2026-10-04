@@ -471,7 +471,8 @@ function drawWaterMood(ctx) {
 }
 
 /* The GPU surface. Each pixel of the water adds up eight travelling waves (fixed wavelengths, a spread of directions
-   about the wind, the longer ones always present and the short chop rising with the gust amplitude), keeps the
+   about the wind, the longer ones always present and the short chop rising with the gust amplitude) and two long cross
+   swells from their own directions, keeps the
    slope of the sum for a normal, and lights it: facets that lean toward the sky go pale, those that lean away go
    dark, all soft and matte. In a hard wind the highest crests lighten a little in patches that drift over the sea.
    The wind amplitude comes in as a small texture, one texel per lattice node, that the CPU side has already settled
@@ -483,6 +484,8 @@ precision highp float;
 #define Y0 ${WV.y0}.0
 uniform vec4 W[8];
 uniform vec2 PD[8];
+uniform vec4 S[2];
+uniform vec2 SD[2];
 uniform vec4 xf;
 uniform vec4 ti;
 uniform vec2 org;
@@ -524,6 +527,19 @@ void main() {
     float a = w.w * R * grp * chop;
     h += a * (cos(ph) + 0.22 * cos(2.0 * ph + 0.5));
     g += -a * (sin(ph) + 0.44 * sin(2.0 * ph + 0.5)) * (w.xy + odd * dwp);
+    hmax += a * 1.2;
+  }
+  // two long swells from their own quarters, slow and unwarped: they roll under the chop and cross it, each fading in
+  // and out over patches the size of a bay, so the surface is several patterns laid over one another
+  for (int j = 0; j < 2; j++) {
+    vec4 w = S[j];
+    vec2 pd = SD[j];
+    float fj = float(j);
+    float msk = 0.12 + 0.95 * smoothstep(0.1, 0.9, 0.5 + 0.5 * sin(dot(p, vec2(-pd.y, pd.x)) * 0.0046 + dot(p, pd) * 0.0029 + T * 0.021 + 1.7 * fj));
+    float ph = dot(w.xy, q) + w.z;
+    float a = w.w * R * msk;
+    h += a * (cos(ph) + 0.12 * cos(2.0 * ph + 0.5));
+    g += -a * (sin(ph) + 0.24 * sin(2.0 * ph + 0.5)) * w.xy;
     hmax += a * 1.2;
   }
   vec3 n = normalize(vec3(-g * 1.4, 1.0));
@@ -583,7 +599,8 @@ function waveGLInit() {
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     G.prog = p;
-    for (const n of ['W', 'PD', 'xf', 'ti', 'org', 'frame', 'st', 'mix3', 'tex']) G.u[n] = gl.getUniformLocation(p, n);
+    for (const n of ['W', 'PD', 'S', 'SD', 'xf', 'ti', 'org', 'frame', 'st', 'mix3', 'tex'])
+      G.u[n] = gl.getUniformLocation(p, n);
   } catch (e) {
     console.warn('Flokk: GPU waves unavailable, drawing them on the 2D canvas', e);
     return null;
@@ -656,6 +673,19 @@ function waveShader(ctx, gl, o) {
     Pd[i * 2] = Math.cos(a);
     Pd[i * 2 + 1] = Math.sin(a);
   }
+  const Sw = new Float32Array(8),
+    Sd = new Float32Array(4);
+  for (let j = 0; j < 2; j++) {
+    const k = TAU / WAVE_SW.LAM[j],
+      c0 = 14 * Math.sqrt(WAVE_SW.LAM[j] / 30),
+      a = waveSwellDir(j, th);
+    Sw[j * 4] = Math.cos(a) * k;
+    Sw[j * 4 + 1] = Math.sin(a) * k;
+    Sw[j * 4 + 2] = (((-k * c0 * WV.tw) % TAU) + TAU) % TAU;
+    Sw[j * 4 + 3] = 0.035 * WAVE_SW.LAM[j] * WAVE_SW.WT[j];
+    Sd[j * 2] = Math.cos(a);
+    Sd[j * 2 + 1] = Math.sin(a);
+  }
   gl.viewport(0, 0, c.width, c.height);
   gl.enable(gl.SCISSOR_TEST);
   gl.scissor(sx, c.height - sy - sh, sw, sh);
@@ -678,6 +708,8 @@ function waveShader(ctx, gl, o) {
   gl.uniform1i(G.u.tex, 0);
   gl.uniform4fv(G.u.W, Wd);
   gl.uniform2fv(G.u.PD, Pd);
+  gl.uniform4fv(G.u.S, Sw);
+  gl.uniform2fv(G.u.SD, Sd);
   gl.uniform4f(G.u.xf, m.a * rx, m.d * ry, m.e * rx, m.f * ry);
   gl.uniform4f(G.u.ti, o.ix0, o.texW, o.iy0, o.texH);
   gl.uniform2f(G.u.org, ox, oy);
@@ -704,6 +736,10 @@ const WAVE_TR = {
   OFF: [0, 0.5, -0.45, 0.9, -0.9, 0.25, -0.25, 1.25], // directions spread about the wind
   WT: [1, 0.8, 0.65, 0.5, 0.36, 0.28, 0.22, 0.17]
 };
+// two long swells, apart from the wind-driven trains: their own directions, which drift a little over a minute or two,
+// and no phase warp (a long wave folds easily), so each is a clean plane wave that crosses the chop
+const WAVE_SW = { LAM: [118, 76], OFF: [1.0, -1.35], WT: [0.55, 0.5] };
+const waveSwellDir = (j, th) => th + WAVE_SW.OFF[j] + 0.2 * Math.sin(T * 0.05 + 2.3 * j);
 const WS = { h: 0, gx: 0, gy: 0, dx: 0, dy: 0, r: 0 };
 function waveAt(x, y) {
   WS.h = WS.gx = WS.gy = WS.dx = WS.dy = WS.r = 0;
@@ -775,6 +811,31 @@ function waveAt(x, y) {
     WS.h += a * (Math.cos(ph) + 0.22 * Math.cos(2 * ph + 0.5));
     WS.gx += dh * (k * pdx + odd * dwx);
     WS.gy += dh * (k * pdy + odd * dwy);
+    WS.dx -= 0.6 * a * s1 * pdx;
+    WS.dy -= 0.6 * a * s1 * pdy;
+  }
+  for (let j = 0; j < 2; j++) {
+    const lam = WAVE_SW.LAM[j],
+      k = TAU / lam,
+      c0 = 14 * Math.sqrt(lam / 30),
+      ang = waveSwellDir(j, th),
+      pdx = Math.cos(ang),
+      pdy = Math.sin(ang),
+      msk =
+        0.12 +
+        0.95 *
+          smooth(
+            0.1,
+            0.9,
+            0.5 + 0.5 * Math.sin((x * -pdy + y * pdx) * 0.0046 + (x * pdx + y * pdy) * 0.0029 + T_ * 0.021 + 1.7 * j)
+          ),
+      ph = k * (pdx * (x - ox) + pdy * (y - oy)) - k * c0 * WV.tw,
+      a = 0.035 * lam * WAVE_SW.WT[j] * R * msk,
+      s1 = Math.sin(ph),
+      dh = -a * (s1 + 0.24 * Math.sin(2 * ph + 0.5));
+    WS.h += a * (Math.cos(ph) + 0.12 * Math.cos(2 * ph + 0.5));
+    WS.gx += dh * k * pdx;
+    WS.gy += dh * k * pdy;
     WS.dx -= 0.6 * a * s1 * pdx;
     WS.dy -= 0.6 * a * s1 * pdy;
   }
