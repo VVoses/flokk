@@ -415,7 +415,8 @@ const coveredNow = b =>
       b.state === 'takeoff' ||
       (b.state === 'land' && Math.hypot(b.x - b.perch.x, b.y - b.perch.y) < 40))
   );
-const exposed = b => !coveredNow(b);
+// a newcomer still flying in to join the flock is safe from predators until it reaches the others
+const exposed = b => !coveredNow(b) && !b.joining;
 
 /* ---------- input ---------- */
 const keys = {};
@@ -920,6 +921,7 @@ function joinBird() {
   b.vx = -Math.cos(a) * 220;
   b.vy = -Math.sin(a) * 220;
   b.heading = a + Math.PI;
+  b.joining = 16;
   birds.push(b);
   st.joins++;
   if (birds.length > st.maxFlock) st.maxFlock = birds.length;
