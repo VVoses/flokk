@@ -223,17 +223,19 @@ function trafficNear(x, y, r) {
 }
 
 /* ---- drawing: small boxes projected like the train cars ---- */
-function vBox(o, x0, x1, hd, h0, h1, col, glass) {
+// what the road leaves on the lower panels, by season: spring mud, summer dust, autumn mud, winter slush and salt
+const ROAD_DIRT = [
+  ['90,70,50', 0.34],
+  ['143,132,112', 0.16],
+  ['79,63,44', 0.32],
+  ['180,182,178', 0.32]
+];
+// fx: gloss (paint catches the sky on top and darkens towards the sill), dirt (road spray low down),
+// snow (0..1, how much of the top face is white)
+function vBox(o, x0, x1, hd, h0, h1, col, glass, fx) {
   const cs = Math.cos(o.ang),
     sn = Math.sin(o.ang);
   const P = (lx, ly, h) => [o.x + lx * cs - ly * sn, (o.y + lx * sn + ly * cs) * TILT - h * HZ];
-  const poly = (pts, fill) => {
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-  };
   const sides = [
     [x0, -hd, x1, -hd, 0, -1],
     [x1, -hd, x1, hd, 1, 0],
@@ -246,23 +248,61 @@ function vBox(o, x0, x1, hd, h0, h1, col, glass) {
     if (wny <= 0.02) continue;
     let c = shade(col, clamp(1 - 0.25 * wnx, 0.62, 1.1));
     if (LIGHT.rim > 0.05 && wnx * LIGHT.rimSide > 0) c = mixRgb(c, rimCol(), LIGHT.rim * 0.4 * Math.abs(wnx));
-    poly([P(ax, ay, h0), P(bx, by, h0), P(bx, by, h1), P(ax, ay, h1)], c);
+    const quad = [P(ax, ay, h0), P(bx, by, h0), P(bx, by, h1), P(ax, ay, h1)];
+    fillPoly(quad, c);
+    const mx = (ax + bx) / 2,
+      my = (ay + by) / 2;
+    if (fx?.gloss) {
+      const top = P(mx, my, h1),
+        bot = P(mx, my, h0),
+        g = ctx.createLinearGradient(top[0], top[1], bot[0], bot[1]),
+        [dc, da] = ROAD_DIRT[SEASON];
+      g.addColorStop(0, 'rgba(255,255,255,0.2)');
+      g.addColorStop(0.3, 'rgba(255,255,255,0)');
+      g.addColorStop(0.65, 'rgba(0,0,0,0.07)');
+      g.addColorStop(1, fx.dirt ? `rgba(${dc},${da})` : 'rgba(0,0,0,0.16)');
+      fillPoly(quad, g);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; // the bright shoulder line along the top edge
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(quad[3][0], quad[3][1]);
+      ctx.lineTo(quad[2][0], quad[2][1]);
+      ctx.stroke();
+    }
     if (glass) {
-      // a band of window across the upper part of each face
-      const g = (u, h) => P(lerp(ax, bx, u), lerp(ay, by, u), h);
-      poly(
-        [g(0.12, h0 + (h1 - h0) * 0.35), g(0.88, h0 + (h1 - h0) * 0.35), g(0.84, h1 - 0.02), g(0.16, h1 - 0.02)],
-        glassCol()
-      );
+      // a band of window across the upper part of each face, split into panes by a pillar on the long sides
+      const g = (u, h) => P(lerp(ax, bx, u), lerp(ay, by, u), h),
+        lo = h0 + (h1 - h0) * 0.3,
+        hi = h1 - 0.02,
+        long = Math.hypot(bx - ax, by - ay) > 20,
+        top = g(0.5, hi),
+        bot = g(0.5, lo),
+        gg = ctx.createLinearGradient(top[0], top[1], bot[0], bot[1]),
+        night = LIGHT.night > 0.4;
+      gg.addColorStop(0, night ? '#2A3546' : '#A9BFCB');
+      gg.addColorStop(1, night ? '#141A24' : '#566C7A');
+      for (const [u0, u1] of long
+        ? [
+            [0.1, 0.47],
+            [0.53, 0.9]
+          ]
+        : [[0.12, 0.88]])
+        fillPoly([g(u0, lo), g(u1, lo), g(u1 - 0.04, hi), g(u0 + 0.04, hi)], gg);
     }
   }
-  poly([P(x0, -hd, h1), P(x1, -hd, h1), P(x1, hd, h1), P(x0, hd, h1)], shade(col, 1.08));
+  const topCol = fx?.snow ? mixHex(col, '#EEF2F5', fx.snow) : shade(col, 1.08);
+  fillPoly([P(x0, -hd, h1), P(x1, -hd, h1), P(x1, hd, h1), P(x0, hd, h1)], topCol);
   return P;
 }
-const glassCol = () => (LIGHT.night > 0.4 ? '#1A2230' : mixHex('#5E7482', '#9DB4C0', 0.4));
-// a tyre is a disc in the vehicle's side plane, so it is a full circle seen from the side and narrows to a
-// sliver as the vehicle turns toward or away from you (same language as the tractor in rigs.js)
-function wheel(o, P, lx, ly, r, w = 1.6) {
+const vProj = o => {
+  const cs = Math.cos(o.ang),
+    sn = Math.sin(o.ang);
+  return (lx, ly, h) => [o.x + lx * cs - ly * sn, (o.y + lx * sn + ly * cs) * TILT - h * HZ];
+};
+// a tyre is a disc in the vehicle's side plane, so it is a full circle seen side-on and narrows to a sliver
+// as the vehicle turns toward or away from you (same language as the tractor in rigs.js). On the near side
+// it sits in a dark wheel arch cut into the body, with a lighter rim and hub.
+function wheel(o, P, lx, ly, r, w = 1.6, arch = false) {
   const cs = Math.cos(o.ang),
     sq = Math.max(0.16, Math.abs(cs)),
     out = Math.sign(ly) || 1,
@@ -270,6 +310,12 @@ function wheel(o, P, lx, ly, r, w = 1.6) {
     outer = P(lx, ly + out * w, r / HZ),
     showsOuter = out * cs > 0, // the outer face is the one nearer the camera
     [cb, c] = showsOuter ? [inner, outer] : [outer, inner];
+  if (arch && showsOuter && Math.abs(cs) > 0.3) {
+    ctx.fillStyle = 'rgba(14,12,10,0.88)';
+    ctx.beginPath();
+    ctx.ellipse(inner[0], inner[1], r * 1.3 * sq, r * 1.3, 0, Math.PI, TAU);
+    ctx.fill();
+  }
   for (const [q, f] of [
     [cb, '#141210'],
     [c, '#1C1A18']
@@ -280,9 +326,17 @@ function wheel(o, P, lx, ly, r, w = 1.6) {
     ctx.fill();
   }
   if (Math.abs(cs) > 0.2) {
-    ctx.fillStyle = '#6A6660';
+    ctx.fillStyle = '#2C2925'; // sidewall
     ctx.beginPath();
-    ctx.ellipse(c[0], c[1], r * 0.35 * sq, r * 0.38, 0, 0, TAU);
+    ctx.ellipse(c[0], c[1], r * 0.72 * sq, r * 0.76, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#A8A49B'; // rim
+    ctx.beginPath();
+    ctx.ellipse(c[0], c[1], r * 0.5 * sq, r * 0.52, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#5A5750'; // hub
+    ctx.beginPath();
+    ctx.ellipse(c[0], c[1], r * 0.18 * sq, r * 0.19, 0, 0, TAU);
     ctx.fill();
   }
 }
@@ -290,24 +344,111 @@ function wheel(o, P, lx, ly, r, w = 1.6) {
 function wheels(o, P, list, far) {
   const cs = Math.cos(o.ang),
     sn = Math.sin(o.ang);
-  for (const [lx, ly, r, w] of list) if (lx * sn + ly * cs < 0 === far) wheel(o, P, lx, ly, r, w);
+  for (const [lx, ly, r, w] of list) if (lx * sn + ly * cs < 0 === far) wheel(o, P, lx, ly, r, w, true);
 }
-const vProj = o => {
-  const cs = Math.cos(o.ang),
-    sn = Math.sin(o.ang);
-  return (lx, ly, h) => [o.x + lx * cs - ly * sn, (o.y + lx * sn + ly * cs) * TILT - h * HZ];
-};
+// the dark patch of ground a vehicle sits on, under its cast shadow
+function groundContact(P, hl, hd) {
+  fillPoly(
+    [P(-hl - 1, -hd - 1, 0), P(hl + 1, -hd - 1, 0), P(hl + 1, hd + 1, 0), P(-hl - 1, hd + 1, 0)],
+    'rgba(10,8,6,0.3)'
+  );
+}
+// lamps at one end of a vehicle: pale lenses on the nose, red ones at the tail, shown only while that end
+// faces the camera; at dusk with the engine running they glow
+function endLamps(v, P, lx, sgn, h, hd) {
+  const k = sgn * Math.sin(v.ang);
+  if (k < 0.08) return;
+  const front = sgn > 0,
+    lit = v.engineOn && LIGHT.night > 0.25,
+    rx = 2.1 * Math.max(0.35, k);
+  for (const s2 of [-1, 1]) {
+    const c = P(lx, s2 * hd * 0.62, h);
+    if (lit) {
+      ctx.fillStyle = front
+        ? `rgba(255,236,180,${0.18 + 0.3 * LIGHT.night})`
+        : `rgba(255,60,40,${0.15 + 0.25 * LIGHT.night})`;
+      ctx.beginPath();
+      ctx.ellipse(c[0], c[1], rx * 2, 3, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = front ? (lit ? '#FFF1C8' : '#DAD6C6') : lit ? '#FF4A38' : '#8E2A22';
+    ctx.beginPath();
+    ctx.ellipse(c[0], c[1], rx, 1.2, 0, 0, TAU);
+    ctx.fill();
+  }
+}
+// a Norwegian plate on a bumper: white at the front, yellow at the back
+function plate(v, P, lx, sgn, h) {
+  const k = sgn * Math.sin(v.ang);
+  if (k < 0.08) return;
+  fillPoly(
+    [P(lx, -4.2, h), P(lx, 4.2, h), P(lx, 4.2, h + 0.03), P(lx, -4.2, h + 0.03)],
+    sgn > 0 ? '#E8E6DA' : '#D8B53A'
+  );
+  const a = P(lx, -3, h + 0.015),
+    b = P(lx, 3, h + 0.015);
+  ctx.strokeStyle = 'rgba(20,20,20,0.55)';
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(a[0], a[1]);
+  ctx.lineTo(b[0], b[1]);
+  ctx.stroke();
+}
+// door cut lines and handles on whichever long side faces the camera
+function doors(v, P, seams, hd, h0, h1) {
+  const cs = Math.cos(v.ang);
+  if (Math.abs(cs) < 0.3) return;
+  const s = cs > 0 ? 1 : -1;
+  ctx.lineWidth = 0.7;
+  for (const lx of seams) {
+    const a = P(lx, s * hd, h0),
+      b = P(lx, s * hd, h1);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.stroke();
+    const ha = P(lx + 1.2, s * hd, h1 - 0.03),
+      hb = P(lx + 3.4, s * hd, h1 - 0.03);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(ha[0], ha[1]);
+    ctx.lineTo(hb[0], hb[1]);
+    ctx.stroke();
+  }
+}
+// the bumper at the end facing away from the camera goes in before the body, the near one after it
+function bumpers(v, hl, hd, far) {
+  const sn = Math.sin(v.ang);
+  for (const sgn of [1, -1])
+    if (sgn * sn < 0 === far)
+      vBox(v, sgn > 0 ? hl - 0.4 : -hl - 1.3, sgn > 0 ? hl + 1.3 : -hl + 0.4, hd * 0.95, 0.07, 0.125, '#34312E');
+}
+function wingMirrors(v, P, lx, hd, h) {
+  const cs = Math.cos(v.ang);
+  ctx.fillStyle = mixHex(v.col, '#000000', 0.3);
+  for (const s of [-1, 1]) {
+    if (!(s * cs > 0.2 || Math.abs(cs) < 0.5)) continue;
+    const c = P(lx, s * (hd + 1.3), h);
+    ctx.beginPath();
+    ctx.ellipse(c[0], c[1], 1.1, 0.8, 0, 0, TAU);
+    ctx.fill();
+  }
+}
 function drawVehicle(v) {
   const hl = v.len / 2,
-    hd = v.hd;
+    hd = v.hd,
+    snow = SEASON === 3 ? (v.engineOn ? 0.25 : 0.9) : 0;
   if (v.tr) {
     const t = { x: v.tr.x, y: v.tr.y, ang: v.tr.ang },
       tw = [
         [0, -7.5, 4],
         [0, 7.5, 4]
-      ];
-    wheels(t, vProj(t), tw, true);
-    const P = vBox(t, -14, 14, 7.5, 0.1, 0.2, '#6E6258');
+      ],
+      Q = vProj(t);
+    groundContact(Q, 14, 7.5);
+    wheels(t, Q, tw, true);
+    const P = vBox(t, -14, 14, 7.5, 0.1, 0.2, '#6E6258', false, { dirt: true, snow: snow * 0.7 });
     wheels(t, P, tw, false);
     if (v.bales) {
       ctx.fillStyle = '#E1E5DE';
@@ -327,10 +468,22 @@ function drawVehicle(v) {
       [hl * 0.62, -hd * 0.7, 4.5, 2],
       [hl * 0.62, hd * 0.7, 4.5, 2]
     ];
+    groundContact(vProj(v), hl, hd + 2);
     wheels(v, vProj(v), tw, true);
-    const P = vBox(v, -hl * 0.1, hl, hd * 0.62, 0.12, 0.3, v.col); // bonnet
-    vBox(v, -hl, -hl * 0.1, hd, 0.12, 0.52, v.col, true); // cab
+    const fx = { gloss: true, dirt: true, snow },
+      P = vBox(v, -hl * 0.1, hl, hd * 0.62, 0.12, 0.3, v.col, false, fx); // bonnet
+    vBox(v, -hl, -hl * 0.1, hd, 0.12, 0.52, v.col, true, fx); // cab
     wheels(v, P, tw, false);
+    vBox(v, -hl * 0.55 - 6, -hl * 0.55 + 6, hd + 3.5, 0.34, 0.375, mixHex(v.col, '#000000', 0.22)); // rear mudguards
+    vBox(v, hl - 0.5, hl + 0.6, hd * 0.55, 0.14, 0.26, '#2A2826'); // grille
+    endLamps(v, P, hl + 0.6, 1, 0.22, hd * 0.8);
+    if (v.engineOn) {
+      const bc = P(-hl * 0.55, 0, 0.58);
+      ctx.fillStyle = '#F0A528'; // amber beacon on the cab roof
+      ctx.beginPath();
+      ctx.arc(bc[0], bc[1], 1.3, 0, TAU);
+      ctx.fill();
+    }
     const ex = P(hl * 0.55, -side * 2, 0.46),
       eb = P(hl * 0.55, -side * 2, 0.3);
     ctx.strokeStyle = '#2A2826';
@@ -348,11 +501,34 @@ function drawVehicle(v) {
       [hl * 0.62, -hd, 3.4],
       [hl * 0.62, hd, 3.4]
     ];
+  groundContact(vProj(v), hl, hd);
   wheels(v, vProj(v), cw, true);
-  const P = vBox(v, -hl, hl, hd, 0.07, van ? 0.24 : 0.2, v.col);
-  if (van) vBox(v, -hl, hl * 0.35, hd * 0.96, 0.24, 0.44, v.col, true);
-  else vBox(v, -hl * 0.55, hl * 0.3, hd * 0.9, 0.2, 0.34, v.col, true);
+  vBox(v, -hl + 1, hl - 1, hd + 0.2, 0.07, 0.1, '#26231F'); // sill
+  bumpers(v, hl, hd, true);
+  const P = vBox(v, -hl, hl, hd, 0.07, van ? 0.24 : 0.2, v.col, false, { gloss: true, dirt: true, snow: snow * 0.4 }),
+    cabin = [van ? -hl : -hl * 0.55, van ? hl * 0.35 : hl * 0.3];
+  vBox(v, cabin[0], cabin[1], van ? hd * 0.96 : hd * 0.9, van ? 0.24 : 0.2, van ? 0.44 : 0.34, v.col, true, {
+    gloss: true,
+    snow
+  });
+  bumpers(v, hl, hd, false);
   wheels(v, P, cw, false);
+  doors(v, P, van ? [-hl * 0.15, hl * 0.2] : [-hl * 0.2, hl * 0.08], hd, 0.075, 0.2);
+  wingMirrors(v, P, van ? hl * 0.38 : hl * 0.28, van ? hd * 0.96 : hd * 0.9, van ? 0.34 : 0.27);
+  endLamps(v, P, hl + 0.2, 1, 0.16, hd);
+  endLamps(v, P, -hl - 0.2, -1, 0.16, hd);
+  plate(v, P, hl + 1.35, 1, 0.075);
+  plate(v, P, -hl - 1.35, -1, 0.075);
+  if (!van) {
+    const a = P(-hl * 0.42, hd * 0.35, 0.34),
+      b = P(-hl * 0.42, hd * 0.35, 0.41);
+    ctx.strokeStyle = '#1E1C1A';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.stroke();
+  }
   if (v.doorT > 0) {
     const open = Math.sin(clamp(v.doorT / 2.2, 0, 1) * Math.PI),
       hinge = P(-hl * 0.25, side * hd, 0.19),
@@ -363,16 +539,6 @@ function drawVehicle(v) {
     ctx.moveTo(hinge[0], hinge[1]);
     ctx.lineTo(tip[0], tip[1]);
     ctx.stroke();
-  }
-  // headlamps glow on the nose at dusk and night
-  if (v.engineOn && LIGHT.night > 0.25) {
-    for (const s2 of [-1, 1]) {
-      const c = P(hl, s2 * hd * 0.6, 0.15);
-      ctx.fillStyle = `rgba(255,236,180,${0.4 + 0.6 * LIGHT.night})`;
-      ctx.beginPath();
-      ctx.arc(c[0], c[1], 1.6, 0, TAU);
-      ctx.fill();
-    }
   }
 }
 function vehicleShadows(c) {
