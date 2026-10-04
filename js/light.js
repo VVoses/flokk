@@ -729,7 +729,7 @@ function seasonBanner() {
   $('bSub').textContent = [
     'the meadows are waking: eat, and the flock grows',
     'midges hang thick over the fields: eat while they last',
-    'the swarms are thinning: winter has none',
+    'the swarms are thinning',
     'nothing flies now: feeders, rowan berries, spruce to roost in'
   ][SEASON];
   el.classList.remove('show');
