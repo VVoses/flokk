@@ -121,9 +121,12 @@ function hasStoredSession() {
   }
 }
 function saveSession() {
-  if (!['play', 'pause', 'won'].includes(st.mode) || !birds.length || sessionConflict) return;
+  if (!['play', 'pause', 'won'].includes(st.mode) || !birds.length || sessionConflict) return false;
   try {
-    if (localStorage.getItem(SESSION_KEY) !== sessionLastRaw) return sessionChangedElsewhere();
+    if (localStorage.getItem(SESSION_KEY) !== sessionLastRaw) {
+      sessionChangedElsewhere();
+      return false;
+    }
     const data = packSession({
       st,
       cal: CAL,
@@ -159,9 +162,11 @@ function saveSession() {
     localStorage.setItem(SESSION_KEY, raw);
     sessionLastRaw = raw;
     sessionWarning('');
+    return true;
   } catch (error) {
     sessionWarning('This flight could not be saved. Check available browser storage.');
     console.warn('Flokk session save failed:', error);
+    return false;
   }
 }
 function clearSession() {

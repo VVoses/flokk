@@ -790,15 +790,42 @@ function pause() {
   pointer.down = false;
   syncHud();
   $('pauseStats').innerHTML = statsHTML();
+  $('pauseSeason').textContent = `${SEASONS[CAL.season]} · year ${CAL.year}`;
+  $('pauseControls').textContent = coarse
+    ? 'hold where you want to fly · tap dash to burst'
+    : 'move with mouse or arrows · dash with space';
+  syncPauseSound();
   $('pauseOv').hidden = false;
   $('resumeBtn').focus();
-  saveSession();
+  $('pauseSaveNote').textContent = saveSession()
+    ? 'Your flight is saved automatically.'
+    : 'This flight could not be saved.';
 }
 function resume() {
   st.mode = 'play';
   $('pauseOv').hidden = true;
   pauseIcon(false);
   syncHud();
+}
+function syncPauseSound() {
+  $('pauseSoundBtn').textContent = muted ? 'Sound off' : 'Sound on';
+  $('pauseSoundBtn').setAttribute('aria-pressed', String(!muted));
+}
+function returnToTitle() {
+  if (!saveSession()) {
+    $('pauseSaveNote').textContent = 'Could not save. Stay here or try again.';
+    return;
+  }
+  st.mode = 'title';
+  $('pauseOv').hidden = true;
+  $('titleOv').hidden = false;
+  $('continueBtn').hidden = false;
+  $('startBtn').textContent = 'Start new flight';
+  $('startBtn').classList.add('danger');
+  dashBtn.hidden = true;
+  pauseIcon(false);
+  syncHud();
+  $('continueBtn').focus();
 }
 function gameOver() {
   clearSession();
@@ -837,6 +864,8 @@ $('newLandBtn').onclick = e => {
 };
 $('overNewBtn').onclick = e => newLand(e.currentTarget, startGame);
 $('resumeBtn').onclick = resume;
+$('returnTitleBtn').onclick = returnToTitle;
+$('pauseSoundBtn').onclick = () => $('muteBtn').click();
 $('pauseBtn').onclick = () => {
   if (st.mode === 'play') pause();
   else if (st.mode === 'pause') resume();
@@ -847,6 +876,7 @@ $('muteBtn').onclick = () => {
   if (master) master.gain.value = muted ? 0 : 0.9;
   $('waves').style.display = muted ? 'none' : '';
   $('muteBtn').setAttribute('aria-label', muted ? 'Unmute sound' : 'Mute sound');
+  syncPauseSound();
 };
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && st.mode === 'play') pause();

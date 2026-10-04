@@ -184,11 +184,24 @@
       </div>
     </div>
 
-    <div class="overlay" id="pauseOv" hidden>
-      <div class="card">
-        <h2>Paused</h2>
-        <div class="stats" id="pauseStats"></div>
-        <div class="actions"><button class="btn main" id="resumeBtn">Resume</button></div>
+    <div class="overlay" id="pauseOv" role="dialog" aria-modal="true" aria-labelledby="pauseTitle" hidden>
+      <div class="pause-panel">
+        <div class="pause-topline"><span>flight paused</span><span id="pauseSeason"></span></div>
+        <div class="pause-main">
+          <div class="pause-summary">
+            <h2 id="pauseTitle">Take a breath.</h2>
+            <div class="stats" id="pauseStats"></div>
+          </div>
+          <div class="pause-actions">
+            <button class="btn main" id="resumeBtn">Resume flight <span aria-hidden="true">↗</span></button>
+            <button class="btn" id="pauseSoundBtn" aria-pressed="false">Sound on</button>
+            <button class="btn" id="returnTitleBtn">Save &amp; title</button>
+          </div>
+        </div>
+        <div class="pause-foot">
+          <span id="pauseControls">move with mouse or arrows · dash with space</span>
+          <span id="pauseSaveNote" role="status">Your flight is saved automatically.</span>
+        </div>
       </div>
     </div>
 
