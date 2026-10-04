@@ -14,10 +14,12 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 
 ## 2. Resume a session
 
-- [x] Versioned localStorage save: seed, calendar, flock, resources, positions, and simulation state.
-- [x] Continue / new game choice; restore paused and resume audio on user input.
+- [x] Versioned localStorage slots: seed, calendar, flock, resources, positions, simulation state and title summary.
+- [x] Title save list and new-land preview; restore an active flight directly into play with a short grace period,
+  or return a completed year to its year-end card.
 - [x] Periodic and page-hide saves; handle invalid saves and unavailable storage.
-- [x] Verify reload, closed-window return, death, and new-land behavior.
+- [x] Keep up to six flights, replace the oldest on takeoff when full, and clear only the current slot on death.
+- [x] Verify reload, closed-window return, death, pause-to-title, and new-land behavior.
 - [x] Detect newer saves from another tab, validate generated-world references, and warn when storage fails.
 
 ## 3. Ground movement
@@ -40,6 +42,7 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Paint shared intersections once, gate every field approach, and park destination traffic in marked bays.
 - [x] Keep public roads on field verges rather than through cultivated ground.
 - [x] Multi-seed geometry and traffic regression checks.
+- [x] Carry a narrow glacial bekk to the fjord, clear fields and courtyards, and bridge road, rail and track crossings.
 
 ## 5. Predator visuals and sound
 
@@ -84,7 +87,9 @@ Work in priority order. Checked items are implemented; visual acceptance and lar
 - [x] Collapse repeated per-frame list traversals and compact transient simulation arrays in place.
 - [x] Give saved-game title actions a stable primary/secondary layout and show each gameplay hint on its own line.
 - [x] Keep insect pickup forgiving around the lead bird while limiting feeding-snap animation to non-player flock members.
+- [x] Give the pause menu a responsive layout, sound control, safe Save & title action and New land access.
 - Seasonal regression: `node tools/transition_check.cjs` (requires Playwright).
   Set PLAYWRIGHT_MODULE and CHROMIUM_PATH to use existing local installations.
 - Existing syntax, flow, seam, growth, and road checks remain relevant.
 - Seeded visual smoke: `python3 tools/visual_smoke.py` captures whole-world, farm, and service views and checks shared-road connections, parking clearance, and rendered frame content.
+- Stream geometry: `python3 tools/stream_check.py [N]` checks the fjord outlet, passable bridges and land-use clearance across seeds.
