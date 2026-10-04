@@ -754,6 +754,12 @@ function genLayout() {
     // Hashes keep this decoration stable without changing the world's random sequence.
     STREAM.rocks = [];
     STREAM.riffles = [];
+    // Loose scree rises behind the outlet, concealing the ice beneath a natural rocky slope.
+    for (let i = 0; i < 38; i++) {
+      const y = 52 + hash2(i + 319, SEED) * 42,
+        x = STREAM.source[0] + (hash2(i + 320, SEED) - 0.5) * 52;
+      STREAM.rocks.push({ x, y, r: 4 + 5 * hash2(i + 321, SEED), p: hash2(i + 322, SEED), source: true });
+    }
     for (let i = 0; i < 22; i++) {
       const a = i * 2.4,
         r = 7 + 19 * hash2(i + 310, SEED),

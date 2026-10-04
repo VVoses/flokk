@@ -39,28 +39,24 @@ function paintStream(winter) {
     sx = STREAM.source[0];
   g.save();
   g.lineJoin = g.lineCap = 'round';
-  // A sheltered ice remnant feeds a moraine of boulders, rather than ending in a bare point.
+  // The glacier stays tucked into scree: only little blue-grey ice pockets show between rocks.
+  // There is no exposed tongue or pointed mouth above the spring.
+  g.fillStyle = winter ? '#CBD5DC' : 'rgba(100,115,103,.5)';
   g.beginPath();
-  g.moveTo(sx - 20, -18);
-  g.lineTo(sx - 23, 14);
-  g.quadraticCurveTo(sx - 15, 34, sx - 18, 49);
-  g.lineTo(sx - 12, 69);
-  g.lineTo(sx - 17, 81);
-  g.lineTo(sx + 8, 88);
-  g.lineTo(sx + 16, 70);
-  g.quadraticCurveTo(sx + 10, 47, sx + 20, 28);
-  g.lineTo(sx + 18, -18);
-  g.closePath();
-  g.fillStyle = winter ? '#D7E0E7' : '#B9D0CF';
+  g.ellipse(sx, 76, 28, 27, 0, 0, TAU);
   g.fill();
-  g.strokeStyle = winter ? 'rgba(116,140,158,.25)' : 'rgba(75,132,150,.25)';
-  g.lineWidth = 1.5;
-  g.beginPath();
-  g.moveTo(sx - 9, 18);
-  g.quadraticCurveTo(sx - 5, 40, sx - 8, 58);
-  g.moveTo(sx + 12, 31);
-  g.lineTo(sx + 6, 64);
-  g.stroke();
+  for (let i = 0; i < 6; i++) {
+    const x = sx + (hash2(i + 510, SEED) - 0.5) * 24,
+      y = 48 + i * 6;
+    g.fillStyle = winter ? '#DDE5E9' : 'rgba(183,205,203,.65)';
+    g.beginPath();
+    g.moveTo(x - 5, y);
+    g.lineTo(x + 7, y - 2);
+    g.lineTo(x + 3, y + 6);
+    g.lineTo(x - 3, y + 4);
+    g.closePath();
+    g.fill();
+  }
   // One continuous tapered ribbon per layer prevents the regular dark bands that overlapping
   // translucent segment strokes made. Tiny width changes give the banks an unsurveyed edge.
   const ribbon = (extra, k = 1) => {
