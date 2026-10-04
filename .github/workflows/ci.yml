@@ -68,3 +68,42 @@ jobs:
             tools/out/*.png
             tools/out/visual-smoke/*.png
           if-no-files-found: ignore
+
+  # How each element of the land animates through every season change and every dawn and dusk (DESIGN.md pillar 3:
+  # things emerge, they don't switch). Reports the steps that pop; non-blocking until it is decided it should be.
+  transitions:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install -r requirements-ci.txt -r requirements-matrix.txt
+
+      - name: cache Playwright browser
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-ci.txt') }}
+
+      - name: install Chromium system dependencies
+        run: python3 -m playwright install-deps chromium
+
+      - name: install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: python3 -m playwright install chromium
+
+      - name: transition matrix (quick)
+        run: python3 tools/transitions.py --quick
+
+      - name: upload sheets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transition-matrix
+          path: tools/out/transitions/*
+          if-no-files-found: ignore
