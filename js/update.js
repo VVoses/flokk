@@ -184,6 +184,7 @@ function update(dt) {
   for (const b of birds) {
     b.panic -= dt;
     b.landCool -= dt;
+    if (b.joining && ((b.joining -= dt) <= 0 || Math.hypot(wdx(b.x, L.x), b.y - L.y) < 130)) b.joining = 0;
     if (b.state === 'fly' && b !== L) {
       flyUpdate(b, dt);
       if (st.settled && L.state !== 'fly' && b.panic <= 0 && b.landCool <= 0 && d2(b, L) < 420 * 420) assign(b);
