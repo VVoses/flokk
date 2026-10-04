@@ -63,14 +63,14 @@ function update(dt) {
       feed(0.04 * bite);
     }
     if (st.energy <= 0.5 && st.food >= needFor(birds.length))
-      teach('stores', 'a hungry flock eats its stores first: new birds come once it is fed');
+      teach('stores', 'hunger takes the stores first: new birds come once the flock is fed');
     goalLine();
     // the winter warning comes with the last summer day, a full season before the insects are gone
     if (SEASON === 1 && CAL.day % DAYS_PER_SEASON >= 2)
-      teach('autumn', 'summer is ending: the insects will thin, eat well and bring the flock up');
-    if (st.energy < 0.45) teach('hunger', 'eat insects to keep the flock fed');
+      teach('autumn', 'summer is ending: the insects will thin, eat now');
+    if (st.energy < 0.45) teach('hunger', 'the flock is hungry: find insects');
     if (SEASON === 3 && st.energy < 0.8)
-      teach('winter', 'no insects now: try the feeder and rowan berries, roost in spruce');
+      teach('winter', 'the cold burns through the flock: berries, feeders, spruce to roost in');
     if (st.energy <= 0) {
       st.starveT -= dt;
       if (st.starveT <= 0) {
@@ -258,7 +258,7 @@ function update(dt) {
         spawnHawk(kind);
         st.hawkT = kind === 'hawk' ? [rr(45, 90), rr(60, 110), rr(18, 35), rr(14, 26)][SEASON] : rr(7, 13);
         // it always appears just off screen, so this is the first sight of the orange edge arrow
-        teach('hawkEdge', `the orange arrow at the screen edge points to a ${kind}: it is coming, get ready`);
+        teach('hawkEdge', `an orange arrow at the edge: a ${kind} is coming`);
       }
     }
     // a white-tailed eagle: a rare, once-in-a-while sight rather than a standing threat like the
@@ -284,13 +284,10 @@ function update(dt) {
   for (const h of hawks) {
     updateHawk(h, dt);
     // hawk or owl plays the same from the flock's side, so one shared tip rather than two
-    if (h.state === 'stalk' || h.state === 'hover') teach('predator', 'a predator has spotted you: hide in the trees');
+    if (h.state === 'stalk' || h.state === 'hover') teach('predator', 'it has seen you: get under the trees');
     // the dash is a dodge: the first diving hawk that closes in is when to say so
     if (h.state === 'dive' && Math.hypot(h.x - L.x, h.y - L.y) < 420)
-      teach(
-        'dash',
-        `diving! ${matchMedia('(pointer:coarse)').matches ? 'tap ›' : 'press space'} to dash sideways out of its way`
-      );
+      teach('dash', `it is diving: ${matchMedia('(pointer:coarse)').matches ? 'tap ›' : 'press space'} to dash aside`);
   }
   let hawkWrite = 0;
   for (const h of hawks) if ((h.alpha ?? 1) > 0) hawks[hawkWrite++] = h;
