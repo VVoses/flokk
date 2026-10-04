@@ -88,6 +88,8 @@ Flokk's landscape is farmland, shaped by people using the space they have as sen
 - Farms turn to fit their land. Yards, houses and field blocks face the way the road and the slope suggest, not a
   shared grid.
 - The farm works: the tractor goes from field to field, the farmer has a routine, the fisher goes to the lake.
+- A narrow glacier-fed bekk follows the land to the fjord. Its banks stay clear of fields and courtyards, and
+  roads, tracks and rail cross on small decks rather than burying it under a broad paved ribbon.
 - It is recognisably **Norwegian**: red and white wooden farm buildings, a parish church that may be a stave church,
   a stone church or a white wooden church, and the light of southern Norway's latitude, with long bright summer
   nights and short low winter days.
@@ -111,9 +113,9 @@ The land loops east to west, and the loop must never show: no line in the snow, 
 north edge in winter. A visible seam breaks the spell as surely as a floating sprite. Seams get regression tests
 (`tools/seam_check.py`), across seasons, hours, zoom levels and crossfades.
 
-Likewise, everything that moves shares one visual language. Animals, people and buildings are 3D figures, sun-lit
-and turned to their heading, with feet that plant on the ground. A flat 2D sprite among them (like the old field
-tractor) stands out as unfinished.
+Likewise, everything that moves should share one visual language. Larger quadrupeds and people use sun-lit 3D
+figures with planted feet; smaller wild animals and fliers use heading-aware rigs or cards at their gameplay
+scale. A flat vehicle sprite among them (like the old field tractor) stands out as unfinished.
 
 ## The shape of a year
 
@@ -166,18 +168,12 @@ Before a change lands, it should pass these:
 
 ## The interface language
 
-This document is about the world seen through the canvas. The HUD and overlay cards drawn in
-DOM/CSS on top of it — buttons, meters, the year bar, pause and results cards — have their own
-design system, extracted from the shipped source: <https://claude.ai/artifact/ExeLJtLAzYJSMrNccnBmMC>.
-
-Check new HUD/UI work against it the way world work is checked against the checklist above. The
-short version of its own voice: quiet and lowercase for anything ambient (hints, captions, the
-season banner), thin display weights for numbers and headings, `pointer-events: none` by default
-so the world stays the thing being looked at, and text-shadow rather than solid panels to stay
-legible over whatever the sky is doing — because most of this UI floats directly over the
-rendered world, not over a flat surface. The same "nothing sits on top of the world" instinct
-from Pillar 2 applies here in spirit even though the HUD is, necessarily, actually on top: keep
-it thin, quiet and out of the way rather than competing with the land for attention.
+This document is about the world seen through the canvas. The interface lives in `index.html` and
+`css/flokk.css`: the in-flight HUD stays light, uses text-shadow over the world and disables pointer events
+outside its controls. Title, pause and result screens deliberately use scrims or contained cards for legibility
+over snow and busy forest. Keep ambient hints and captions quiet; make actionable controls clear and reachable
+on both desktop and touch screens. The same "nothing sits on top of the world" instinct from Pillar 2 applies
+to gameplay effects, while menus are allowed enough surface to be read and used.
 
 ## Tried and removed
 
@@ -187,8 +183,10 @@ A record of things that didn't fit, so they don't come back:
 - **Drifting pollen and seed fluff, and the summer "lens flare" dots.** Drawn over the whole screen, so they read as
   a cheap overlay. Removed.
 - **Rectangular fields on a shared grid.** Replaced by organic plots cut from tracts and fitted to the land.
-- **Glowing insect swarms like pickups.** Being reworked into insects that live in the world.
-- **Weather painted over the frame.** Being reworked so snow, rain, fog and wind exist in the scene.
+- **Glowing insect swarms like pickups.** Replaced with insects placed in the world, with height cues and nearby
+  flock feeding reactions.
+- **Weather painted over the frame.** Replaced with falling particles, fog banks and wind effects placed among
+  objects in the scene, while light grading still belongs to the screen.
 - **Animals calling constantly; sparrows chirping at night.** Tuned down to real rhythms.
 - **Flat 2D vehicles and animals among 3D figures.** Moved to the shared 3D figure language.
 
