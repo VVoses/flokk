@@ -51,7 +51,7 @@ function hud(dt) {
   hudT = 0.1;
   milestones(0.1);
   $('countLabel').textContent = birds.length === 1 ? 'bird' : 'birds';
-  $('yearName').textContent = `${SEASONS[SEASON]} · day ${(CAL.day % YEAR_DAYS) + 1} of ${YEAR_DAYS}`;
+  $('yearName').textContent = `${SEASONS[SEASON]} · day ${(CAL.day % YEAR_DAYS) + 1} / ${YEAR_DAYS}`;
   $('yearMark').style.left =
     ((((CAL.day % YEAR_DAYS) + ((CAL.hour - START_HOUR + 24) % 24) / 24) / YEAR_DAYS) * 100).toFixed(1) + '%';
   $('calIcon').textContent = LIGHT.night > 0.5 ? '☾' : '☀';
@@ -103,7 +103,7 @@ function hud(dt) {
   const hunger = en < 0.25 ? 'starving' : en < 0.5 ? 'hungry' : 'well fed';
   ui.count.setAttribute(
     'aria-label',
-    `${birds.length} birds, ${hunger}. ${txt}. ${SEASONS[SEASON]}, day ${(CAL.day % YEAR_DAYS) + 1} of ${YEAR_DAYS}`
+    `${birds.length} birds, ${hunger}. ${txt}. ${SEASONS[SEASON]}, day ${(CAL.day % YEAR_DAYS) + 1} / ${YEAR_DAYS}`
   );
 }
 
