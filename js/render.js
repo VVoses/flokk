@@ -480,22 +480,30 @@ function treeSway(t) {
     lean = Math.cos(WEATHER.ang) * WEATHER.s * (0.25 + g);
   return (flutter * 0.04 * (0.5 + 0.5 * WEATHER.s + 0.8 * g) + lean * 0.03) * stiff;
 }
-// the sprite recoloured to the sky's colour, in a scratch canvas the size of the sprite (trees past the map's
-// north edge only, so a few per frame)
-const EDGE_TINT = document.createElement('canvas');
+// the sprite recoloured to the sky's colour, kept per sprite and rebuilt only when the sky's colour changes. A
+// forest edge in the north is a couple of hundred trees a frame, so recolouring each one afresh was the costliest
+// thing in the view
+const EDGE_TINT = new WeakMap();
 function edgeTint(spr) {
-  if (EDGE_TINT.width !== spr.width || EDGE_TINT.height !== spr.height) {
-    EDGE_TINT.width = spr.width;
-    EDGE_TINT.height = spr.height;
+  let e = EDGE_TINT.get(spr);
+  if (!e) {
+    e = { col: null, cv: document.createElement('canvas') };
+    e.cv.width = spr.width;
+    e.cv.height = spr.height;
+    e.cv.box = spr.box;
+    EDGE_TINT.set(spr, e);
   }
-  const q = EDGE_TINT.getContext('2d');
-  q.globalCompositeOperation = 'source-over';
-  q.clearRect(0, 0, spr.width, spr.height);
-  q.drawImage(spr, 0, 0);
-  q.globalCompositeOperation = 'source-atop';
-  q.fillStyle = LIGHT.skyBot;
-  q.fillRect(0, 0, spr.width, spr.height);
-  return EDGE_TINT;
+  if (e.col !== LIGHT.skyBot) {
+    e.col = LIGHT.skyBot;
+    const q = e.cv.getContext('2d');
+    q.globalCompositeOperation = 'source-over';
+    q.clearRect(0, 0, spr.width, spr.height);
+    q.drawImage(spr, 0, 0);
+    q.globalCompositeOperation = 'source-atop';
+    q.fillStyle = e.col;
+    q.fillRect(0, 0, spr.width, spr.height);
+  }
+  return e.cv;
 }
 function drawTree(t) {
   const spr = SPR[t.type][t.v],
@@ -524,7 +532,7 @@ function drawTree(t) {
     // over everything already drawn behind the tree (ridge, other trees), and that box swayed with it
     const q = edgeTint(spr);
     ctx.globalAlpha = edge * 0.5 * la;
-    ctx.drawImage(q, x, y, w, h);
+    drawTrim(ctx, q, x, y, w, h);
     ctx.globalAlpha = 1;
   }
   if (LIGHT.rim > 0.04 && la > 0.005) {

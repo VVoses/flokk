@@ -108,6 +108,14 @@ with sync_playwright() as p:
         ("farm_summer_breeze", f"dev.season(1,14);dev.to({farm[0]},{farm[1]},1.0);{dry}dev.weather({{s:1.0,ang:0.2,fog:0}});dev.zoom(null)", 4000),
         ("zoomed_out", f"dev.season(1,15);{to};{dry}dev.weather({{s:0.6,ang:0.2,fog:0}});dev.zoom(0.72)", 4000),
     ]
+    # the worst case Karl asked for: a big flock, many predators, fog, up in the north
+    crowd = "dev.crowd(80,3,2);"
+    north = "dev.to(W*0.5,330,1.0);"
+    scenes += [
+        ("north_fog_big_flock", f"dev.season(2,8);{north}{dry}dev.weather({{s:0.15,ang:0.2,fog:0.9}});{crowd}", 9000),
+        ("north_fog_big_flock_night", f"dev.hour(22);{crowd}", 3000),
+        ("north_winter_fog_flock", f"dev.season(3,11);{north}dev.weather({{s:0.6,ang:0.2,fog:0.9}});{crowd}", 9000),
+    ]
     only = set(filter(None, args.only.split(",")))
     out = {}
     print(f"{'software' if args.soft else 'GPU'} canvas, dpr {args.dpr}, {args.frames} frames per scene; ms per frame (uncapped), KB of heap allocated per frame")
