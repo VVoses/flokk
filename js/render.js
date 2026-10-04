@@ -505,6 +505,8 @@ function edgeTint(spr) {
   }
   return e.cv;
 }
+// the transform of the copy being drawn (set by render's setK); a tree is placed from it directly
+const TB = { a: 1, e: 0, f: 0 };
 function drawTree(t) {
   const spr = SPR[t.type][t.v],
     k = t.k,
@@ -513,9 +515,9 @@ function drawTree(t) {
     y = -AY * k,
     w = SW * kw,
     h = SHT * k;
-  ctx.save();
-  ctx.translate(t.x, t.y * TILT);
-  ctx.transform(1, 0, treeSway(t), 1, 0, 0);
+  // translate to the tree and shear it with the wind, as one matrix: a save, a restore and two matrix
+  // multiplications per tree, a few hundred trees a frame, cost more than the sprite draws they wrap
+  ctx.setTransform(TB.a, 0, TB.a * treeSway(t), TB.a, TB.a * t.x + TB.e, TB.a * t.y * TILT + TB.f);
   crossfadeUnder(TRANS.prevSPR && TRANS.prevSPR[t.type][t.v], x, y, w, h);
   // bare twigs and first leaves under a tree still leafing out, or losing its leaves (grow.js)
   const la = growUnder(t, x, y, w, h);
@@ -526,7 +528,7 @@ function drawTree(t) {
   // beyond it purely so the treeline doesn't look clipped): without this, a bare tree's crown out
   // there, taller on screen than the misty ridge far behind it, reads as a hard shape floating in
   // open sky rather than a hazy, distant one. Never touches anything within the real map (y>=0).
-  const edge = Math.pow(clamp(-t.y / 260, 0, 1), 1.5);
+  const edge = t.y < 0 ? Math.pow(clamp(-t.y / 260, 0, 1), 1.5) : 0;
   if (edge > 0.01 && la > 0.005) {
     // tint the tree's own pixels only: a source-atop fill on the main canvas would wash a hard rectangle
     // over everything already drawn behind the tree (ridge, other trees), and that box swayed with it
@@ -538,11 +540,12 @@ function drawTree(t) {
   if (LIGHT.rim > 0.04 && la > 0.005) {
     const r = RIM[t.type][t.v];
     if (r) {
-      const si = LIGHT.rimSide > 0 ? 1 : 0;
-      ctx.globalAlpha = LIGHT.rim * 0.3 * la * tEase();
+      const si = LIGHT.rimSide > 0 ? 1 : 0,
+        te = tEase();
+      ctx.globalAlpha = LIGHT.rim * 0.3 * la * te;
       drawTrim(ctx, r.c[1 - si], x, y, w, h);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28) * la * tEase();
+      ctx.globalAlpha = LIGHT.rim * (LIGHT.eve ? 0.36 : 0.28) * la * te;
       drawTrim(ctx, r.w[si], x, y, w, h);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
@@ -556,7 +559,7 @@ function drawTree(t) {
       ctx.globalAlpha = 1;
     }
   }
-  ctx.restore();
+  ctx.setTransform(TB.a, 0, 0, TB.a, TB.e, TB.f);
 }
 /* shore trees mirrored in still water (not on ice), clipped to the water's outline */
 let REFL = null,
@@ -1849,6 +1852,7 @@ function render() {
         ctx.stroke();
       }
       drawWaves(ctx);
+      drawSwash(ctx);
     }
     {
       const sc = ctx.strokeStyle;
@@ -1972,7 +1976,7 @@ function render() {
     for (const b of BUSHES) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 13, b, k]);
     jettyItems(items, k);
     // sorted a little ahead of its own y, so the birds perched in it always draw on top
-    if (visU(BOAT.x, BOAT.y, 40, 40)) items.push([BOAT.y - 14, 19, BOAT, k]);
+    if (visU(BOAT.x, BOAT.y, 40, 40)) items.push([BOAT.y - 14, 21, BOAT, k]);
     if (TRAIN) for (const c of TRAIN.cars) if (visU(c.x, c.y, 40, 40)) items.push([c.y, 10, c, k]);
     for (const v of TRAFFIC) {
       if (visU(v.x, v.y, 50, 30)) items.push([v.y, 11, v, k]);
@@ -2008,7 +2012,10 @@ function render() {
   const setK = k => {
     if (k !== ck) {
       ck = k;
-      ctx.setTransform(dpr * z, 0, 0, dpr * z, tx + k * W * dpr * z, ty);
+      TB.a = dpr * z;
+      TB.e = tx + k * W * dpr * z;
+      TB.f = ty;
+      ctx.setTransform(TB.a, 0, 0, TB.a, TB.e, TB.f);
     }
   };
   items.sort((a, b) => a[0] - b[0]);
@@ -2033,8 +2040,8 @@ function render() {
     else if (kind === 12) drawProp(o);
     else if (kind === 14) drawXSign(o);
     else if (kind === 17) drawFieldGate(o);
-    else if (kind === 18) drawJetty(o);
-    else if (kind === 19) drawBoat();
+    else if (kind === 20) drawJetty(o);
+    else if (kind === 21) drawBoat();
     else if (kind === 7) drawAnimal(o);
     else if (kind === 16)
       drawWeatherBand(o); // 15 and 16 belong to weather.js (weatherItems)

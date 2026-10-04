@@ -28,7 +28,7 @@ function waveGrid() {
   if (WV.ws && WV.key === NS + ':' + LAKE.x + ':' + POND.x) return;
   WV.key = NS + ':' + LAKE.x + ':' + POND.x;
   WV.nx = Math.ceil(W / WV.LX);
-  WV.ny = Math.ceil((H + 1300 - WV.y0) / WV.LY);
+  WV.ny = Math.ceil((H + 2600 - WV.y0) / WV.LY); // the sea runs on south of the land; a zoomed-out view reaches well past it
   const n = WV.nx * WV.ny;
   WV.ws = new Float32Array(n).fill(-1); // how deep into the water a node is, 0 at the shore to 1 well out
   WV.fk = new Float32Array(n).fill(1); // how much of the wind the shore upwind lets through
@@ -37,6 +37,13 @@ function waveGrid() {
   const nc = WV.ncx * (Math.ceil(WV.ny / WV.B) + 2);
   WV.rs = new Float32Array(nc); // the wind amplitude as the water has settled to it, per block corner
   WV.rt = new Float32Array(nc).fill(-9);
+}
+/* How much wave a block of the wind field makes. A gust still raises the sea, but a lull never leaves it glass: once there
+   is any wind at all the water keeps a base of ripple, so the detail does not drop out between the gusts. Waves rise out of
+   true glass (a dead calm, fog) gradually rather than switching on. */
+function waveLevel(r) {
+  const base = 0.38 * smooth(0.1, 0.4, WV.sm);
+  return smooth(0.02, 0.2, r) * (base + (1 - 0.38) * r);
 }
 // 0 on land and at the water's edge, up to 1 a little way out (lake, pond or fjord)
 function waveDepth(x, y) {
@@ -109,7 +116,17 @@ function drawWaves(ctx) {
     iy1 = Math.min(ny - 1, Math.ceil((V.py1 / TILT + 20 - y0) / LY));
   const vw = ix1 - ix0 + 1,
     vh = iy1 - iy0 + 1;
-  if (vw < 2 || vh < 2 || vw * vh > 40000) return;
+  // the GPU path takes any view (a wide zoomed-out one too) by reading the lattice at a stride, so the waves never drop out
+  // when the camera pulls back; the 2D fallback is capped
+  if (vw < 2 || vh < 2 || vw * vh > (glm ? 400000 : 40000)) return;
+  const st = glm ? Math.max(1, Math.ceil(Math.sqrt((vw * vh) / 40000))) : 1,
+    texW = Math.ceil(vw / st),
+    texH = Math.ceil(vh / st);
+  // the amplitude settles over seconds, so the GPU path rebuilds its texture ten times a second, not every frame
+  const tkey = glm ? WV.key + ':' + ix0 + ':' + iy0 + ':' + vw + ':' + vh + ':' + st : '';
+  if (glm && WV.texOK && WV.texKey === tkey && T >= WV.texT && T - WV.texT < 0.1)
+    return waveShader(ctx, glm, { ix0, iy0, vw, vh, texW, texH, st, thd: WV.th, dim: 1 - 0.45 * LIGHT.night });
+  WV.texOK = false;
   // wind amplitude at the corners of the 4x4 blocks, with the lee-of-the-shore factor, then blended across each block
   const cw = Math.ceil((vw - 1) / B) + 1,
     ch = Math.ceil((vh - 1) / B) + 1,
@@ -181,22 +198,22 @@ function drawWaves(ctx) {
     });
   // per node: the amplitude (wind, shore, and wave groups so a crest runs a while and dies away) and the phase of
   // each train in turns, so a crest is the line where the phase crosses a whole number
-  if (!WV.buf || WV.buf[0].length < vw * vh) WV.buf = [0, 1, 2, 3].map(() => new Float32Array(40000));
-  const amp = [WV.buf[0].fill(0, 0, vw * vh), WV.buf[1].fill(0, 0, vw * vh)],
-    ph = [WV.buf[2].fill(0, 0, vw * vh), WV.buf[3].fill(0, 0, vw * vh)];
+  if (!glm && (!WV.buf || WV.buf[0].length < vw * vh)) WV.buf = [0, 1, 2, 3].map(() => new Float32Array(40000));
+  const amp = glm ? [] : [WV.buf[0].fill(0, 0, vw * vh), WV.buf[1].fill(0, 0, vw * vh)],
+    ph = glm ? [] : [WV.buf[2].fill(0, 0, vw * vh), WV.buf[3].fill(0, 0, vw * vh)];
   let any = 0;
-  if (glm && (!WV.tex || WV.tex.length < vw * vh)) WV.tex = new Uint8Array(40000);
+  if (glm && (!WV.tex || WV.tex.length < texW * texH)) WV.tex = new Uint8Array(Math.max(40000, texW * texH));
   const bl = (arr, k0, fx, fy) =>
     (arr[k0] * (1 - fx) + arr[k0 + 1] * fx) * (1 - fy) + (arr[k0 + cw] * (1 - fx) + arr[k0 + cw + 1] * fx) * fy;
-  for (let j = 0; j < vh; j++) {
+  for (let j = 0; j < vh; j += st) {
     const ly = iy0 + j,
       y = y0 + ly * LY,
       cj = (j / B) | 0,
       fy = (j % B) / B;
-    for (let i = 0; i < vw; i++) {
+    for (let i = 0; i < vw; i += st) {
       const lx = ix0 + i,
         x = lx * LX,
-        o = j * vw + i,
+        o = glm ? (j / st) * texW + i / st : j * vw + i,
         ci = (i / B) | 0,
         fx = (i % B) / B,
         k0 = cj * cw + ci,
@@ -206,7 +223,7 @@ function drawWaves(ctx) {
         let w = ws[ni];
         if (w < 0) w = ws[ni] = waveDepth(x, y);
         const r = w > 0 ? bl(rc, k0, fx, fy) : 0;
-        WV.tex[o] = r < 0.04 ? 0 : Math.min(255, ((r * smooth(0.04, 0.4, r) * w * 255) / 1.4 + 0.5) | 0);
+        WV.tex[o] = r < 0.04 ? 0 : Math.min(255, ((waveLevel(r) * w * 255) / 1.4 + 0.5) | 0);
         if (WV.tex[o]) any = 1;
         continue;
       }
@@ -219,14 +236,19 @@ function drawWaves(ctx) {
       if (w <= 0) continue;
       const r = bl(rc, k0, fx, fy);
       if (r < 0.04) continue;
-      const rf = r * smooth(0.04, 0.4, r); // waves rise out of glass instead of switching on
-      amp[0][o] = rf * w * TR[0].wgt * (0.12 + 1.15 * bl(g0c, k0, fx, fy));
-      amp[1][o] = rf * w * TR[1].wgt * (0.12 + 1.15 * bl(g1c, k0, fx, fy));
+      const rf = waveLevel(r);
+      amp[0][o] = rf * w * TR[0].wgt * (0.3 + 0.95 * bl(g0c, k0, fx, fy));
+      amp[1][o] = rf * w * TR[1].wgt * (0.3 + 0.95 * bl(g1c, k0, fx, fy));
       any = 1;
     }
   }
   if (!any) return;
-  if (glm) return waveShader(ctx, glm, { ix0, iy0, vw, vh, th: th0, dim: dim0 });
+  if (glm) {
+    WV.texKey = tkey;
+    WV.texT = T;
+    WV.texOK = true;
+    return waveShader(ctx, glm, { ix0, iy0, vw, vh, texW, texH, st, thd: th0, dim: dim0 });
+  }
   // the surface shaded: light where the water leans toward the sky, dark in the troughs, drawn soft from a small
   // offscreen picture with one pixel per lattice node
   {
@@ -446,6 +468,7 @@ precision highp float;
 #define LY ${WV.LY}.0
 #define Y0 ${WV.y0}.0
 uniform vec4 W[8];
+uniform vec2 PD[8];
 uniform vec4 xf;
 uniform vec4 ti;
 uniform vec2 org;
@@ -461,7 +484,7 @@ float vnoise(vec2 p) {
 }
 void main() {
   vec2 p = vec2((gl_FragCoord.x - xf.z) / xf.x, ((st.w - gl_FragCoord.y) - xf.w) / xf.y);
-  vec2 uv = vec2(((p.x / LX - ti.x) + 0.5) / ti.y, (((p.y - Y0) / LY - ti.z) + 0.5) / ti.w);
+  vec2 uv = vec2((((p.x / LX - ti.x) / mix3.z) + 0.5) / ti.y, ((((p.y - Y0) / LY - ti.z) / mix3.z) + 0.5) / ti.w);
   float R = texture(tex, uv).r * 1.4;
   if (R < 0.01) discard;
   vec2 q = p - org;
@@ -475,12 +498,11 @@ void main() {
   for (int i = 0; i < 8; i++) {
     vec4 w = W[i];
     float fi = float(i);
-    float k = length(w.xy);
-    vec2 pd = w.xy / k;
+    vec2 pd = PD[i];
     float u = dot(p, vec2(-pd.y, pd.x)), v = dot(p, pd);
-    float grp = 0.12 + 1.15 * (0.5 + 0.5 * sin(u * (0.012 + 0.004 * fi) + 1.3 + 2.1 * fi + 0.9 * sin(T * 0.02 + p.x * 0.004 + fi)))
+    float grp = 0.3 + 0.95 * (0.5 + 0.5 * sin(u * (0.012 + 0.004 * fi) + 1.3 + 2.1 * fi + 0.9 * sin(T * 0.02 + p.x * 0.004 + fi)))
               * (0.55 + 0.45 * sin(v * 0.011 - T * 0.04 * (1.0 + fi * 0.3) + 4.1 * fi));
-    float chop = i < 3 ? 1.0 : smoothstep(0.2 + 0.05 * fi, 1.0 + 0.05 * fi, R);
+    float chop = i < 3 ? 1.0 : 0.5 + 0.5 * smoothstep(0.2 + 0.05 * fi, 1.0 + 0.05 * fi, R);
     float odd = 1.0 + 0.5 * mod(fi, 2.0);
     float ph = dot(w.xy, q) + w.z + wp * odd;
     float a = w.w * R * grp * chop;
@@ -513,6 +535,7 @@ void main() {
 const WAVE_VS = `#version 300 es
 layout(location=0) in vec2 c;
 void main() { gl_Position = vec4(c * 2.0 - 1.0, 0.0, 1.0); }`;
+const WAVE_PX = 700000; // shaded pixels a frame may have before the surface drops below full resolution
 const WAVES_GL = { tried: false, gl: null, cv: null, prog: null, tx: null, u: {} };
 function waveGLInit() {
   const G = WAVES_GL;
@@ -544,7 +567,7 @@ function waveGLInit() {
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     G.prog = p;
-    for (const n of ['W', 'xf', 'ti', 'org', 'st', 'mix3', 'tex']) G.u[n] = gl.getUniformLocation(p, n);
+    for (const n of ['W', 'PD', 'xf', 'ti', 'org', 'st', 'mix3', 'tex']) G.u[n] = gl.getUniformLocation(p, n);
   } catch (e) {
     console.warn('Flokk: GPU waves unavailable, drawing them on the 2D canvas', e);
     return null;
@@ -578,26 +601,34 @@ function waveShader(ctx, gl, o) {
     c = G.cv,
     m = ctx.getTransform(),
     { LX, LY, y0 } = WV;
-  if (c.width !== cv.width || c.height !== cv.height) {
-    c.width = cv.width;
-    c.height = cv.height;
+  // the surface is soft, so it is shaded at fewer pixels than the frame has and stretched back up: the shader is the
+  // cost, and it grows with the pixels. A big or dense screen gets a smaller share of them.
+  const shr = Math.min(1, Math.max(0.5, Math.sqrt(WAVE_PX / (cv.width * cv.height)))),
+    gw = Math.round(cv.width * shr),
+    gh = Math.round(cv.height * shr);
+  if (c.width !== gw || c.height !== gh) {
+    c.width = gw;
+    c.height = gh;
   }
+  const rx = gw / cv.width,
+    ry = gh / cv.height;
   // the part of the frame the window covers
   const xa = m.a * o.ix0 * LX + m.e,
     xb = m.a * (o.ix0 + o.vw) * LX + m.e,
     ya = m.d * (y0 + o.iy0 * LY) + m.f,
     yb = m.d * (y0 + (o.iy0 + o.vh) * LY) + m.f,
-    sx = Math.max(0, Math.floor(Math.min(xa, xb))),
-    sy = Math.max(0, Math.floor(Math.min(ya, yb))),
-    sw = Math.min(c.width, Math.ceil(Math.max(xa, xb))) - sx,
-    sh = Math.min(c.height, Math.ceil(Math.max(ya, yb))) - sy;
+    sx = Math.max(0, Math.floor(Math.min(xa, xb) * rx)),
+    sy = Math.max(0, Math.floor(Math.min(ya, yb) * ry)),
+    sw = Math.min(gw, Math.ceil(Math.max(xa, xb) * rx)) - sx,
+    sh = Math.min(gh, Math.ceil(Math.max(ya, yb) * ry)) - sy;
   if (sw < 1 || sh < 1) return;
-  const th = o.th,
+  const th = o.thd,
     sm = WV.sm,
     ox = LAKE.x > -1000 ? LAKE.x : W / 2,
     oy = LAKE.x > -1000 ? LAKE.y : H,
     { LAM, OFF, WT } = WAVE_TR,
-    Wd = new Float32Array(32);
+    Wd = new Float32Array(32),
+    Pd = new Float32Array(16);
   for (let i = 0; i < 8; i++) {
     const k = TAU / LAM[i],
       c0 = 14 * Math.sqrt(LAM[i] / 30),
@@ -606,6 +637,8 @@ function waveShader(ctx, gl, o) {
     Wd[i * 4 + 1] = Math.sin(a) * k;
     Wd[i * 4 + 2] = (((-k * c0 * WV.tw) % TAU) + TAU) % TAU;
     Wd[i * 4 + 3] = 0.035 * LAM[i] * WT[i];
+    Pd[i * 2] = Math.cos(a);
+    Pd[i * 2 + 1] = Math.sin(a);
   }
   gl.viewport(0, 0, c.width, c.height);
   gl.enable(gl.SCISSOR_TEST);
@@ -615,21 +648,32 @@ function waveShader(ctx, gl, o) {
   gl.useProgram(G.prog);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, G.tx);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, o.vw, o.vh, 0, gl.RED, gl.UNSIGNED_BYTE, WV.tex.subarray(0, o.vw * o.vh));
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.R8,
+    o.texW,
+    o.texH,
+    0,
+    gl.RED,
+    gl.UNSIGNED_BYTE,
+    WV.tex.subarray(0, o.texW * o.texH)
+  );
   gl.uniform1i(G.u.tex, 0);
   gl.uniform4fv(G.u.W, Wd);
-  gl.uniform4f(G.u.xf, m.a, m.d, m.e, m.f);
-  gl.uniform4f(G.u.ti, o.ix0, o.vw, o.iy0, o.vh);
+  gl.uniform2fv(G.u.PD, Pd);
+  gl.uniform4f(G.u.xf, m.a * rx, m.d * ry, m.e * rx, m.f * ry);
+  gl.uniform4f(G.u.ti, o.ix0, o.texW, o.iy0, o.texH);
   gl.uniform2f(G.u.org, ox, oy);
   gl.uniform4f(G.u.st, sm, WV.tw, T, c.height);
-  gl.uniform3f(G.u.mix3, o.dim, smooth(0.65, 1.05, sm), 0);
+  gl.uniform3f(G.u.mix3, o.dim, smooth(0.65, 1.05, sm), o.st);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   gl.disable(gl.SCISSOR_TEST);
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(c, sx, sy, sw, sh, sx, sy, sw, sh);
+  ctx.drawImage(c, sx, sy, sw, sh, sx / rx, sy / ry, sw / rx, sh / ry);
   ctx.restore();
 }
 
@@ -675,7 +719,7 @@ function waveAt(x, y) {
       if (ok) R = sum;
     }
   }
-  R *= smooth(0.04, 0.4, R) * w * wf;
+  R = waveLevel(R) * w * wf;
   if (R < 0.01) return WS;
   WS.r = R;
   const th = WV.th,
@@ -699,11 +743,11 @@ function waveAt(x, y) {
       u = x * -pdy + y * pdx,
       v = x * pdx + y * pdy,
       grp =
-        0.12 +
-        1.15 *
+        0.3 +
+        0.95 *
           (0.5 + 0.5 * Math.sin(u * (0.012 + 0.004 * i) + 1.3 + 2.1 * i + 0.9 * Math.sin(T_ * 0.02 + x * 0.004 + i))) *
           (0.55 + 0.45 * Math.sin(v * 0.011 - T_ * 0.04 * (1 + i * 0.3) + 4.1 * i)),
-      chop = i < 3 ? 1 : smooth(0.2 + 0.05 * i, 1 + 0.05 * i, R),
+      chop = i < 3 ? 1 : 0.5 + 0.5 * smooth(0.2 + 0.05 * i, 1 + 0.05 * i, R),
       ph = k * (pdx * (x - ox) + pdy * (y - oy)) - k * c0 * WV.tw + wp * odd,
       a = 0.035 * lam * WAVE_TR.WT[i] * R * grp * chop,
       s1 = Math.sin(ph),
@@ -771,5 +815,144 @@ function drawLilies(ctx) {
     ctx.closePath();
     ctx.fill();
   }
+  ctx.restore();
+}
+
+/* ---- the swash: water running up the shore and draining back ----
+   Along the edge of the lake, the pond and the fjord shore, each wave that arrives pushes the waterline a little way inland
+   and it slides back. The run-up at a point is the height of the real wave a short way off the shore (waveAt), so it comes in
+   sets with the wind and the sea state, and a calm day only laps. A band of wet ground is left behind where the water has
+   been and dries slowly, a thin line of foam rides the front, and nothing is drawn but a ribbon along the shore points that are
+   in view, so it costs a few hundred wave samples a frame. */
+const SWASH = { key: null, lake: null, pond: null, sea: null, N: 180, SEA_STEP: 24 };
+function swashPts(c, rf) {
+  const N = SWASH.N,
+    P = { x: new Float32Array(N), y: new Float32Array(N), nx: new Float32Array(N), ny: new Float32Array(N) };
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * TAU,
+      r = rf(a);
+    P.x[i] = c.x + Math.cos(a) * r;
+    P.y[i] = c.y + Math.sin(a) * r;
+    P.nx[i] = Math.cos(a); // inland is away from the water's centre
+    P.ny[i] = Math.sin(a);
+  }
+  P.ext = new Float32Array(N);
+  P.tl = new Float32Array(N).fill(-9);
+  P.N = N;
+  return P;
+}
+// the swash along one shore, given a way to get the i-th point (pt), whether it's visible, and where its memory lives
+function swashRun(ctx, S, n, step, ptAt, wet, front, soft) {
+  let any = false,
+    prev = null;
+  for (let i = 0; i < n; i++) {
+    const p = ptAt(i);
+    if (!p || !visG(p.x, p.y, 40)) {
+      prev = null;
+      continue;
+    }
+    const k = p.k,
+      dtl = T - S.tl[k];
+    if (dtl <= 0 || dtl > 30) S.ext[k] = dtl > 30 ? 0 : S.ext[k];
+    else S.ext[k] *= Math.exp(-dtl / 7); // the wet ground dries
+    S.tl[k] = T;
+    const w = waveAt(p.x - p.nx * 30, p.y - p.ny * 30),
+      calm = smooth(0.1, 0.4, WV.sm),
+      d = Math.min(12, (0.5 * calm + 4 * Math.max(0, w.h)) * (0.7 + 0.3 * Math.sin(p.x * 0.11 + T * 0.4)));
+    if (d > S.ext[k]) S.ext[k] = d;
+    const e = S.ext[k],
+      qx = p.x + p.nx * d,
+      qy = p.y + p.ny * d,
+      ex = p.x + p.nx * e,
+      ey = p.y + p.ny * e;
+    if (prev) {
+      wet.moveTo(prev.x, prev.y);
+      wet.lineTo(p.x, p.y);
+      wet.lineTo(ex, ey);
+      wet.lineTo(prev.ex, prev.ey);
+      wet.closePath();
+      // foam rides the front while it is advancing, thinner as it slips back
+      const f = d > e * 0.8 && d > 0.8 ? front : soft;
+      f.moveTo(prev.qx, prev.qy);
+      f.lineTo(qx, qy);
+      any = true;
+    }
+    prev = { x: p.x, y: p.y, qx, qy, ex, ey };
+  }
+  return any;
+}
+function drawSwash(ctx) {
+  const wf = waveFreeze();
+  if (wf < 0.02 || !WV.init) return;
+  const key = NS + ':' + LAKE.x + ':' + POND.x;
+  if (SWASH.key !== key) {
+    SWASH.key = key;
+    SWASH.lake = LAKE.x > -1000 ? swashPts(LAKE, lakeR) : null;
+    SWASH.pond = POND.x > 0 ? swashPts(POND, pondR) : null;
+    const M = Math.ceil(W / SWASH.SEA_STEP);
+    SWASH.sea = { ext: new Float32Array(M), tl: new Float32Array(M).fill(-9), M };
+  }
+  const wet = new Path2D(),
+    front = new Path2D(),
+    soft = new Path2D();
+  let any = false;
+  for (const [P, c] of [
+    [SWASH.lake, LAKE],
+    [SWASH.pond, POND]
+  ]) {
+    if (!P || Math.abs(wdx(c.x, (V.x0 + V.x1) / 2)) > c.r * 1.5 + (V.x1 - V.x0) / 2 + 60) continue;
+    // the lake outline is drawn in the world copy the view sits in
+    const sh = Math.round(((V.x0 + V.x1) / 2 - c.x) / W) * W;
+    any =
+      swashRun(
+        ctx,
+        P,
+        P.N + 1,
+        1,
+        i => {
+          const j = i % P.N;
+          return { x: P.x[j] + sh, y: P.y[j], nx: P.nx[j], ny: P.ny[j], k: j };
+        },
+        wet,
+        front,
+        soft
+      ) || any;
+  }
+  // the fjord shore south of the land: a line of points under the view
+  const S = SWASH.sea,
+    st = SWASH.SEA_STEP,
+    i0 = Math.floor(V.x0 / st) - 1,
+    n = Math.ceil((V.x1 - V.x0) / st) + 3;
+  any =
+    swashRun(
+      ctx,
+      S,
+      n,
+      st,
+      i => {
+        const gx = (i0 + i) * st;
+        return { x: gx, y: shoreY(gx), nx: 0, ny: -1, k: (((i0 + i) % S.M) + S.M) % S.M };
+      },
+      wet,
+      front,
+      soft
+    ) || any;
+  if (!any) return;
+  const dim = (1 - 0.45 * LIGHT.night) * wf;
+  ctx.save();
+  ctx.fillStyle = '#2A3A2E';
+  ctx.globalAlpha = 0.26 * dim;
+  ctx.fill(wet);
+  ctx.strokeStyle = '#E4EFEA';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3.4;
+  ctx.globalAlpha = 0.08 * dim;
+  ctx.stroke(front);
+  ctx.lineWidth = 1.3;
+  ctx.globalAlpha = 0.55 * dim;
+  ctx.stroke(front);
+  ctx.globalAlpha = 0.2 * dim;
+  ctx.stroke(soft);
   ctx.restore();
 }

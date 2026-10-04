@@ -75,7 +75,7 @@ function jettyItems(items, k) {
     const s = ((i + 0.5) / n) * L,
       x = lerp(JET.x0, JET.x1, s / L),
       y = lerp(JET.y0, JET.y1, s / L);
-    if (visU(x, y, JETTY.seg + 10, 30)) items.push([y, 18, i, k]);
+    if (visU(x, y, JETTY.seg + 10, 30)) items.push([y, 20, i, k]);
   }
 }
 function drawJetty(i) {
@@ -227,12 +227,11 @@ function boatPose() {
   BP.roll = clamp(Math.atan2(hp - hq, 14) * 1.5, -0.4, 0.4) + idle * 0.02 * Math.sin(T * 0.95 + 2.1);
   // birds sitting in the boat rise and fall with it
   const sp = Math.sin(BP.pitch);
-  for (const p of perches)
-    if (p.type === 'boat') {
-      const lx = (p.x - BOAT.x) * cs + (p.y - BOAT.y) * sn;
-      p.h = 0.12 + BP.lift + (lx * sp) / HR;
-      if (p.occ && p.occ.perch === p && p.occ.state === 'perch') p.occ.z = p.h;
-    }
+  for (const p of perchesOfType('boat')) {
+    const lx = (p.x - BOAT.x) * cs + (p.y - BOAT.y) * sn;
+    p.h = 0.12 + BP.lift + (lx * sp) / HR;
+    if (p.occ && p.occ.perch === p && p.occ.state === 'perch') p.occ.z = p.h;
+  }
   return BP;
 }
 

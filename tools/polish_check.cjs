@@ -32,45 +32,37 @@ const root = path.resolve(__dirname, '..');
         energy: st.energy,
         count: birds.length,
         x: L.x,
-        bytes: localStorage.getItem(SESSION_KEY)?.length || 0
+        bytes: localStorage.getItem(sessionKey())?.length || 0
       };
     });
     assert(save.bytes > 0, 'session is written');
     await page.reload();
     const titleLayout = await page.evaluate(() => {
-      const actions = [...document.querySelectorAll('#titleOv .actions .btn:not([hidden])')].map(el =>
-        el.getBoundingClientRect()
-      );
       const hints = [...document.querySelectorAll('#keysTxt li')].map(el => el.getBoundingClientRect());
       return {
-        actions: actions.map(r => ({ top: r.top, left: r.left, right: r.right })),
-        hints: hints.map(r => ({ top: r.top, bottom: r.bottom })),
-        label: $('startBtn').textContent,
-        destructive: $('startBtn').classList.contains('danger'),
-        inlineWarning: getComputedStyle($('startBtn'), '::after').content
+        slots: document.querySelectorAll('.slot').length,
+        view: $('titleCard').dataset.view,
+        continueMain: $('continueBtn').classList.contains('main'),
+        info: $('continueInfo').textContent,
+        hints: hints.map(r => ({ top: r.top, bottom: r.bottom }))
       };
     });
-    assert.equal(titleLayout.actions.length, 3);
-    assert(titleLayout.actions[1].top > titleLayout.actions[0].top, 'secondary saved-game actions sit below continue');
-    assert.equal(titleLayout.actions[1].top, titleLayout.actions[2].top, 'new-flight choices share one deliberate row');
-    assert(titleLayout.actions[1].right < titleLayout.actions[2].left, 'new-flight choices do not wrap or overlap');
+    assert.equal(titleLayout.view, 'saves', 'a saved flight opens the title on the saved flights');
+    assert.equal(titleLayout.slots, 1);
+    assert(titleLayout.continueMain, 'continue is the main button');
+    assert(titleLayout.info.includes('bird'), 'continue says what it resumes');
     assert(
       titleLayout.hints.every((r, i, all) => !i || r.top >= all[i - 1].bottom),
       'gameplay hints form separate rows'
     );
-    assert.equal(titleLayout.label, 'Start new flight');
-    assert(titleLayout.destructive, 'starting over is visually marked as destructive');
+    await page.click('#newFlightBtn');
+    assert(await page.locator('#startBtn').isVisible(), 'New flight opens the land to take off on');
     assert(
-      ['none', 'normal'].includes(titleLayout.inlineWarning),
-      'destructive copy is not permanently attached to the button'
+      await page.evaluate(() => !!readSession(curSlot || listSlots()[0].id)),
+      'looking at a new land keeps the save'
     );
-    await page.click('#startBtn');
-    assert(await page.locator('#newFlightOv').isVisible(), 'saved flight opens a confirmation dialog');
-    assert(await page.locator('#titleOv').isHidden(), 'confirmation replaces the title card instead of overlapping it');
-    assert(await page.evaluate(() => !!readSession()), 'opening confirmation preserves the saved flight');
-    await page.click('#cancelNewFlightBtn');
-    assert(await page.locator('#newFlightOv').isHidden(), 'confirmation can be cancelled');
-    assert(await page.locator('#titleOv').isVisible(), 'cancelling restores the title card');
+    await page.click('#landBackBtn');
+    assert(await page.locator('#titleOv').isVisible(), 'Back returns to the saved flights');
     await page.click('#continueBtn');
     const restored = await page.evaluate(() => ({
       seed: SEED,
@@ -529,8 +521,8 @@ const root = path.resolve(__dirname, '..');
     }
     await page.evaluate(() => {
       st.mode = 'title';
-      clearSession();
-      localStorage.setItem(SESSION_KEY, '{broken');
+      localStorage.clear();
+      localStorage.setItem(slotKey('broken'), '{broken');
     });
     await page.reload();
     assert(await page.locator('#continueBtn').isHidden());

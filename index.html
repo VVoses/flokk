@@ -143,7 +143,7 @@
     <div class="goal" id="goalEl" aria-live="polite"></div>
 
     <div class="overlay" id="titleOv">
-      <div class="card">
+      <div class="card" id="titleCard" data-view="land">
         <h1>Flokk</h1>
         <p class="sub">a year with a flock of sparrows</p>
         <ul class="keys" id="keysTxt" aria-label="How to fly">
@@ -151,23 +151,20 @@
           <li>let go to land</li>
           <li>press space to dash</li>
         </ul>
-        <div class="actions">
-          <span id="saveNote" role="status"></span>
-          <button class="btn main" id="continueBtn" hidden>Continue flight</button>
-          <button class="btn main" id="startBtn">Take off</button>
-          <button class="btn" id="newLandBtn">New land</button>
+        <span id="saveNote" role="status"></span>
+        <div class="view view-saves">
+          <div class="slots" id="slotList"></div>
+          <button class="btn" id="newFlightBtn">New flight</button>
         </div>
-        <div class="fine" id="bestTitle"></div>
-      </div>
-    </div>
-
-    <div class="overlay" id="newFlightOv" role="dialog" aria-modal="true" aria-labelledby="newFlightTitle" hidden>
-      <div class="card confirm-card">
-        <h2 id="newFlightTitle">Start a new flight?</h2>
-        <p class="sub">Your current saved flight will be replaced.</p>
-        <div class="actions">
-          <button class="btn main" id="cancelNewFlightBtn">Keep saved flight</button>
-          <button class="btn danger" id="confirmNewFlightBtn">Start new flight</button>
+        <div class="view view-land">
+          <div class="land-name" id="landName"></div>
+          <div class="actions">
+            <button class="btn main" id="startBtn">Take off</button>
+            <button class="btn" id="rerollBtn">Reroll</button>
+            <button class="btn link" id="landBackBtn" hidden>Back</button>
+          </div>
+          <span class="note" id="landNote"></span>
+          <div class="fine" id="bestTitle"></div>
         </div>
       </div>
     </div>
@@ -196,6 +193,7 @@
             <button class="btn main" id="resumeBtn">Resume flight <span aria-hidden="true">↗</span></button>
             <button class="btn" id="pauseSoundBtn" aria-pressed="false">Sound on</button>
             <button class="btn" id="returnTitleBtn">Save &amp; title</button>
+            <button class="btn" id="pauseNewBtn">New land</button>
           </div>
         </div>
         <div class="pause-foot">

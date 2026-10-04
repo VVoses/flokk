@@ -475,6 +475,21 @@ const perches = [],
   PG = new Map(),
   PC = 160;
 const gkey = (x, y, c) => Math.floor(x / c) + ',' + Math.floor(y / c);
+// the perches of one type ('boat', 'bale'), picked out of the forest's worth of perches once, not on every frame.
+// perches is refilled in place for each new land, so a changed count or first perch means a rebuild
+const PTYPE = new Map();
+let PTYPEn = -1,
+  PTYPE0 = null;
+function perchesOfType(type) {
+  if (PTYPEn !== perches.length || PTYPE0 !== perches[0]) {
+    PTYPE.clear();
+    PTYPEn = perches.length;
+    PTYPE0 = perches[0];
+  }
+  let a = PTYPE.get(type);
+  if (!a) PTYPE.set(type, (a = perches.filter(p => p.type === type)));
+  return a;
+}
 function addPerch(x, y, h, type, cover, ang = null, key = y) {
   const p = { x, y, h, type, cover, occ: null, ang, key };
   perches.push(p);
