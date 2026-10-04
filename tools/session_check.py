@@ -44,7 +44,7 @@ with sync_playwright() as playwright:
     assert winter, 'winter feeder exists before saving'
     damaged.reload()
     damaged.click('#continueBtn')
-    assert damaged.evaluate('FEEDER && FEEDER.raidCool === 17'), 'winter feeder state restores after world rebuild'
+    assert damaged.evaluate('FEEDER && FEEDER.raidCool > 10 && FEEDER.raidCool <= 17'), 'winter feeder state restores after world rebuild'
     damaged.evaluate('''() => {
       const snapshot = JSON.parse(localStorage.getItem(SESSION_KEY));
       snapshot.worldSignature = 'wrong-world';
@@ -66,7 +66,7 @@ with sync_playwright() as playwright:
     }''')
     damaged.reload()
     assert damaged.locator('#continueBtn').is_hidden()
-    assert damaged.locator('#startBtn').inner_text() == 'Start new flight'
+    assert damaged.locator('#startBtn').inner_text() == 'New flight'
     damaged.click('#startBtn')
     assert damaged.locator('#newFlightOv').is_visible(), 'replacing a legacy save still requires confirmation'
     assert damaged.evaluate('hasStoredSession()'), 'opening confirmation preserves the legacy save'

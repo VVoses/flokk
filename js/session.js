@@ -44,6 +44,34 @@ function worldSignature() {
   for (let i = 0; i < raw.length; i++) hash = Math.imul(hash ^ raw.charCodeAt(i), 16777619);
   return (reg.sig = (hash >>> 0).toString(16));
 }
+// a one-line description of a save for the title screen: where the flock is in its year
+function sessionSummary() {
+  return {
+    won: st.mode === 'won',
+    year: CAL.year,
+    season: CAL.season,
+    day: (CAL.day % YEAR_DAYS) + 1,
+    birds: birds.length
+  };
+}
+function summaryText(m) {
+  if (!m || !Number.isFinite(m.birds)) return '';
+  const birds = `${m.birds} ${m.birds === 1 ? 'bird' : 'birds'}`,
+    when = m.won ? 'year complete' : `${SEASONS[m.season] || ''} · day ${m.day}`.toLowerCase();
+  return `${when}${m.year > 1 ? ` · year ${m.year}` : ''} · ${birds}`;
+}
+// the title's buttons follow what is saved: Continue (with its summary) takes the main button, and
+// the plain start button then says New flight; with nothing saved it is the main Take off
+function titleButtons() {
+  const saved = readSession(),
+    stored = hasStoredSession();
+  $('continueBtn').hidden = !saved;
+  $('continueInfo').textContent = saved ? summaryText(saved.summary) : '';
+  $('startBtn').textContent = stored ? 'New flight' : 'Take off';
+  $('startBtn').classList.toggle('main', !stored);
+  $('newFlightNote').textContent =
+    `Your saved flight${saved && saved.summary ? ` (${summaryText(saved.summary)})` : ''} will be replaced.`;
+}
 function sessionWarning(message) {
   const warning = $('sessionWarning');
   if (warning) {
@@ -153,6 +181,7 @@ function saveSession() {
       seed: SEED,
       time: CAL.t,
       worldSignature: worldSignature(),
+      summary: sessionSummary(),
       data
     });
     if (raw.length > SESSION_MAX_BYTES) throw new Error('Save exceeds storage limit');
@@ -238,7 +267,15 @@ function restoreSession() {
     initAudio();
     if (master) master.gain.value = muted ? 0 : 0.9;
     if (st.mode === 'won') yearWon();
-    else pause();
+    else {
+      // straight back into flight, with a short calm for the flock to find its wings
+      st.mode = 'play';
+      st.grace = Math.max(st.grace, 6);
+      $('pauseOv').hidden = true;
+      pauseIcon(false);
+      dashBtn.hidden = !coarse;
+      syncHud();
+    }
     return true;
   } catch {
     // Rebuild a clean title world if a stale or damaged snapshot cannot be restored.
@@ -251,6 +288,7 @@ function restoreSession() {
     landLabels();
     st.mode = 'title';
     syncHud();
+    titleButtons();
     $('continueBtn').hidden = true;
     $('saveNote').textContent =
       'That saved flight could not be restored safely. It is still stored; starting a new flight will replace it.';
@@ -273,12 +311,7 @@ function initSession() {
   } catch {
     sessionLastRaw = null;
   }
-  const hasSession = !!readSession(),
-    hasStored = hasStoredSession();
-  $('continueBtn').hidden = !hasSession;
-  $('startBtn').textContent = hasStored ? 'Start new flight' : 'Take off';
-  $('startBtn').classList.toggle('danger', hasStored);
-  $('startBtn').title = '';
+  titleButtons();
   $('continueBtn').onclick = restoreSession;
   window.addEventListener('pagehide', saveSession);
   window.addEventListener('storage', e => {
@@ -286,11 +319,7 @@ function initSession() {
       sessionChangedElsewhere();
     else if (e.key === SESSION_KEY && st.mode === 'title') {
       sessionLastRaw = e.newValue;
-      const available = !!readSession(),
-        stored = !!e.newValue;
-      $('continueBtn').hidden = !available;
-      $('startBtn').textContent = stored ? 'Start new flight' : 'Take off';
-      $('startBtn').classList.toggle('danger', stored);
+      titleButtons();
     }
   });
   document.addEventListener('visibilitychange', () => {
