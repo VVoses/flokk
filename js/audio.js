@@ -239,20 +239,41 @@ function chirp(vol = 0.045, base, x, y) {
   const { pan, d } = spatial(x, y, 380);
   const o = ac.createOscillator(),
     gn = ac.createGain(),
-    f = base || rr(2900, 3900);
+    mix = ac.createGain(),
+    f = (base || rr(2800, 3700)) * rr(0.96, 1.04),
+    dur = rr(0.095, 0.155),
+    peak = rr(1.14, 1.34),
+    fall = rr(0.76, 0.94);
   o.type = 'sine';
-  o.frequency.setValueAtTime(f, t);
-  o.frequency.exponentialRampToValueAtTime(f * 1.35, t + 0.045);
-  o.frequency.exponentialRampToValueAtTime(f * 0.88, t + 0.1);
+  // An uneven upstroke followed by a quicker falling syllable, rather than the same smooth beep
+  // every time. The faint breath at the attack gives the whistle a little throat without hiss.
+  o.frequency.setValueAtTime(f * 0.86, t);
+  o.frequency.exponentialRampToValueAtTime(f * peak, t + dur * 0.36);
+  o.frequency.exponentialRampToValueAtTime(f * fall, t + dur * 0.78);
+  o.frequency.exponentialRampToValueAtTime(f * fall * 0.96, t + dur);
   gn.gain.setValueAtTime(0, t);
-  gn.gain.linearRampToValueAtTime(vol * (1 - 0.35 * d), t + 0.01);
-  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-  o.connect(gn);
-  const p = panned(gn, pan);
+  gn.gain.linearRampToValueAtTime(vol * (1 - 0.35 * d), t + 0.008);
+  gn.gain.setValueAtTime(vol * (1 - 0.35 * d) * 0.75, t + dur * 0.38);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(gn).connect(mix);
+  const p = panned(mix, pan);
   p.connect(master);
   if (d > 0.15) p.connect(verb);
   o.start(t);
-  o.stop(t + 0.13);
+  o.stop(t + dur + 0.01);
+  const breath = ac.createBufferSource(),
+    air = ac.createBiquadFilter(),
+    bg = ac.createGain();
+  breath.buffer = amb.noise;
+  air.type = 'bandpass';
+  air.frequency.value = f * 0.9;
+  air.Q.value = 1.3;
+  bg.gain.setValueAtTime(0, t);
+  bg.gain.linearRampToValueAtTime(vol * 0.09 * (1 - d * 0.5), t + 0.005);
+  bg.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.65);
+  breath.connect(air).connect(bg).connect(mix);
+  breath.start(t, rr(0, 3));
+  breath.stop(t + dur);
 }
 function hawkCry(x, y) {
   if (!ac || muted) return;
@@ -318,29 +339,31 @@ function whooshMiss(x, y) {
 function flutter(n, x, y) {
   if (!ac || muted) return;
   const t = ac.currentTime;
-  const { pan } = spatial(x, y, 550);
+  const { pan, d } = spatial(x, y, 550);
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
   const f = ac.createBiquadFilter();
   f.type = 'bandpass';
-  f.frequency.value = 700;
-  f.Q.value = 0.7;
+  f.frequency.value = rr(550, 760);
+  f.Q.value = 0.55;
   const gn = ac.createGain();
-  const v = 0.03 + 0.07 * Math.min(1, n / 25);
+  const v = (0.018 + 0.043 * Math.min(1, n / 25)) * (1 - 0.5 * d),
+    beats = Math.min(6, 3 + Math.floor(n / 10));
   gn.gain.setValueAtTime(0, t);
-  gn.gain.linearRampToValueAtTime(v, t + 0.04);
-  gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
-  const am = ac.createOscillator(),
-    ag = ac.createGain();
-  am.frequency.value = 18;
-  ag.gain.value = v * 0.6;
-  am.connect(ag).connect(gn.gain);
-  am.start(t);
-  am.stop(t + 0.46);
+  let at = t + 0.012;
+  for (let i = 0; i < beats; i++) {
+    const strength = v * rr(0.65, 1) * (1 - i * 0.08);
+    gn.gain.linearRampToValueAtTime(strength, at + 0.025);
+    gn.gain.exponentialRampToValueAtTime(0.0001, at + 0.075);
+    at += rr(0.09, 0.115);
+    gn.gain.setValueAtTime(0.0001, at);
+  }
   s.connect(f).connect(gn);
-  panned(gn, pan).connect(master);
+  const p = panned(gn, pan);
+  p.connect(master);
+  if (d > 0.2) p.connect(verb);
   s.start(t, Math.random() * 3);
-  s.stop(t + 0.46);
+  s.stop(at + 0.01);
 }
 // kind colors what took the bird: a hawk's kill has a sharp cry over it, an owl's is muffled and
 // lower (a night kill, heard more than seen), a fox's has no aerial cry at all - just the ground
@@ -490,11 +513,15 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
 function joinSnd() {
   if (!ac || muted) return;
   lastChirp = 0;
-  chirp(0.05, 2600);
-  setTimeout(() => {
-    lastChirp = 0;
-    chirp(0.05, 3400);
-  }, 90);
+  flutter(5, L && L.x, L && L.y);
+  chirp(0.036, rr(2800, 3300));
+  setTimeout(
+    () => {
+      lastChirp = 0;
+      chirp(0.029, rr(3000, 3700));
+    },
+    rr(85, 135)
+  );
 }
 /* ambient one-shots */
 function cricket() {
