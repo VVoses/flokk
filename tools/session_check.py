@@ -10,6 +10,7 @@ with sync_playwright() as playwright:
     first = context.new_page()
     first.goto(URL)
     first.click('#startBtn')
+    first.wait_for_function("st.mode === 'play' && !MENU_JOB")
     original = first.evaluate('''() => {
       st.mode = 'pause'; saveSession();
       return JSON.parse(localStorage.getItem(slotKey(listSlots()[0].id))).worldSignature;
@@ -18,6 +19,7 @@ with sync_playwright() as playwright:
     second = context.new_page()
     second.goto(URL)
     second.click('#continueBtn')
+    second.wait_for_function("st.mode === 'play' && !MENU_JOB")
     second.evaluate('''() => {st.energy = 0.81; saveSession();}''')
     first.wait_for_function('sessionConflict')
     newer = second.evaluate('localStorage.getItem(slotKey(listSlots()[0].id))')
@@ -34,6 +36,7 @@ with sync_playwright() as playwright:
     damaged = damaged_context.new_page()
     damaged.goto(URL)
     damaged.click('#startBtn')
+    damaged.wait_for_function("st.mode === 'play' && !MENU_JOB")
     winter = damaged.evaluate('''() => {
       dev.season(3, 12);
       if (!FEEDER) return false;
@@ -44,6 +47,7 @@ with sync_playwright() as playwright:
     assert winter, 'winter feeder exists before saving'
     damaged.reload()
     damaged.click('#continueBtn')
+    damaged.wait_for_function("st.mode === 'play' && !MENU_JOB")
     assert damaged.evaluate('FEEDER && FEEDER.raidCool > 10 && FEEDER.raidCool <= 17'), 'winter feeder state restores after world rebuild'
     damaged.evaluate('''() => {
       const snapshot = JSON.parse(localStorage.getItem(slotKey(listSlots()[0].id)));
@@ -52,6 +56,7 @@ with sync_playwright() as playwright:
     }''')
     damaged.reload()
     damaged.click('#continueBtn')
+    damaged.wait_for_function("!MENU_JOB && $('saveNote').textContent.includes('could not be restored safely')")
     mismatch = damaged.evaluate('''() => ({
       stored: listSlots().length === 1,
       note: $('saveNote').textContent,
@@ -65,10 +70,12 @@ with sync_playwright() as playwright:
       localStorage.setItem(slotKey(listSlots()[0].id), JSON.stringify(snapshot));
     }''')
     damaged.reload()
+    damaged.wait_for_function('!MENU_JOB')
     assert damaged.locator('#continueBtn').is_hidden(), 'an unreadable save cannot be continued'
     assert damaged.locator('.slot').count() == 1, 'but it stays listed so it can be deleted'
     damaged.click('#newFlightBtn')
     damaged.click('#startBtn')
+    damaged.wait_for_function("st.mode === 'play' && !MENU_JOB")
     damaged.evaluate('saveSession()')
     assert damaged.evaluate('listSlots().length') == 2, 'a new flight never replaces an unreadable save'
     damaged_context.close()
@@ -77,6 +84,7 @@ with sync_playwright() as playwright:
     blocked = blocked_context.new_page()
     blocked.goto(URL)
     blocked.click('#startBtn')
+    blocked.wait_for_function("st.mode === 'play' && !MENU_JOB")
     warning = blocked.evaluate('''() => {
       const original = Storage.prototype.setItem;
       Storage.prototype.setItem = () => {throw new DOMException('Full', 'QuotaExceededError');};

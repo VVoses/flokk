@@ -159,6 +159,8 @@ meter names, and keep sound/pause touch targets at least 44px. Optional mileston
 
 Open-water surface rendering runs once per frame across the wrapped viewport. CPU and GPU wave phase
 use the camera’s unwrapped coordinate (`cam.x + WX`) so neighbouring copies and recentering agree.
+Phase distortion stays below half the longest wave’s base slope, preventing crests from flattening
+into diagonal gaps. Wave groups keep a stronger baseline of ripples between their peaks.
 Gust foam samples the same travelling wind field as vegetation, fades in stronger wind, and disappears
 in calm or frozen water. `water_check.py` covers phase continuity, both renderers and foam suppression.
 
