@@ -170,9 +170,11 @@ Before a change lands, it should pass these:
 
 This document is about the world seen through the canvas. The interface lives in `index.html` and
 `css/flokk.css`: the in-flight HUD stays light, uses text-shadow over the world and disables pointer events
-outside its controls. Title, pause and result screens deliberately use scrims or contained cards for legibility
-over snow and busy forest. Keep ambient hints and captions quiet; make actionable controls clear and reachable
-on both desktop and touch screens. The same "nothing sits on top of the world" instinct from Pillar 2 applies
+outside its controls. Title, pause and result screens share framed forest-green panels, soft borders,
+rectangular actions and a blurred world behind them. Desktop layouts put the summary beside the actions;
+phone layouts stack them. Saved flights have a dedicated area and flying hints remain a vertical list.
+Keep ambient hints and captions quiet; make actionable controls clear and reachable on both desktop and
+touch screens. The same "nothing sits on top of the world" instinct from Pillar 2 applies
 to gameplay effects, while menus are allowed enough surface to be read and used.
 
 ## Tried and removed

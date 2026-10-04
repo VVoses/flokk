@@ -143,41 +143,59 @@
     <div class="goal" id="goalEl" aria-live="polite"></div>
 
     <div class="overlay" id="titleOv">
-      <div class="card" id="titleCard" data-view="land">
-        <h1>Flokk</h1>
-        <p class="sub">a year with a flock of sparrows</p>
-        <ul class="keys" id="keysTxt" aria-label="How to fly">
-          <li>hold the mouse or arrow keys to fly</li>
-          <li>let go to land</li>
-          <li>press space to dash</li>
-        </ul>
-        <span id="saveNote" role="status"></span>
-        <div class="view view-saves">
-          <div class="slots" id="slotList"></div>
-          <button class="btn" id="newFlightBtn">New flight</button>
-        </div>
-        <div class="view view-land">
-          <div class="land-name" id="landName"></div>
-          <div class="actions">
-            <button class="btn main" id="startBtn">Take off</button>
-            <button class="btn" id="rerollBtn">Reroll</button>
-            <button class="btn link" id="landBackBtn" hidden>Back</button>
+      <div class="pause-panel screen-panel title-panel" id="titleCard" data-view="land">
+        <div class="pause-topline"><span>a year on the wing</span><span>Flokk</span></div>
+        <div class="title-main">
+          <div class="title-summary">
+            <h1>Flokk</h1>
+            <p class="sub">a year with a flock of sparrows</p>
+            <ul class="keys" id="keysTxt" aria-label="How to fly">
+              <li>hold the mouse or arrow keys to fly</li>
+              <li>let go to land</li>
+              <li>press space to dash</li>
+            </ul>
           </div>
-          <span class="note" id="landNote"></span>
-          <div class="fine" id="bestTitle"></div>
+          <div class="title-flight">
+            <div class="view view-saves">
+              <span class="screen-label">Your flights</span>
+              <div class="slots" id="slotList"></div>
+              <button class="btn" id="newFlightBtn">New flight <span aria-hidden="true">＋</span></button>
+            </div>
+            <div class="view view-land">
+              <span class="screen-label">Explore this land</span>
+              <div class="land-name" id="landName"></div>
+              <div class="actions">
+                <button class="btn main" id="startBtn">Take off</button>
+                <button class="btn" id="rerollBtn">Reroll</button>
+                <button class="btn link" id="landBackBtn" hidden>Back</button>
+              </div>
+              <span class="note" id="landNote"></span>
+              <div class="fine" id="bestTitle"></div>
+            </div>
+          </div>
+        </div>
+        <div class="pause-foot">
+          <span>forage · roost · stay together</span><span id="saveNote" role="status"></span>
         </div>
       </div>
     </div>
 
     <div class="overlay" id="wonOv" hidden>
-      <div class="card">
-        <h2 id="wonTitle">A year</h2>
-        <p class="sub" id="wonSub">the flock made it through</p>
-        <div class="stats" id="wonStats"></div>
-        <div class="actions">
-          <button class="btn main" id="keepBtn">Keep flying</button><button class="btn" id="wonNewBtn">New land</button>
+      <div class="pause-panel screen-panel end-panel">
+        <div class="pause-topline"><span>a year together</span><span>Flokk</span></div>
+        <div class="pause-main">
+          <div class="pause-summary">
+            <h2 id="wonTitle">A year</h2>
+            <p class="sub" id="wonSub">the flock made it through</p>
+            <div class="stats" id="wonStats"></div>
+          </div>
+          <div class="pause-actions end-actions">
+            <button class="btn main" id="keepBtn">Keep flying <span aria-hidden="true">↗</span></button>
+            <button class="btn" id="wonNewBtn">New land</button>
+            <button class="btn share" id="shareBtn" aria-live="polite">Share flight</button>
+          </div>
         </div>
-        <button class="btn share" id="shareBtn" aria-live="polite">Share</button>
+        <div class="pause-foot"><span>another spring awaits</span><span>your flock flies on</span></div>
       </div>
     </div>
 
@@ -204,12 +222,19 @@
     </div>
 
     <div class="overlay" id="overOv" hidden>
-      <div class="card">
-        <h2 id="overTitle">Taken</h2>
-        <div class="stats" id="overStats"></div>
-        <div class="actions">
-          <button class="btn main" id="againBtn">Fly again</button><button class="btn" id="overNewBtn">New land</button>
+      <div class="pause-panel screen-panel end-panel">
+        <div class="pause-topline"><span>flight ended</span><span>Flokk</span></div>
+        <div class="pause-main">
+          <div class="pause-summary">
+            <h2 id="overTitle">Taken</h2>
+            <div class="stats" id="overStats"></div>
+          </div>
+          <div class="pause-actions end-actions">
+            <button class="btn main" id="againBtn">Fly again <span aria-hidden="true">↗</span></button>
+            <button class="btn" id="overNewBtn">New land</button>
+          </div>
         </div>
+        <div class="pause-foot"><span>a new flight begins in spring</span><span>six sparrows, a fresh start</span></div>
       </div>
     </div>
 
