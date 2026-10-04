@@ -1867,7 +1867,7 @@ function render() {
     ctx.strokeStyle = LIGHT.rim > 0.05 ? mixHex('#E8F4EE', LIGHT.eve ? '#FFB060' : '#FFCDA8', LIGHT.rim) : '#E8F4EE';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
-    drawWaterMood(ctx);
+    if (k === 0) drawWaterMood(ctx);
     if (STREAM)
       for (const rock of STREAM.rocks)
         if (rock.source && visG(rock.x, rock.y, 20)) paintStreamRock(ctx, rock, winterW() > 0.5, true);
@@ -1886,8 +1886,11 @@ function render() {
         ctx.lineTo(s.x + s.l / 2, s.y);
         ctx.stroke();
       }
-      drawWaves(ctx);
-      drawSwash(ctx);
+      if (k === 0) {
+        drawWaves(ctx);
+        drawSwash(ctx);
+        drawGustFoam(ctx);
+      }
     }
     {
       const sc = ctx.strokeStyle;

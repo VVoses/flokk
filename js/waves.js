@@ -97,6 +97,8 @@ function waveState() {
 }
 // the water freezes with the winter transition: the waves fade out as it goes, not at one instant
 const waveFreeze = () => 1 - smooth(0.2, 0.5, winterW());
+// Follow the unwrapped camera frame: neighbouring world copies and recentering share one phase.
+const waveX = x => cam.x + WX + wdx(x, cam.x);
 function drawWaves(ctx) {
   const wf = waveFreeze();
   if (wf < 0.02) return;
@@ -143,6 +145,7 @@ function drawWaves(ctx) {
       const lx = ix0 + ci * B,
         ly = Math.min(ny - 1, iy0 + cj * B),
         x = lx * LX,
+        phaseX = waveX(x),
         y = y0 + ly * LY,
         ni = (((lx % nx) + nx) % nx) + ly * nx;
       let w = ws[ni];
@@ -172,14 +175,16 @@ function drawWaves(ctx) {
       if (glm) continue;
       // the phase warp that keeps crests from lying straight, and the wave-group envelopes of each train
       wpc[cj * cw + ci] =
-        3.2 * Math.sin(x * 0.0091 + y * 0.0127 + T * 0.07) +
-        1.5 * Math.sin(x * 0.021 - y * 0.017 - T * 0.11) +
-        0.8 * Math.sin(x * 0.043 + y * 0.037 + T * 0.14);
+        3.2 * Math.sin(phaseX * 0.0091 + y * 0.0127 + T * 0.07) +
+        1.5 * Math.sin(phaseX * 0.021 - y * 0.017 - T * 0.11) +
+        0.8 * Math.sin(phaseX * 0.043 + y * 0.037 + T * 0.14);
       for (let t = 0; t < 2; t++) {
         const gk = t ? 0.023 : 0.0151;
         (t ? g1c : g0c)[cj * cw + ci] =
-          (0.5 + 0.5 * Math.sin((x * gs - y * gc) * gk + 1.3 + 2.1 * t + 0.9 * Math.sin(T * 0.02 + x * 0.004 + t))) *
-          (0.55 + 0.45 * Math.sin((x * gc + y * gs) * 0.011 - T * 0.04 * (1 + t) + 4.1 * t));
+          (0.5 +
+            0.5 *
+              Math.sin((phaseX * gs - y * gc) * gk + 1.3 + 2.1 * t + 0.9 * Math.sin(T * 0.02 + phaseX * 0.004 + t))) *
+          (0.55 + 0.45 * Math.sin((phaseX * gc + y * gs) * 0.011 - T * 0.04 * (1 + t) + 4.1 * t));
       }
     }
   let top = 0;
@@ -229,7 +234,7 @@ function drawWaves(ctx) {
       }
       // the phase is defined everywhere; only the amplitude is held to the water
       for (let t = 0; t < 2; t++)
-        ph[t][o] = (TR[t].kx * (x - ox) + TR[t].ky * (y - oy) - TR[t].om * WV.tw + warp * (1 + 0.5 * t)) / TAU;
+        ph[t][o] = (TR[t].kx * (waveX(x) - ox) + TR[t].ky * (y - oy) - TR[t].om * WV.tw + warp * (1 + 0.5 * t)) / TAU;
       const ni = (((lx % nx) + nx) % nx) + ly * nx;
       let w = ws[ni];
       if (w < 0) w = ws[ni] = waveDepth(x, y);
@@ -312,7 +317,10 @@ function drawWaves(ctx) {
           y = y0 + (iy0 + j) * LY,
           // foam patches drift over the crests as slowly changing noise; strength is the wave's height times the patch
           pf =
-            0.5 + 0.5 * Math.sin(x * 0.052 + y * 0.037 + tw * 0.15) * Math.sin(x * 0.031 - y * 0.047 - tw * 0.1 + 1.7),
+            0.5 +
+            0.5 *
+              Math.sin(waveX(x) * 0.052 + y * 0.037 + tw * 0.15) *
+              Math.sin(waveX(x) * 0.031 - y * 0.047 - tw * 0.1 + 1.7),
           f = am * (0.35 + 0.9 * pf);
         if (f < thr) continue;
         const tier = f > thr + 0.5 ? 2 : f > thr + 0.22 ? 1 : 0;
@@ -331,7 +339,7 @@ function drawWaves(ctx) {
             cap[tier].moveTo(p[0], p[1]);
             cap[tier].lineTo(q[0], q[1]);
             // a trailing streak from some points along the crest, picked by where they lie so they keep to the crest
-            const g = Math.sin(p[0] * 0.37 + p[1] * 0.53);
+            const g = Math.sin(waveX(p[0]) * 0.37 + p[1] * 0.53);
             if (g > 0.82) {
               const u = 0.4 + 0.6 * (g - 0.82),
                 st = streak[0];
@@ -418,8 +426,8 @@ function drawWaterMood(ctx) {
     [LAKE, lakeR],
     [POND, pondR]
   ]) {
-    if (c.x < -1000 || !visG(c.x, c.y, c.r * 1.4)) continue;
-    blobPath(ctx, c.x, c.y, rf, -2, 90);
+    if (c.x < -1000 || Math.abs(wdx(c.x, (V.x0 + V.x1) / 2)) > c.r * 1.4 + (V.x1 - V.x0) / 2) continue;
+    blobPath(ctx, c.x + Math.round(((V.x0 + V.x1) / 2 - c.x) / W) * W, c.y, rf, -2, 90);
     ctx.fill();
   }
   if (V.py1 / TILT > H - 400) {
@@ -441,7 +449,11 @@ function drawWaterMood(ctx) {
         fade = Math.sin(Math.PI * Math.min(1, ph * 1.15));
       ctx.beginPath();
       for (let x = x0; x <= V.x1 + 36; x += 14) {
-        const y = shoreY(x) + off + 5 * Math.sin(x * 0.021 + T * 0.4 + b * 2.3) + 3 * Math.sin(x * 0.07 - T * 0.7);
+        const y =
+          shoreY(x) +
+          off +
+          5 * Math.sin(waveX(x) * 0.021 + T * 0.4 + b * 2.3) +
+          3 * Math.sin(waveX(x) * 0.07 - T * 0.7);
         x === x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       }
       ctx.strokeStyle = '#E8F4EE';
@@ -472,6 +484,7 @@ uniform vec2 PD[8];
 uniform vec4 xf;
 uniform vec4 ti;
 uniform vec2 org;
+uniform vec2 frame;
 uniform vec4 st;
 uniform vec3 mix3;
 uniform sampler2D tex;
@@ -487,6 +500,7 @@ void main() {
   vec2 uv = vec2((((p.x / LX - ti.x) / mix3.z) + 0.5) / ti.y, ((((p.y - Y0) / LY - ti.z) / mix3.z) + 0.5) / ti.w);
   float R = texture(tex, uv).r * 1.4;
   if (R < 0.01) discard;
+  p.x = frame.y + mod(p.x - frame.x + ${(W / 2).toFixed(1)}, ${W.toFixed(1)}) - ${(W / 2).toFixed(1)};
   vec2 q = p - org;
   float T = st.z, tw = st.y, sm = st.x;
   float a1 = p.x * 0.0091 + p.y * 0.0127 + T * 0.07, a2 = p.x * 0.021 - p.y * 0.017 + T * 0.11, a3 = p.x * 0.043 + p.y * 0.037 + T * 0.14;
@@ -567,7 +581,7 @@ function waveGLInit() {
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     G.prog = p;
-    for (const n of ['W', 'PD', 'xf', 'ti', 'org', 'st', 'mix3', 'tex']) G.u[n] = gl.getUniformLocation(p, n);
+    for (const n of ['W', 'PD', 'xf', 'ti', 'org', 'frame', 'st', 'mix3', 'tex']) G.u[n] = gl.getUniformLocation(p, n);
   } catch (e) {
     console.warn('Flokk: GPU waves unavailable, drawing them on the 2D canvas', e);
     return null;
@@ -665,6 +679,7 @@ function waveShader(ctx, gl, o) {
   gl.uniform4f(G.u.xf, m.a * rx, m.d * ry, m.e * rx, m.f * ry);
   gl.uniform4f(G.u.ti, o.ix0, o.texW, o.iy0, o.texH);
   gl.uniform2f(G.u.org, ox, oy);
+  gl.uniform2f(G.u.frame, cam.x, cam.x + WX);
   gl.uniform4f(G.u.st, sm, WV.tw, T, c.height);
   gl.uniform3f(G.u.mix3, o.dim, smooth(0.65, 1.05, sm), o.st);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -722,6 +737,7 @@ function waveAt(x, y) {
   R = waveLevel(R) * w * wf;
   if (R < 0.01) return WS;
   WS.r = R;
+  x = waveX(x);
   const th = WV.th,
     T_ = T,
     a1 = x * 0.0091 + y * 0.0127 + T_ * 0.07,
@@ -955,4 +971,37 @@ function drawSwash(ctx) {
   ctx.globalAlpha = 0.2 * dim;
   ctx.stroke(soft);
   ctx.restore();
+}
+
+// The same travelling gusts that silver the fields leave a little wind-combed foam on open water.
+function drawGustFoam(c) {
+  const fade = waveFreeze() * smooth(0.25, 0.9, WEATHER.s) * (1 - 0.65 * LIGHT.night);
+  if (fade < 0.01) return;
+  c.save();
+  c.strokeStyle = '#D9E9E2';
+  c.lineWidth = 1.1;
+  c.lineCap = 'round';
+  const x0 = Math.floor(V.x0 / 40) * 40,
+    y0 = Math.max(WV.y0, Math.floor(V.py0 / TILT / 32) * 32);
+  for (let gy = y0; gy < V.py1 / TILT + 32; gy += 32)
+    for (let gx = x0; gx < V.x1 + 40; gx += 40) {
+      const px = waveX(gx),
+        h = hash2(px | 0, gy),
+        x = gx + (h - 0.5) * 28,
+        y = gy + (hash2(gy, px | 0) - 0.5) * 20,
+        depth = waveDepth(x, y);
+      if (depth < 0.15) continue;
+      const strength = smooth(0.32, 1.0, gustAt(x, y)) * (0.35 + 0.65 * smooth(-0.1, 0.6, windWave(x, y))),
+        alpha = 0.14 * fade * depth * strength;
+      if (alpha < 0.008) continue;
+      const len = 5 + 11 * h,
+        dx = WEATHER.gc * len,
+        dy = WEATHER.gs * len;
+      c.globalAlpha = alpha;
+      c.beginPath();
+      c.moveTo(x - dx * 0.5, y - dy * 0.5);
+      c.quadraticCurveTo(x - WEATHER.gs * 2, y + WEATHER.gc * 2, x + dx * 0.5, y + dy * 0.5);
+      c.stroke();
+    }
+  c.restore();
 }

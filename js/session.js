@@ -407,7 +407,7 @@ function renderSlots(rows) {
     );
     go.append(title, info);
     go.disabled = !r.ok;
-    go.onclick = () => restoreSession(r.id);
+    go.onclick = () => runMenuJob(go, 'Restoring your flight…', () => restoreSession(r.id));
     del.className = 'btn link slot-del';
     del.textContent = '×';
     const identity =

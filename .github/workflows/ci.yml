@@ -65,6 +65,12 @@ jobs:
       - name: keyboard, modal and narrow-screen menu accessibility
         run: python3 tools/menu_check.py
 
+      - name: loading feedback and touch HUD
+        run: python3 tools/loading_hud_check.py
+
+      - name: continuous water and gust foam
+        run: python3 tools/water_check.py
+
       - name: upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -74,6 +80,8 @@ jobs:
             tools/out/*.png
             tools/out/visual-smoke/*.png
             tools/out/menu-ux/*.png
+            tools/out/loading-hud/*.png
+            tools/out/water/*.png
           if-no-files-found: ignore
 
   # How each element of the land animates through every season change and every dawn and dusk (DESIGN.md pillar 3:
