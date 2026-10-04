@@ -62,6 +62,7 @@ def run(p, checkout):
         pg.evaluate("genWorld(99001);landLabels()")
         pg.click("#startBtn")
         pg.wait_for_timeout(300)
+        pg.evaluate("muted = true")  # a chirp is gated on the audio clock, which is real time: it would let two runs drift apart
         pg.evaluate(SEED)
         out[name] = shoot(pg, js, args.steps)
         pg.close()
