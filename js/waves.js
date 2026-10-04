@@ -795,3 +795,142 @@ function drawLilies(ctx) {
   }
   ctx.restore();
 }
+
+/* ---- the swash: water running up the shore and draining back ----
+   Along the edge of the lake, the pond and the fjord shore, each wave that arrives pushes the waterline a little way inland
+   and it slides back. The run-up at a point is the height of the real wave a short way off the shore (waveAt), so it comes in
+   sets with the wind and the sea state, and a calm day only laps. A band of wet ground is left behind where the water has
+   been and dries slowly, a thin line of foam rides the front, and nothing is drawn but a ribbon along the shore points that are
+   in view, so it costs a few hundred wave samples a frame. */
+const SWASH = { key: null, lake: null, pond: null, sea: null, N: 180, SEA_STEP: 24 };
+function swashPts(c, rf) {
+  const N = SWASH.N,
+    P = { x: new Float32Array(N), y: new Float32Array(N), nx: new Float32Array(N), ny: new Float32Array(N) };
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * TAU,
+      r = rf(a);
+    P.x[i] = c.x + Math.cos(a) * r;
+    P.y[i] = c.y + Math.sin(a) * r;
+    P.nx[i] = Math.cos(a); // inland is away from the water's centre
+    P.ny[i] = Math.sin(a);
+  }
+  P.ext = new Float32Array(N);
+  P.tl = new Float32Array(N).fill(-9);
+  P.N = N;
+  return P;
+}
+// the swash along one shore, given a way to get the i-th point (pt), whether it's visible, and where its memory lives
+function swashRun(ctx, S, n, step, ptAt, wet, front, soft) {
+  let any = false,
+    prev = null;
+  for (let i = 0; i < n; i++) {
+    const p = ptAt(i);
+    if (!p || !visG(p.x, p.y, 40)) {
+      prev = null;
+      continue;
+    }
+    const k = p.k,
+      dtl = T - S.tl[k];
+    if (dtl <= 0 || dtl > 30) S.ext[k] = dtl > 30 ? 0 : S.ext[k];
+    else S.ext[k] *= Math.exp(-dtl / 7); // the wet ground dries
+    S.tl[k] = T;
+    const w = waveAt(p.x - p.nx * 30, p.y - p.ny * 30),
+      calm = smooth(0.1, 0.4, WV.sm),
+      d = Math.min(12, (0.5 * calm + 4 * Math.max(0, w.h)) * (0.7 + 0.3 * Math.sin(p.x * 0.11 + T * 0.4)));
+    if (d > S.ext[k]) S.ext[k] = d;
+    const e = S.ext[k],
+      qx = p.x + p.nx * d,
+      qy = p.y + p.ny * d,
+      ex = p.x + p.nx * e,
+      ey = p.y + p.ny * e;
+    if (prev) {
+      wet.moveTo(prev.x, prev.y);
+      wet.lineTo(p.x, p.y);
+      wet.lineTo(ex, ey);
+      wet.lineTo(prev.ex, prev.ey);
+      wet.closePath();
+      // foam rides the front while it is advancing, thinner as it slips back
+      const f = d > e * 0.8 && d > 0.8 ? front : soft;
+      f.moveTo(prev.qx, prev.qy);
+      f.lineTo(qx, qy);
+      any = true;
+    }
+    prev = { x: p.x, y: p.y, qx, qy, ex, ey };
+  }
+  return any;
+}
+function drawSwash(ctx) {
+  const wf = waveFreeze();
+  if (wf < 0.02 || !WV.init) return;
+  const key = NS + ':' + LAKE.x + ':' + POND.x;
+  if (SWASH.key !== key) {
+    SWASH.key = key;
+    SWASH.lake = LAKE.x > -1000 ? swashPts(LAKE, lakeR) : null;
+    SWASH.pond = POND.x > 0 ? swashPts(POND, pondR) : null;
+    const M = Math.ceil(W / SWASH.SEA_STEP);
+    SWASH.sea = { ext: new Float32Array(M), tl: new Float32Array(M).fill(-9), M };
+  }
+  const wet = new Path2D(),
+    front = new Path2D(),
+    soft = new Path2D();
+  let any = false;
+  for (const [P, c] of [
+    [SWASH.lake, LAKE],
+    [SWASH.pond, POND]
+  ]) {
+    if (!P || Math.abs(wdx(c.x, (V.x0 + V.x1) / 2)) > c.r * 1.5 + (V.x1 - V.x0) / 2 + 60) continue;
+    // the lake outline is drawn in the world copy the view sits in
+    const sh = Math.round(((V.x0 + V.x1) / 2 - c.x) / W) * W;
+    any =
+      swashRun(
+        ctx,
+        P,
+        P.N + 1,
+        1,
+        i => {
+          const j = i % P.N;
+          return { x: P.x[j] + sh, y: P.y[j], nx: P.nx[j], ny: P.ny[j], k: j };
+        },
+        wet,
+        front,
+        soft
+      ) || any;
+  }
+  // the fjord shore south of the land: a line of points under the view
+  const S = SWASH.sea,
+    st = SWASH.SEA_STEP,
+    i0 = Math.floor(V.x0 / st) - 1,
+    n = Math.ceil((V.x1 - V.x0) / st) + 3;
+  any =
+    swashRun(
+      ctx,
+      S,
+      n,
+      st,
+      i => {
+        const gx = (i0 + i) * st;
+        return { x: gx, y: shoreY(gx), nx: 0, ny: -1, k: (((i0 + i) % S.M) + S.M) % S.M };
+      },
+      wet,
+      front,
+      soft
+    ) || any;
+  if (!any) return;
+  const dim = (1 - 0.45 * LIGHT.night) * wf;
+  ctx.save();
+  ctx.fillStyle = '#2A3A2E';
+  ctx.globalAlpha = 0.26 * dim;
+  ctx.fill(wet);
+  ctx.strokeStyle = '#E4EFEA';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3.4;
+  ctx.globalAlpha = 0.08 * dim;
+  ctx.stroke(front);
+  ctx.lineWidth = 1.3;
+  ctx.globalAlpha = 0.55 * dim;
+  ctx.stroke(front);
+  ctx.globalAlpha = 0.2 * dim;
+  ctx.stroke(soft);
+  ctx.restore();
+}

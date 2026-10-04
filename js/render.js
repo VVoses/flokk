@@ -1852,6 +1852,7 @@ function render() {
         ctx.stroke();
       }
       drawWaves(ctx);
+      drawSwash(ctx);
     }
     {
       const sc = ctx.strokeStyle;
