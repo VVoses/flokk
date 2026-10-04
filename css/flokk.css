@@ -1186,17 +1186,22 @@ kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 25px;
-  min-height: 25px;
+  min-width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
   box-sizing: border-box;
   padding: 3px 7px;
-  font: inherit;
-  font-size: 11px;
-  line-height: 1;
+  font:
+    500 12px/1 system-ui,
+    sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: none;
+  vertical-align: middle;
   color: var(--ink);
   background: rgba(246, 243, 234, 0.09);
   border: 1px solid rgba(246, 243, 234, 0.35);
-  border-bottom-width: 3px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
   border-radius: 5px;
   white-space: nowrap;
 }
@@ -1223,11 +1228,21 @@ kbd {
   align-items: center;
   gap: 5px;
 }
-#pauseControls kbd {
-  font-size: 10px;
-  min-height: 23px;
-  min-width: 22px;
-  padding: 3px 5px;
+#pauseControls .control-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+#pauseControls:has(kbd) {
+  column-gap: 16px;
+  row-gap: 10px;
+}
+.key-group kbd {
+  width: 28px;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  font-size: 17px;
 }
 
 /* Compact status corners leave the flight visible on phones. Keep names available to readers. */
@@ -1307,4 +1322,12 @@ kbd {
     width: 44px;
     height: 44px;
   }
+}
+.pause-foot:has(#pauseControls kbd) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.pause-foot:has(#pauseControls kbd) #pauseSaveNote {
+  text-align: left;
 }
