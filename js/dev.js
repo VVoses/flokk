@@ -72,6 +72,14 @@ window.dev = {
     h.y = L.y - 200;
     return h;
   },
+  // a stress flock: n birds in all, and h hawks and o owls on the wing round it
+  crowd(n = 80, h = 3, o = 2) {
+    st.grace = 0;
+    while (birds.length < n) birds.push(newBird(L.x + rr(-60, 60), L.y + rr(-60, 60)));
+    hawks = [];
+    for (let i = 0; i < h; i++) spawnHawk('hawk');
+    for (let i = 0; i < o; i++) spawnHawk('owl');
+  },
   // land the flock on open ground where it is
   land() {
     st.settleCool = 0;
