@@ -62,6 +62,9 @@ jobs:
       - name: full flow (title, play, pause, game over, full year, resize, night, phone)
         run: python3 tools/flows.py
 
+      - name: keyboard, modal and narrow-screen menu accessibility
+        run: python3 tools/menu_check.py
+
       - name: upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -70,6 +73,7 @@ jobs:
           path: |
             tools/out/*.png
             tools/out/visual-smoke/*.png
+            tools/out/menu-ux/*.png
           if-no-files-found: ignore
 
   # How each element of the land animates through every season change and every dawn and dusk (DESIGN.md pillar 3:

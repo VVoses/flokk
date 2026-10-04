@@ -1055,3 +1055,89 @@ body.no-hud .hud {
     animation-duration: 4s;
   }
 }
+
+/* Menus remain usable with keyboard focus, touch, enlarged text and high contrast. */
+.screen-panel .btn,
+.pause-panel .btn {
+  min-height: 44px;
+}
+.title-flight .slot-del {
+  min-width: 44px;
+  padding: 8px;
+  font-size: 22px;
+}
+.title-flight .slot-go {
+  overflow-wrap: anywhere;
+}
+.pause-foot {
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+.title-summary .keys {
+  font-size: 13px;
+}
+.btn:focus-visible,
+.ib:focus-visible,
+.dash:focus-visible,
+#game:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+#confirmOv {
+  z-index: 5;
+  background: rgba(7, 15, 12, 0.68);
+}
+.confirm-panel {
+  width: min(100%, 430px);
+}
+.confirm-panel h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 300;
+  line-height: 1.2;
+}
+.confirm-panel p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 18px 0 25px;
+}
+.confirm-panel .actions {
+  justify-content: flex-end;
+}
+#shareFallback {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 110px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+@media (max-width: 560px) {
+  .confirm-panel .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .end-actions #shareNote,
+  .end-actions #shareFallback {
+    grid-column: 1 / -1;
+  }
+}
+@media (forced-colors: active) {
+  .pause-panel,
+  .btn {
+    border-color: CanvasText;
+  }
+  .btn:focus-visible,
+  #game:focus-visible {
+    outline-color: Highlight;
+  }
+}
+
+.confirm-panel .btn {
+  border-radius: 8px;
+}

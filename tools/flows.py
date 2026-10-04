@@ -130,16 +130,22 @@ with sync_playwright() as p:
     pg.click('#landBackBtn');pg.wait_for_timeout(300)
     check('Back leads to both saved flights',pg.evaluate("$('titleCard').dataset.view")=='saves' and pg.evaluate("document.querySelectorAll('.slot').length")==2)
     # deleting a save asks twice and leaves the other alone
-    pg.click('.slot:nth-child(2) .slot-del');pg.wait_for_timeout(200)
-    check('first tap on delete only asks',pg.evaluate("document.querySelectorAll('.slot').length")==2)
     pg.click('.slot:nth-child(2) .slot-del');pg.wait_for_timeout(300)
-    check('second tap deletes that flight only',pg.evaluate("document.querySelectorAll('.slot').length")==1)
+    check('delete opens confirmation without changing saves',vis('#confirmOv') and pg.evaluate('listSlots().length')==2)
+    pg.keyboard.press('Escape')
+    check('cancel deletion restores focus',not vis('#confirmOv') and pg.evaluate("document.activeElement.classList.contains('slot-del')") and pg.evaluate('listSlots().length')==2)
+    pg.click('.slot:nth-child(2) .slot-del');pg.click('#confirmActionBtn')
+    check('confirmed delete removes that flight only',pg.evaluate("document.querySelectorAll('.slot').length")==1)
     # all slots used: a new flight replaces the oldest, never the newest
     pg.evaluate("""(()=>{const id=listSlots()[0].id,raw=localStorage.getItem(slotKey(id));
       for(let i=0;i<5;i++){const v=JSON.parse(raw);v.summary.updated=1000+i;localStorage.setItem(slotKey('old'+i),JSON.stringify(v))}})()""")
     pg.click('#newFlightBtn');pg.wait_for_timeout(300)
     check('full slots are said out loud',vis('#landNote') and 'oldest' in pg.evaluate("$('landNote').textContent"))
-    pg.click('#startBtn');pg.wait_for_timeout(800);pg.evaluate("saveSession()")
+    pg.click('#startBtn')
+    check('full slots require confirmation',vis('#confirmOv') and pg.evaluate('listSlots().length')==6)
+    pg.click('#confirmCancelBtn')
+    check('cancel replacement preserves saves',not vis('#confirmOv') and pg.evaluate('listSlots().length')==6)
+    pg.click('#startBtn');pg.click('#confirmActionBtn');pg.wait_for_timeout(800);pg.evaluate('saveSession()')
     check('new flight with all slots used replaces the oldest',pg.evaluate("listSlots().length")==6)
     check('the oldest is the one that went',pg.evaluate("!localStorage.getItem(slotKey('old0'))") and pg.evaluate("!!localStorage.getItem(slotKey('old4'))"))
     # the flock is taken: that flight's slot goes, the others stay; New land from the game-over card
