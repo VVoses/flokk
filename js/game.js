@@ -3,7 +3,21 @@
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 /* ---------- game state ---------- */
-const newSeed = () => (Math.random() * 1e9) >>> 0;
+// a new land is seeded from the current date and time; ?seed=N pins it for tests and debugging
+const PINNED_SEED = (() => {
+  const m = /[?&]seed=(\d+)/.exec(location.search);
+  return m ? Number(m[1]) >>> 0 : null;
+})();
+let seedCalls = 0;
+function newSeed() {
+  if (PINNED_SEED !== null) return PINNED_SEED;
+  // the millisecond clock, scrambled so lands made a moment apart look nothing alike
+  const now = Date.now();
+  let h = ((now % 4294967296) ^ Math.imul(Math.floor(now / 4294967296) + ++seedCalls, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+}
 const PAL = [
   ['#54402C', '#7A6048', '#62574D'],
   ['#4B3B2D', '#735A43', '#5E534A'],
