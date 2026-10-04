@@ -143,7 +143,7 @@
     <div class="goal" id="goalEl" aria-live="polite"></div>
 
     <div class="overlay" id="titleOv">
-      <div class="card">
+      <div class="card" id="titleCard" data-view="land">
         <h1>Flokk</h1>
         <p class="sub">a year with a flock of sparrows</p>
         <ul class="keys" id="keysTxt" aria-label="How to fly">
@@ -151,25 +151,20 @@
           <li>let go to land</li>
           <li>press space to dash</li>
         </ul>
-        <div class="actions">
-          <span id="saveNote" role="status"></span>
-          <button class="btn main" id="continueBtn" hidden>
-            <span>Continue flight</span><small id="continueInfo"></small>
-          </button>
-          <button class="btn main" id="startBtn">Take off</button>
-          <button class="btn link" id="newLandBtn" title="Show a different land">↻ new land</button>
+        <span id="saveNote" role="status"></span>
+        <div class="view view-saves">
+          <div class="slots" id="slotList"></div>
+          <button class="btn" id="newFlightBtn">New flight</button>
         </div>
-        <div class="fine" id="bestTitle"></div>
-      </div>
-    </div>
-
-    <div class="overlay" id="newFlightOv" role="dialog" aria-modal="true" aria-labelledby="newFlightTitle" hidden>
-      <div class="card confirm-card">
-        <h2 id="newFlightTitle">Start a new flight?</h2>
-        <p class="sub" id="newFlightNote">Your current saved flight will be replaced.</p>
-        <div class="actions">
-          <button class="btn main" id="cancelNewFlightBtn">Keep saved flight</button>
-          <button class="btn danger" id="confirmNewFlightBtn">New flight</button>
+        <div class="view view-land">
+          <div class="land-name" id="landName"></div>
+          <div class="actions">
+            <button class="btn main" id="startBtn">Take off</button>
+            <button class="btn" id="rerollBtn">Reroll</button>
+            <button class="btn link" id="landBackBtn" hidden>Back</button>
+          </div>
+          <span class="note" id="landNote"></span>
+          <div class="fine" id="bestTitle"></div>
         </div>
       </div>
     </div>
@@ -180,8 +175,7 @@
         <p class="sub" id="wonSub">the flock made it through</p>
         <div class="stats" id="wonStats"></div>
         <div class="actions">
-          <button class="btn main" id="keepBtn">Keep flying</button><button class="btn" id="wonNewBtn">New land</button
-          ><button class="btn" id="wonTitleBtn">Title</button>
+          <button class="btn main" id="keepBtn">Keep flying</button><button class="btn" id="wonNewBtn">New land</button>
         </div>
         <button class="btn share" id="shareBtn" aria-live="polite">Share</button>
       </div>
@@ -192,7 +186,7 @@
         <h2>Paused</h2>
         <div class="stats" id="pauseStats"></div>
         <div class="actions">
-          <button class="btn main" id="resumeBtn">Resume</button><button class="btn" id="pauseTitleBtn">Title</button>
+          <button class="btn main" id="resumeBtn">Resume</button><button class="btn" id="pauseNewBtn">New land</button>
         </div>
       </div>
     </div>

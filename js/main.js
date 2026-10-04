@@ -133,4 +133,3 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 initSession();
-(readSession() ? $('continueBtn') : $('startBtn')).focus();
