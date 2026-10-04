@@ -713,11 +713,23 @@ function genLayout() {
   for (const base of streamCandidates) {
     const p0 = rnd(0, TAU),
       p1 = rnd(0, TAU),
+      atY = y => base + 72 * Math.sin(y / 510 + p0) + 25 * Math.sin(y / 165 + p1),
       points = [];
-    for (let y = 96; y < H - 100; y += 24) {
-      const x = base + 72 * Math.sin(y / 510 + p0) + 25 * Math.sin(y / 165 + p1);
-      if (y >= shoreY(x) - 16) {
-        points.push([x, shoreY(x)]);
+    for (let y = 96; y <= H; y += 24) {
+      const x = atY(y);
+      if (y >= shoreY(x)) {
+        // Find the actual shore intersection between this row and the last land row. Using
+        // shoreY(x) at the sampled row can put the mouth north of the previous point.
+        if (!points.length) break;
+        let lo = points[points.length - 1][1],
+          hi = y;
+        for (let j = 0; j < 12; j++) {
+          const mid = (lo + hi) * 0.5;
+          if (mid < shoreY(atY(mid))) lo = mid;
+          else hi = mid;
+        }
+        const mx = atY(hi);
+        points.push([mx, shoreY(mx)]);
         break;
       }
       points.push([x, y]);

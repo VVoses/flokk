@@ -803,6 +803,7 @@ function pause() {
   pauseIcon(true);
   st.mode = 'pause';
   pointer.down = false;
+  dashBtn.hidden = true;
   syncHud();
   $('pauseStats').innerHTML = statsHTML();
   $('pauseSeason').textContent = `${SEASONS[CAL.season]} · year ${CAL.year}`;
@@ -812,13 +813,18 @@ function pause() {
   syncPauseSound();
   $('pauseOv').hidden = false;
   $('resumeBtn').focus();
-  $('pauseSaveNote').textContent = saveSession()
-    ? 'Your flight is saved automatically.'
-    : 'This flight could not be saved.';
+  const saved = saveSession();
+  $('pauseSaveNote').textContent =
+    saved === true
+      ? 'Your flight is saved automatically.'
+      : saved === null
+        ? 'No active save slot for this flight.'
+        : 'This flight could not be saved.';
 }
 function resume() {
   st.mode = 'play';
   $('pauseOv').hidden = true;
+  dashBtn.hidden = !coarse;
   pauseIcon(false);
   syncHud();
 }
@@ -827,8 +833,8 @@ function syncPauseSound() {
   $('pauseSoundBtn').setAttribute('aria-pressed', String(!muted));
 }
 function returnToTitle() {
-  // a flight with no slot (nothing to save) may always leave; only a failed save keeps it here
-  if (curSlot && !saveSession()) {
+  const saved = saveSession();
+  if (saved === false) {
     $('pauseSaveNote').textContent = 'Could not save. Stay here or try again.';
     return;
   }
@@ -838,6 +844,7 @@ function returnToTitle() {
   pauseIcon(false);
   syncHud();
   showTitle('saves');
+  if (saved === null) $('saveNote').textContent = 'This flight had no save slot.';
 }
 function gameOver() {
   clearSession();
@@ -874,6 +881,19 @@ $('againBtn').onclick = startGame;
 $('resumeBtn').onclick = resume;
 $('returnTitleBtn').onclick = returnToTitle;
 $('pauseSoundBtn').onclick = () => $('muteBtn').click();
+$('pauseOv').addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const buttons = [...$('pauseOv').querySelectorAll('button:not([hidden]):not(:disabled)')],
+    first = buttons[0],
+    last = buttons[buttons.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
 $('pauseBtn').onclick = () => {
   if (st.mode === 'play') pause();
   else if (st.mode === 'pause') resume();

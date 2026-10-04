@@ -197,7 +197,8 @@ function claimSlot() {
   sessionWarning('');
 }
 function saveSession() {
-  if (!curSlot || !['play', 'pause', 'won'].includes(st.mode) || !birds.length || sessionConflict) return false;
+  if (!curSlot || !['play', 'pause', 'won'].includes(st.mode) || !birds.length) return null;
+  if (sessionConflict) return false;
   try {
     if (localStorage.getItem(sessionKey()) !== sessionLastRaw) {
       sessionChangedElsewhere();
