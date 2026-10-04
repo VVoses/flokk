@@ -123,6 +123,16 @@ function initAudio() {
     const wag = ac.createGain();
     wag.gain.value = 0;
     wa.connect(waf).connect(wag).connect(master);
+    // Close to the bekk, a quiet, low babble follows the flock and fades under winter ice.
+    const streamNoise = loopNoise(),
+      streamFilter = ac.createBiquadFilter(),
+      streamGain = ac.createGain();
+    streamFilter.type = 'bandpass';
+    streamFilter.frequency.value = 680;
+    streamFilter.Q.value = 0.65;
+    streamGain.gain.value = 0;
+    streamNoise.connect(streamFilter).connect(streamGain).connect(master);
+    amb.streamGain = streamGain;
     // midge hum near swarms
     const h1 = ac.createOscillator(),
       h2 = ac.createOscillator();
@@ -1885,6 +1895,9 @@ function audioTick(dt) {
   const lap = (SEASON === 3 ? 0 : 1) * clamp(1 - wd / 380, 0, 1) * (0.6 + 0.4 * Math.sin(T * 1.7) * Math.sin(T * 0.63));
   const sea = L ? clamp(1 - Math.abs(shoreY(L.x) - L.y) / 520, 0, 1) * (0.55 + 0.45 * Math.sin(T * 0.45)) : 0;
   amb.wag.gain.setTargetAtTime(Math.max(0.03 * lap, 0.06 * sea), now, 0.4);
+  const streamX = L && streamXAt(L.y),
+    streamNear = streamX === null ? 0 : clamp(1 - Math.abs(wdx(L.x, streamX)) / 280, 0, 1);
+  amb.streamGain.gain.setTargetAtTime(0.014 * streamNear * (1 - 0.7 * ww), now, 0.5);
   let td = 1e9;
   // the field tractor parks for the night (life.js: LIGHT.night > 0.4), engine off - it should read
   // as silent then, not just quieter, however close the flock roosts to it

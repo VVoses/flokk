@@ -145,11 +145,14 @@ function randomSpot() {
   for (let i = 0; i < 30; i++) {
     const u = Math.random();
     let x, y;
-    if (u < 0.45) {
+    if (u < 0.42) {
       const a = rr(0, TAU),
         d = lakeR(a) + rr(-60, 220);
       x = LAKE.x + Math.cos(a) * d;
       y = LAKE.y + Math.sin(a) * d;
+    } else if (u < 0.57 && STREAM) {
+      y = rr(160, STREAM.mouth[1] - 50);
+      x = streamXAt(y) + rr(-65, 65);
     } else if (u < 0.8) {
       const f = pickP(FIELDS);
       x = rr(f.x, f.x + f.w);

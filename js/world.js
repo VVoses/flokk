@@ -5,6 +5,8 @@
 /* ---------- world state (filled by genWorld) ---------- */
 let LAKE,
   POND,
+  STREAM = null,
+  STREAM_CROSSINGS = [],
   ROAD,
   LANES,
   ACCESS_TRUNKS = [],
@@ -40,7 +42,47 @@ function inBlob(x, y, c, rf, m) {
   return Math.sqrt(q) < rf(Math.atan2(dy, dx)) + m;
 }
 const NORTH = 820; // fields, farms, roads and lakes keep south of this, leaving room for the northern forest
-const inWater = (x, y, m = 0) => y > shoreY(x) - m || inBlob(x, y, LAKE, lakeR, m) || inBlob(x, y, POND, pondR, m);
+// The bekk runs north-south, so a row-indexed centreline is enough for frequent clearance checks.
+// It is generated after the road and railway: those two established routes cross it on small bridges.
+function streamXAt(y) {
+  if (!STREAM || y < STREAM.points[0][1] || y > STREAM.mouth[1]) return null;
+  const P = STREAM.points,
+    i = Math.min(P.length - 2, Math.floor((y - P[0][1]) / STREAM.step)),
+    a = P[i],
+    b = P[i + 1];
+  return lerp(a[0], b[0], clamp((y - a[1]) / (b[1] - a[1]), 0, 1));
+}
+const streamWidth = y => 3.5 + 6 * clamp(y / (H - 240), 0, 1);
+function inStream(x, y, m = 0) {
+  const sx = streamXAt(y);
+  return sx !== null && Math.abs(wdx(x, sx)) < streamWidth(y) + m;
+}
+function inGlacier(x, y, m = 0) {
+  if (!STREAM) return false;
+  const dx = wdx(x, STREAM.source[0]),
+    dy = y - 48;
+  return (dx / (34 + m)) ** 2 + (dy / (70 + m)) ** 2 < 1;
+}
+function onStreamBridge(x, y) {
+  for (const c of STREAM_CROSSINGS) {
+    const dx = wdx(x, c.x),
+      dy = y - c.y,
+      ca = Math.cos(c.rang),
+      sa = Math.sin(c.rang),
+      along = dx * ca + dy * sa,
+      across = -dx * sa + dy * ca,
+      half = c.kind === 'road' ? 15 : c.kind === 'rail' ? 12 : c.kind === 'lane' ? 10 : 6,
+      span = streamWidth(c.y) + (c.kind === 'road' || c.kind === 'rail' ? 17 : 11);
+    if (Math.abs(along) <= span && Math.abs(across) <= half) return true;
+  }
+  return false;
+}
+const inWater = (x, y, m = 0) =>
+  y > shoreY(x) - m ||
+  inBlob(x, y, LAKE, lakeR, m) ||
+  inBlob(x, y, POND, pondR, m) ||
+  (inStream(x, y, m) && !onStreamBridge(x, y)) ||
+  inGlacier(x, y, m);
 function roadDist(x, y) {
   if (y < ROADBOX[0] - 300 || y > ROADBOX[1] + 300) return 1e9;
   return polyDist(x, y, ROAD);
@@ -594,6 +636,8 @@ function nearCrossing(x, y, r) {
 
 /* ---------- procedural land ---------- */
 function genLayout() {
+  STREAM = null;
+  STREAM_CROSSINGS = [];
   SHORE = { a: rnd(0, TAU), b: rnd(0, TAU) };
   // lake
   LAKE = {
@@ -645,6 +689,40 @@ function genLayout() {
   }
   genRail();
   const roadRailCrossings = findCrossings(ROAD, RAIL);
+  // A small glacial bekk keeps to one side of the lake and descends through the forest to the
+  // fjord. Score a few valleys so it never cuts through the lake or pond, and crosses road/rail
+  // well away from their own junctions. All bends remain gentle and downstream is monotonic.
+  const streamCandidates = LAKE.x > W / 2 ? [510, 720, 3500, 3700] : [3690, 3480, 700, 490];
+  let bestStream = null,
+    bestScore = -Infinity;
+  for (const base of streamCandidates) {
+    const p0 = rnd(0, TAU),
+      p1 = rnd(0, TAU),
+      points = [];
+    for (let y = 96; y < H - 100; y += 24) {
+      const x = base + 72 * Math.sin(y / 510 + p0) + 25 * Math.sin(y / 165 + p1);
+      if (y >= shoreY(x) - 16) {
+        points.push([x, shoreY(x)]);
+        break;
+      }
+      points.push([x, y]);
+    }
+    if (points.length < 80) continue;
+    let score = 0;
+    for (let i = 0; i < points.length; i += 8) {
+      const [x, y] = points[i];
+      const lakeGap = Math.hypot(wdx(x, LAKE.x), y - LAKE.y) - LAKE.r * 1.42,
+        pondGap = Math.hypot(wdx(x, POND.x), y - POND.y) - POND.r * 1.35;
+      if (lakeGap < 120) score -= (120 - lakeGap) * 10;
+      if (pondGap < 90) score -= (90 - pondGap) * 8;
+      for (const c of roadRailCrossings) if (Math.hypot(wdx(c.x, x), c.y - y) < 180) score -= 45;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestStream = { points, step: 24, source: points[0], mouth: points[points.length - 1] };
+    }
+  }
+  STREAM = bestStream;
   // farmsteads beside the road: a main farm and a second, differently laid-out one further along
   LANES = [];
   BUILDS = [];
@@ -668,6 +746,7 @@ function genLayout() {
     for (let i = 0; i < 1200; i++) {
       const p = pick(ROAD);
       if (p[0] < 480 || p[0] > W - 480) continue;
+      if (inStream(p[0], p[1], 90)) continue;
       let crossingCrowded = false;
       for (const c of roadRailCrossings)
         if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 320) {
@@ -693,6 +772,17 @@ function genLayout() {
         cy = p[1] + Math.sin(ang) * off + Ay * (h / 2 + back),
         yard = mkYard(cx, cy, ang, w, h);
       if (yard.y < NORTH || yard.y + yard.h > H - 440) continue;
+      // A narrow bekk can slip between the coarse water samples below. Keep its whole
+      // centreline outside the courtyard, including the wall and a little bank clearance.
+      let streamCutsYard = false;
+      for (let sy = yard.y - 30; sy <= yard.y + yard.h + 30; sy += 18) {
+        const sx = streamXAt(sy);
+        if (sx !== null && inYard(yard, sx, sy, 30)) {
+          streamCutsYard = true;
+          break;
+        }
+      }
+      if (streamCutsYard) continue;
       // score the spot: water and rail near the yard, a road too far away, or other yards in the way all count against it
       let bad = yardFree(yard, 200) ? 0 : 400;
       for (let gx = yard.x - 150; gx <= yard.x + yard.w + 150; gx += 60)
@@ -919,9 +1009,11 @@ function genLayout() {
           if (!ok) continue;
           const d = Math.hypot(x - gx, y - gy),
             ex = x + ((gx - x) / d) * (PL / 2),
-            ey = y + ((gy - y) / d) * (PL / 2),
-            cost =
-              d + (d < 90 ? 400 : 0) + (segClear(gx, gy, ex, ey) ? 0 : 400) + hash2(side * 31 + t, h.cx * 0.01) * 30;
+            ey = y + ((gy - y) / d) * (PL / 2);
+          // Both bays belong inside the yard, not beside the entrance where arriving traffic
+          // would block the gate. A penalty alone still picked a bad pad in cramped layouts.
+          if ([-12, 12].some(b => Math.hypot(x - fy * b - gx, y + fx * b - gy) < 80)) continue;
+          const cost = d + (segClear(gx, gy, ex, ey) ? 0 : 400) + hash2(side * 31 + t, h.cx * 0.01) * 30;
           if (cost < bestCost) {
             bestCost = cost;
             best = { x, y, ang, fx, fy, ex, ey, d };
@@ -1223,6 +1315,7 @@ function genLayout() {
     for (let i = 0; i < 1500; i++) {
       const p = pick(ROAD);
       if (p[0] < 480 || p[0] > W - 480) continue;
+      if (inStream(p[0], p[1], 90)) continue;
       let crossingCrowded = false;
       for (const c of roadRailCrossings)
         if (Math.hypot(wdx(c.x, p[0]), c.y - p[1]) < 260) {
@@ -1508,6 +1601,12 @@ function genLayout() {
   LANES = LANES.map(squareLaneCrossings);
   shapeFields();
   buildFieldTracks();
+  STREAM_CROSSINGS = [
+    ...findCrossings(STREAM.points, ROAD).map(c => ({ ...c, kind: 'road' })),
+    ...findCrossings(STREAM.points, RAIL).map(c => ({ ...c, kind: 'rail' })),
+    ...LANES.flatMap(P => findCrossings(STREAM.points, P).map(c => ({ ...c, kind: 'lane' }))),
+    ...FIELD_TRACKS.flatMap(t => findCrossings(STREAM.points, t.path).map(c => ({ ...c, kind: 'track' })))
+  ];
   LAND_NAME = landName();
 }
 function genWorld(seed) {

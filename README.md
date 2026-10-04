@@ -87,6 +87,8 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
 - `python3 tools/seasonpick.py`: checks the hidden season picker.
 - `python3 tools/road_check.py [N]`: over N generated lands, fails if a farm lane runs alongside the road before
   turning in, or the road cuts through a farmyard.
+- `python3 tools/stream_check.py [N]`: checks the glacial bekk's fjord outlet, bridges, and clearance from fields,
+  courtyards, buildings, and other water over N generated lands.
 - `python3 tools/seam_check.py [SEEDS]`: fails if the seam where the land repeats east-west shows as a line, in any
   season, hour or zoom or mid-crossfade (failing screenshots in `tools/out/seam/`).
 - `python3 tools/weather_check.py [TAG]`: gusts, an autumn gale, rain on the lake, a winter storm, fog by day and night; frame times
