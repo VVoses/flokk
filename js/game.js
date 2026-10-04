@@ -827,7 +827,8 @@ function syncPauseSound() {
   $('pauseSoundBtn').setAttribute('aria-pressed', String(!muted));
 }
 function returnToTitle() {
-  if (!saveSession()) {
+  // a flight with no slot (nothing to save) may always leave; only a failed save keeps it here
+  if (curSlot && !saveSession()) {
     $('pauseSaveNote').textContent = 'Could not save. Stay here or try again.';
     return;
   }

@@ -1616,12 +1616,14 @@ function genLayout() {
   LANES = LANES.map(squareLaneCrossings);
   shapeFields();
   buildFieldTracks();
-  STREAM_CROSSINGS = [
-    ...findCrossings(STREAM.points, ROAD).map(c => ({ ...c, kind: 'road' })),
-    ...findCrossings(STREAM.points, RAIL).map(c => ({ ...c, kind: 'rail' })),
-    ...LANES.flatMap(P => findCrossings(STREAM.points, P).map(c => ({ ...c, kind: 'lane' }))),
-    ...FIELD_TRACKS.flatMap(t => findCrossings(STREAM.points, t.path).map(c => ({ ...c, kind: 'track' })))
-  ];
+  STREAM_CROSSINGS = STREAM
+    ? [
+        ...findCrossings(STREAM.points, ROAD).map(c => ({ ...c, kind: 'road' })),
+        ...findCrossings(STREAM.points, RAIL).map(c => ({ ...c, kind: 'rail' })),
+        ...LANES.flatMap(P => findCrossings(STREAM.points, P).map(c => ({ ...c, kind: 'lane' }))),
+        ...FIELD_TRACKS.flatMap(t => findCrossings(STREAM.points, t.path).map(c => ({ ...c, kind: 'track' })))
+      ]
+    : [];
   LAND_NAME = landName();
 }
 function genWorld(seed) {

@@ -67,7 +67,7 @@ function paintStream(winter) {
   }
   // One continuous tapered ribbon per layer prevents the regular dark bands that overlapping
   // translucent segment strokes made. Tiny width changes give the banks an unsurveyed edge.
-  const ribbon = extra => {
+  const ribbon = (extra, k = 1) => {
     const side = sign => {
       for (let i = sign > 0 ? 0 : P.length - 1; sign > 0 ? i < P.length : i >= 0; i += sign) {
         const a = P[Math.max(0, i - 1)],
@@ -75,7 +75,11 @@ function paintStream(winter) {
           len = Math.hypot(b[0] - a[0], b[1] - a[1]),
           nx = (b[1] - a[1]) / len,
           ny = -(b[0] - a[0]) / len,
-          w = streamWidth(P[i][1]) + extra + 0.7 * Math.sin(i * 0.71 + SEED),
+          w =
+            streamWidth(P[i][1]) * k +
+            extra +
+            0.7 * Math.sin(i * 0.71 + SEED) +
+            1.3 * Math.sin(i * 0.23 + SEED * 1.7) * k,
           x = P[i][0] + nx * w * sign,
           y = P[i][1] + ny * w * sign;
         if (i === 0 && sign > 0) g.moveTo(x, y);
@@ -87,14 +91,19 @@ function paintStream(winter) {
     side(-1);
     g.closePath();
   };
+  // Summer: a wet dark strip along the banks, a pale shallow margin, and deeper water down the middle.
+  // Winter: snow lips on both banks, ice shelves, and a dark thread of open water that still reads on snow.
   ribbon(9);
-  g.fillStyle = winter ? 'rgba(164,179,191,.33)' : 'rgba(70,87,61,.22)';
+  g.fillStyle = winter ? 'rgba(226,234,240,.55)' : 'rgba(52,64,44,.26)';
   g.fill();
   ribbon(3.5);
-  g.fillStyle = winter ? '#B1C0C9' : '#6A796D';
+  g.fillStyle = winter ? '#D3DFE5' : '#6F8478';
   g.fill();
   ribbon(0);
-  g.fillStyle = winter ? '#A4BAC3' : '#4F6B69';
+  g.fillStyle = winter ? '#BCCDD6' : '#587A78';
+  g.fill();
+  ribbon(0, 0.5);
+  g.fillStyle = winter ? '#56788A' : '#3F5F62';
   g.fill();
   for (let i = 1; i < P.length; i++) {
     const a = P[i - 1],
@@ -109,6 +118,21 @@ function paintStream(winter) {
       g.moveTo(x - w * 0.55, y - 2);
       g.lineTo(x + w * 0.35, y + 1);
       g.stroke();
+    }
+    if (hash2(i * 43, SEED) < 0.3) {
+      // reed and sedge tufts on the banks; in winter only dry stems standing out of the snow
+      const side = hash2(i * 7, SEED) < 0.5 ? -1 : 1,
+        x0 = (a[0] + b[0]) * 0.5 + side * (w + 4 + hash2(i, SEED) * 4),
+        y0 = (a[1] + b[1]) * 0.5;
+      g.strokeStyle = winter ? 'rgba(150,132,98,.75)' : 'rgba(86,110,60,.8)';
+      g.lineWidth = 1.1;
+      for (let k = 0; k < 4; k++) {
+        const lean = (k - 1.5) * 1.6 + side * 1.2;
+        g.beginPath();
+        g.moveTo(x0 + (k - 1.5), y0);
+        g.lineTo(x0 + (k - 1.5) + lean, y0 - 6 - hash2(i + k, SEED) * 5);
+        g.stroke();
+      }
     }
     if (hash2(i * 31, SEED) < 0.2) {
       const side = hash2(i, SEED) < 0.5 ? -1 : 1,
@@ -136,6 +160,8 @@ function paintStreamBridges(winter) {
     g.save();
     g.translate(c.x, c.y);
     g.rotate(c.rang);
+    g.fillStyle = 'rgba(20,26,22,.2)';
+    g.fillRect(-span + 2, -half + 3, span * 2, half * 2);
     g.fillStyle = winter
       ? c.kind === 'rail'
         ? '#B5BEC5'
@@ -146,6 +172,15 @@ function paintStreamBridges(winter) {
           ? '#BDAF8A'
           : '#A99B78';
     g.fillRect(-span, -half, span * 2, half * 2);
+    // deck planks
+    g.strokeStyle = winter ? 'rgba(113,128,140,.35)' : 'rgba(78,72,60,.3)';
+    g.lineWidth = 1;
+    for (let x = -span + 4; x < span - 2; x += 5) {
+      g.beginPath();
+      g.moveTo(x, -half);
+      g.lineTo(x, half);
+      g.stroke();
+    }
     g.strokeStyle = winter ? 'rgba(113,128,140,.8)' : 'rgba(78,72,60,.75)';
     g.lineWidth = c.kind === 'track' ? 1.5 : 2.5;
     for (const side of [-1, 1]) {
