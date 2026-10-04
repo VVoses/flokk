@@ -683,6 +683,7 @@ function startGame() {
   $('pauseOv').hidden = true;
   pauseIcon(false);
   dashBtn.hidden = !coarse;
+  resetMilestones();
   syncHud();
   seasonBanner();
   setTimeout(() => {

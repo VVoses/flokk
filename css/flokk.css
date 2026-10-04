@@ -104,6 +104,40 @@ body.no-hud .hud {
   gap: 9px;
   width: 168px;
 }
+.countrow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+}
+.count-label,
+.yearname,
+.aim {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--ink);
+  text-shadow:
+    var(--text-glow-tight),
+    0 0 6px rgba(10, 16, 12, 0.7);
+}
+/* the next small aim, and a quiet moment when one is reached; settles back to the next aim */
+.aim {
+  min-height: 13px;
+  opacity: 0.85;
+  transition:
+    opacity 0.9s,
+    color 0.9s;
+}
+.aim.got {
+  opacity: 1;
+  color: var(--gold);
+}
+.yearname {
+  flex: 0 0 100%;
+  text-align: right;
+  opacity: 0.85;
+  white-space: nowrap;
+}
 .count {
   font-weight: 300;
   font-size: 46px;
@@ -194,6 +228,8 @@ body.no-hud .hud {
   display: flex;
   align-items: center;
   gap: var(--space-8);
+  flex-wrap: wrap;
+  row-gap: var(--space-6);
   width: 120px;
   position: relative;
 }
@@ -690,6 +726,9 @@ body.no-hud .hud {
   }
   .year {
     width: 92px;
+  }
+  .count-label {
+    font-size: 9.5px;
   }
   .hud {
     padding-inline: 16px;

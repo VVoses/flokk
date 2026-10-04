@@ -36,7 +36,10 @@
 
     <div class="hud">
       <div class="tl">
-        <div class="count" id="count" role="img" aria-label="Birds in the flock">6</div>
+        <div class="countrow">
+          <div class="count" id="count" role="img" aria-label="Birds in the flock">6</div>
+          <span class="count-label" id="countLabel" aria-hidden="true">birds</span>
+        </div>
         <div class="lines">
           <div class="meter" title="Energy">
             <svg
@@ -84,11 +87,13 @@
             <div class="line leaf"><i id="stBar"></i></div>
           </div>
         </div>
+        <div class="aim" id="aimEl" aria-live="polite"></div>
       </div>
       <div class="tr">
         <div class="year" id="yearEl" aria-hidden="true">
           <span id="calIcon">☀</span>
           <div class="yearbar"><i></i><i></i><i></i><i></i><b id="yearMark"></b></div>
+          <div class="yearname" id="yearName"></div>
         </div>
         <button class="ib" id="muteBtn" aria-label="Mute sound">
           <svg
