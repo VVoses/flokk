@@ -84,7 +84,9 @@ function cropLook(i, f, cv) {
   const s = SEASON,
     p = GROW.p,
     j = jit(i),
-    ease = smooth(0.1, 0.3, p);
+    // only spring comes up out of bare ground; in summer and autumn the crop is already standing when the
+    // season turns (GROW.p restarts at 0 there, so easing on it would pull every field flat at the flip)
+    ease = s === 0 ? smooth(0.1, 0.3, p) : 1;
   let h = 0,
     c1,
     c2,
@@ -99,8 +101,8 @@ function cropLook(i, f, cv) {
       go2 = [222, 192, 108];
     if (s === 0) {
       h = 0.45 * smooth(0.3, 1, p);
-      c1 = [86, 128, 56];
-      c2 = [110, 150, 66];
+      c1 = mixRGB([86, 128, 56], gr1, smooth(0.5, 1, p)); // ends where summer's green starts
+      c2 = mixRGB([110, 150, 66], gr2, smooth(0.5, 1, p));
     } else {
       const rp = s === 1 ? fieldAlpha(i, 1, p) : 1;
       h = s === 1 ? 0.45 + 0.55 * smooth(0, 0.45, p) : fieldAlpha(i, 2, p);
