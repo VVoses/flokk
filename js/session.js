@@ -35,7 +35,10 @@ function worldSignature() {
     signature = values.map(v => {
       if (Array.isArray(v)) return v;
       const out = {};
-      for (const key of keys) if (typeof v[key] === 'number' || typeof v[key] === 'string') out[key] = v[key];
+      for (const key of keys) {
+        if (key === 'h' && v.type === 'boat') continue; // the boat's perches rise and fall with the waves, so their height is not part of the world
+        if (typeof v[key] === 'number' || typeof v[key] === 'string') out[key] = v[key];
+      }
       if (v.poly) out.poly = v.poly;
       return out;
     });
