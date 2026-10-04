@@ -312,7 +312,7 @@ body.no-hud .hud {
   font-size: 13px;
 }
 .banner.show {
-  animation: bannerIn 5s ease forwards;
+  animation: bannerIn 6.5s ease forwards;
 }
 @keyframes bannerIn {
   0% {
@@ -382,6 +382,41 @@ body.no-hud .hud {
   .hint.show {
     animation-duration: 4.5s;
   }
+}
+.goal {
+  position: fixed;
+  left: 50%;
+  bottom: 22%;
+  transform: translate(-50%, 0);
+  max-width: 86vw;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  font-size: clamp(14px, 3.2vw, 18px);
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  color: var(--ink);
+  text-shadow:
+    0 0 6px rgba(10, 16, 12, 0.75),
+    0 1px 3px rgba(10, 16, 12, 0.6),
+    0 2px 20px rgba(10, 16, 12, 0.5);
+}
+.goal.show {
+  opacity: 1;
+}
+.b-sub {
+  margin-top: 10px;
+  font-size: clamp(12px, 2.6vw, 15px);
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: var(--ink);
+  text-shadow:
+    0 0 6px rgba(10, 16, 12, 0.75),
+    0 1px 3px rgba(10, 16, 12, 0.6),
+    0 2px 20px rgba(10, 16, 12, 0.5);
 }
 .overlay {
   position: fixed;

@@ -725,6 +725,13 @@ function applySeason(s, smooth) {
 function seasonBanner() {
   const el = $('banner');
   $('bSeason').textContent = SEASONS[SEASON];
+  // what the season means for food, a soft second line under the name
+  $('bSub').textContent = [
+    'insects wake in the meadows: eat well and the flock grows',
+    'insects are thick: eat and raise the flock',
+    'the insects are thinning: eat well, winter has none',
+    'no insects now: try the feeder and rowan berries, roost in spruce'
+  ][SEASON];
   el.classList.remove('show');
   void el.offsetWidth;
   el.classList.add('show');
