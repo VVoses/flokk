@@ -1972,7 +1972,7 @@ function render() {
     for (const b of BUSHES) if (visU(b.x, b.y, b.r + 4, b.h + 6)) items.push([b.y, 13, b, k]);
     jettyItems(items, k);
     // sorted a little ahead of its own y, so the birds perched in it always draw on top
-    if (visU(BOAT.x, BOAT.y, 40, 40)) items.push([BOAT.y - 14, 19, BOAT, k]);
+    if (visU(BOAT.x, BOAT.y, 40, 40)) items.push([BOAT.y - 14, 21, BOAT, k]);
     if (TRAIN) for (const c of TRAIN.cars) if (visU(c.x, c.y, 40, 40)) items.push([c.y, 10, c, k]);
     for (const v of TRAFFIC) {
       if (visU(v.x, v.y, 50, 30)) items.push([v.y, 11, v, k]);
@@ -2033,8 +2033,8 @@ function render() {
     else if (kind === 12) drawProp(o);
     else if (kind === 14) drawXSign(o);
     else if (kind === 17) drawFieldGate(o);
-    else if (kind === 18) drawJetty(o);
-    else if (kind === 19) drawBoat();
+    else if (kind === 20) drawJetty(o);
+    else if (kind === 21) drawBoat();
     else if (kind === 7) drawAnimal(o);
     else if (kind === 16)
       drawWeatherBand(o); // 15 and 16 belong to weather.js (weatherItems)
