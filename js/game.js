@@ -457,6 +457,19 @@ cv.addEventListener('pointermove', e => {
     pointer.y = e.clientY;
   }
 });
+// idle mouse: while playing, hide the crosshair over the canvas after a few still seconds; any
+// movement or press brings it straight back. Title, pause, game-over and the HUD keep theirs.
+let cursorIdleAt = performance.now();
+function wakeCursor() {
+  cursorIdleAt = performance.now();
+  cv.classList.remove('cursor-idle');
+}
+window.addEventListener('pointermove', e => e.pointerType === 'mouse' && wakeCursor());
+window.addEventListener('pointerdown', e => e.pointerType === 'mouse' && wakeCursor());
+setInterval(() => {
+  const idle = st.mode === 'play' && performance.now() - cursorIdleAt > 2500;
+  cv.classList.toggle('cursor-idle', idle);
+}, 250);
 const up = e => {
   if (e.pointerId === pointer.id) {
     pointer.down = false;
