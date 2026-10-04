@@ -1180,6 +1180,71 @@ function drawPole(p) {
     ctx.stroke();
   }
 }
+// a Norwegian overhead-line mast: a galvanised steel lattice post beside the track, with a cantilever arm reaching
+// over the rails, a stay from higher up the mast, insulators where the arm meets it, and a registration arm that
+// holds the contact wire in line over the track
+function drawMast(m) {
+  const base = m.y * TILT,
+    top = PY(m.y, MAST_H),
+    snow = winterW(),
+    bw = 2.1,
+    tw = 1.2,
+    dx = m.cx - m.x,
+    ay = PY(m.y, CAT_ARM_H),
+    tipY = PY(m.cy, CAT_ARM_H),
+    gx = m.x + dx * 0.92;
+  ctx.strokeStyle = '#7F868C';
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(m.x - bw, base);
+  ctx.lineTo(m.x - tw, top);
+  ctx.moveTo(m.x + bw, base);
+  ctx.lineTo(m.x + tw, top);
+  ctx.stroke();
+  ctx.lineWidth = 0.55;
+  ctx.beginPath();
+  const n = 9;
+  for (let i = 0; i < n; i++) {
+    const t0 = i / n,
+      t1 = (i + 1) / n,
+      y0 = lerp(base, top, t0),
+      y1 = lerp(base, top, t1),
+      w0 = lerp(bw, tw, t0),
+      w1 = lerp(bw, tw, t1);
+    ctx.moveTo(m.x + (i % 2 ? w0 : -w0), y0);
+    ctx.lineTo(m.x + (i % 2 ? -w1 : w1), y1);
+  }
+  ctx.stroke();
+  // the number plate every mast carries
+  ctx.fillStyle = '#E8E6DC';
+  ctx.fillRect(m.x - 1.1, PY(m.y, 0.42), 2.2, 2.6);
+  // cantilever arm over the track, and the stay running up to the mast head
+  ctx.strokeStyle = '#8D949A';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(m.x, ay);
+  ctx.lineTo(m.cx, tipY);
+  ctx.stroke();
+  ctx.strokeStyle = '#6E757B';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(m.x, PY(m.y, MAST_H - 0.04));
+  ctx.lineTo(gx, lerp(ay, tipY, 0.92) - 0.8);
+  ctx.moveTo(m.cx, tipY);
+  ctx.lineTo(m.cx, PY(m.cy, CAT_H));
+  ctx.stroke();
+  // insulators strung along the arm, pale against the steel
+  ctx.fillStyle = '#C9D4D8';
+  for (const t of [0.12, 0.26]) ctx.fillRect(lerp(m.x, m.cx, t) - 0.9, lerp(ay, tipY, t) - 2.4, 1.8, 3.6);
+  if (snow > 0.4) {
+    ctx.strokeStyle = `rgba(236,241,246,${((snow - 0.4) / 0.6) * 0.9})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(m.x, ay - 1.4);
+    ctx.lineTo(m.cx, tipY - 1.4);
+    ctx.stroke();
+  }
+}
 function drawXSign(s) {
   const b = s.y * TILT,
     top = PY(s.y, 1.55),
@@ -1275,27 +1340,78 @@ function drawFieldGate(gate) {
 function drawWires() {
   // wires stay light: they are everywhere, and should read as lines in the air, not ink. In deep winter
   // they whiten with rime and sag a touch further, as if carrying a little snow load
-  const snow = winterW();
-  ctx.strokeStyle = snow > 0.5 ? `rgba(206,214,222,${0.55 + snow * 0.2})` : 'rgba(40,36,30,.5)';
+  const snow = winterW(),
+    rime = snow > 0.5;
+  ctx.strokeStyle = rime ? `rgba(206,214,222,${0.55 + snow * 0.2})` : 'rgba(40,36,30,.5)';
   ctx.lineWidth = 0.9 + snow * 0.3;
   ctx.beginPath();
-  for (const line of LINES)
+  for (const line of LINES) {
+    if (line.cat) continue;
     for (let i = 0; i < line.length - 1; i++) {
       const p = line[i],
         q = line[i + 1];
       if (!visU(p.x, p.y, 260, POLE_H * HZ) && !visU(q.x, q.y, 260, POLE_H * HZ)) continue;
-      const wa = Math.atan2(q.y - p.y, q.x - p.x) + Math.PI / 2;
-      for (const w of [-6, 6]) {
-        const ox = Math.cos(wa) * w,
-          oy = Math.sin(wa) * w;
-        const ax = p.x + ox,
-          ay = PY(p.y + oy, WIRE_H),
-          bx = q.x + ox,
-          by = PY(q.y + oy, WIRE_H);
+      const ha = p.wh ?? WIRE_H,
+        hb = q.wh ?? WIRE_H;
+      for (const [[wx, wy], [vx, vy]] of wireEnds(p, q)) {
+        const ax = wx,
+          ay = PY(wy, ha),
+          bx = vx,
+          by = PY(vy, hb);
         ctx.moveTo(ax, ay);
         ctx.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 + SAG * HZ * (2 + snow * 0.7), bx, by);
       }
     }
+  }
+  ctx.stroke();
+  drawCatenary(rime, snow);
+}
+// the railway's overhead line: one contact wire dead over the track centre at CAT_H (the height a raised pantograph's
+// bow tops out at), the messenger wire above it sagging between the cantilever arms, and droppers holding the two together
+function drawCatenary(rime, snow) {
+  const col = rime ? `rgba(206,214,222,${0.6 + snow * 0.2})` : 'rgba(34,30,26,.72)',
+    colF = rime ? `rgba(206,214,222,${0.4 + snow * 0.2})` : 'rgba(34,30,26,.45)';
+  const live = [];
+  for (const line of LINES)
+    if (line.cat)
+      for (let i = 0; i < line.length - 1; i++) {
+        const p = line[i],
+          q = line[i + 1];
+        if (visU(p.cx, p.cy, 220, CAT_ARM_H * HZ) || visU(q.cx, q.cy, 220, CAT_ARM_H * HZ)) live.push(p, q);
+      }
+  if (!live.length) return;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1.15 + snow * 0.25;
+  ctx.beginPath();
+  for (let i = 0; i < live.length; i += 2) {
+    const p = live[i],
+      q = live[i + 1];
+    ctx.moveTo(p.cx, PY(p.cy, CAT_H));
+    ctx.lineTo(q.cx, PY(q.cy, CAT_H));
+  }
+  ctx.stroke();
+  ctx.strokeStyle = colF;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  const dip = 0.15 * HZ;
+  for (let i = 0; i < live.length; i += 2) {
+    const p = live[i],
+      q = live[i + 1],
+      ay = PY(p.cy, CAT_ARM_H),
+      by = PY(q.cy, CAT_ARM_H),
+      L = Math.hypot(q.cx - p.cx, q.cy - p.cy),
+      n = Math.max(3, Math.round(L / 9));
+    ctx.moveTo(p.cx, ay);
+    ctx.quadraticCurveTo((p.cx + q.cx) / 2, (ay + by) / 2 + dip * 2, q.cx, by);
+    // droppers: from the sagging messenger down to the straight contact wire
+    for (let k = 1; k < n; k++) {
+      const t = k / n,
+        x = lerp(p.cx, q.cx, t),
+        cy = lerp(p.cy, q.cy, t);
+      ctx.moveTo(x, PY(cy, CAT_H));
+      ctx.lineTo(x, lerp(ay, by, t) + dip * 4 * t * (1 - t));
+    }
+  }
   ctx.stroke();
 }
 /* ---------- cast shadows ----------
@@ -1470,35 +1586,60 @@ function renderShadows(tx, ty, KS, inK) {
     // poles, crossarms and sagging wires
     c.lineWidth = 3.5;
     c.beginPath();
-    for (const line of LINES)
-      for (const p of line) {
-        if (p.ghost || !visG(p.x, p.y, 140)) continue;
-        c.moveTo(p.x, p.y);
-        c.lineTo(p.x + POLE_H * SX, p.y + POLE_H * SY);
-        const ca = p.ang + Math.PI / 2,
-          ox = p.x + WIRE_H * SX,
-          oy = p.y + WIRE_H * SY;
-        c.moveTo(ox - Math.cos(ca) * 9, oy - Math.sin(ca) * 9);
-        c.lineTo(ox + Math.cos(ca) * 9, oy + Math.sin(ca) * 9);
-      }
+    for (const p of POLES) {
+      if (!visG(p.x, p.y, 140)) continue;
+      c.moveTo(p.x, p.y);
+      c.lineTo(p.x + POLE_H * SX, p.y + POLE_H * SY);
+      const ca = p.ang + Math.PI / 2,
+        ox = p.x + WIRE_H * SX,
+        oy = p.y + WIRE_H * SY;
+      c.moveTo(ox - Math.cos(ca) * 9, oy - Math.sin(ca) * 9);
+      c.lineTo(ox + Math.cos(ca) * 9, oy + Math.sin(ca) * 9);
+    }
     c.stroke();
     c.lineWidth = 1.3;
     c.beginPath();
-    for (const line of LINES)
+    for (const line of LINES) {
+      if (line.cat) continue;
       for (let i = 0; i < line.length - 1; i++) {
         const p = line[i],
           q = line[i + 1];
         if (!visG(p.x, p.y, 300) && !visG(q.x, q.y, 300)) continue;
-        const wa = Math.atan2(q.y - p.y, q.x - p.x) + Math.PI / 2;
-        for (const w of [-6, 6]) {
-          const ax = p.x + Math.cos(wa) * w + WIRE_H * SX,
-            ay = p.y + Math.sin(wa) * w + WIRE_H * SY,
-            bx = q.x + Math.cos(wa) * w + WIRE_H * SX,
-            by = q.y + Math.sin(wa) * w + WIRE_H * SY;
+        const ha = p.wh ?? WIRE_H,
+          hb = q.wh ?? WIRE_H;
+        for (const [[wx, wy], [vx, vy]] of wireEnds(p, q)) {
+          const ax = wx + ha * SX,
+            ay = wy + ha * SY,
+            bx = vx + hb * SX,
+            by = vy + hb * SY;
           c.moveTo(ax, ay);
           c.quadraticCurveTo((ax + bx) / 2 - 2 * SAG * SX, (ay + by) / 2 - 2 * SAG * SY, bx, by);
         }
       }
+    }
+    c.stroke();
+    // the overhead line: mast, arm over the track, and the contact wire
+    c.lineWidth = 1.8;
+    c.beginPath();
+    for (const m of CATS) {
+      if (!visG(m.x, m.y, 140)) continue;
+      c.moveTo(m.x, m.y);
+      c.lineTo(m.x + MAST_H * SX, m.y + MAST_H * SY);
+      c.moveTo(m.x + CAT_ARM_H * SX, m.y + CAT_ARM_H * SY);
+      c.lineTo(m.cx + CAT_ARM_H * SX, m.cy + CAT_ARM_H * SY);
+    }
+    c.stroke();
+    c.lineWidth = 1;
+    c.beginPath();
+    for (const line of LINES)
+      if (line.cat)
+        for (let i = 0; i < line.length - 1; i++) {
+          const p = line[i],
+            q = line[i + 1];
+          if (!visG(p.cx, p.cy, 300) && !visG(q.cx, q.cy, 300)) continue;
+          c.moveTo(p.cx + CAT_H * SX, p.cy + CAT_H * SY);
+          c.lineTo(q.cx + CAT_H * SX, q.cy + CAT_H * SY);
+        }
     c.stroke();
     // fences
     c.lineWidth = 1.8;
@@ -1835,8 +1976,8 @@ function render() {
     drawCrops(); // the standing grain, rapeseed, potatoes and onions (crops.js)
     for (const t of TREES) if (visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) items.push([t.y, 0, t, k]);
     for (const b of BUILDS) if (visU(b.cx, b.cy, b.len, b.rh + b.len * 0.6)) items.push([b.cy, 1, b, k]);
-    for (const line of LINES)
-      for (const p of line) if (!p.ghost && visU(p.x, p.y, 14, POLE_H * HZ)) items.push([p.y, 2, p, k]);
+    for (const p of POLES) if (visU(p.x, p.y, 14, POLE_H * HZ)) items.push([p.y, 2, p, k]);
+    for (const m of CATS) if (visU(m.x, m.y, 30, CAT_ARM_H * HZ)) items.push([m.y, 18, m, k]);
     if (SEASON >= 2) for (const b of BALES) if (baleShown(b) && visU(b.x, b.y, 14, 16)) items.push([b.y, 3, b, k]);
     for (const f of FSEG) if (visU(f.p.x, f.p.y, 40, 16)) items.push([f.k, 4, f, k]);
     for (const gate of FIELD_GATES) if (visU(gate.p.x, gate.p.y, 40, 18)) items.push([gate.k, 17, gate, k]);
@@ -1890,6 +2031,7 @@ function render() {
     if (kind === 0) drawTree(o);
     else if (kind === 1) drawBuilding(o);
     else if (kind === 2) drawPole(o);
+    else if (kind === 18) drawMast(o);
     else if (kind === 3) drawBale(o);
     else if (kind === 4) drawFence(o);
     else if (kind === 6) drawBoulder(o);

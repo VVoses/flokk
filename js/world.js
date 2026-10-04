@@ -547,10 +547,19 @@ const BALE_H = 0.3,
   POST_H = 0.34,
   POLE_H = 2.1,
   WIRE_H = 2.0,
-  SAG = 0.28;
+  SAG = 0.28,
+  // Norwegian overhead line (kjøreledning): the contact wire runs dead over the track centre at CAT_H, which is
+  // exactly where a raised pantograph's collector bow tops out (rail.js); masts stand beside the track with a
+  // cantilever arm reaching over it, the messenger wire hanging from the arm and the droppers carrying the contact wire
+  CAT_H = 0.95,
+  MAST_H = 1.25,
+  MAST_OFF = 15,
+  CAT_ARM_H = CAT_H + 0.2;
 const BALES = [],
   FSEG = [],
   LINES = [],
+  POLES = [],
+  CATS = [],
   REEDS = [],
   SPARK = [],
   CROSSINGS = [], // where a road or lane crosses the railway: {x,y,ang (road heading),rang (rail heading),w,signs}
@@ -1512,6 +1521,8 @@ function genWorld(seed) {
   BALES.length = 0;
   FSEG.length = 0;
   LINES.length = 0;
+  POLES.length = 0;
+  CATS.length = 0;
   REEDS.length = 0;
   SPARK.length = 0;
   CROSSINGS.length = 0;
@@ -1707,10 +1718,19 @@ function genWorld(seed) {
     XSIGNS.push({ x: at(-(hl + 16), c.w + 10)[0], y: at(-(hl + 16), c.w + 10)[1], ang: c.ang });
     XSIGNS.push({ x: at(hl + 16, -(c.w + 10))[0], y: at(hl + 16, -(c.w + 10))[1], ang: c.ang + Math.PI });
   }
-  // power line along the road (on the side away from the farm), branch line up the lane
-  wireUp(polesPeriodic(ROAD, 190, 40));
-  for (const fm of FARMS) wireUp(polesAlong(LANES[fm.lane], 120, -18, 40));
-  wireUp(polesPeriodic(RAIL, 150, 17));
+  // the power line along the road, with a branch from it to every house
+  const roadPoles = polesPeriodic(ROAD, 190, 40),
+    branches = [];
+  for (const b of BUILDS) {
+    if (b.kind !== 'house') continue;
+    const fm = FARMS.find(f => f.house === b),
+      ch = serviceLine(b, roadPoles, fm ? LANES[fm.lane] : null);
+    if (ch) branches.push(ch);
+  }
+  wireUp(roadPoles);
+  for (const ch of branches) wireUp(ch);
+  // the railway's overhead line, with a mast every ~70 m wherever the line isn't crossed by a road
+  catenaryUp(polesPeriodic(RAIL, 64, MAST_OFF, 20));
   addPerch(BOAT.x + Math.cos(BOAT.ang) * 8, BOAT.y + Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang);
   addPerch(BOAT.x - Math.cos(BOAT.ang) * 8, BOAT.y - Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang + Math.PI);
   for (const b0 of BUILDS)
@@ -1823,7 +1843,7 @@ function polesAlong(P, spacing, off, start) {
   return poles;
 }
 // poles spaced evenly over exactly one period of a repeating line; the last one is a stand-in for the first, one period east
-function polesPeriodic(P, spacing, off) {
+function polesPeriodic(P, spacing, off, clear = 55) {
   const S = [0];
   for (let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
   const sAt = x => {
@@ -1841,7 +1861,9 @@ function polesPeriodic(P, spacing, off) {
       a = P[i - 1],
       b = P[i],
       l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    return { x: lerp(a[0], b[0], t) + ((b[1] - a[1]) / l) * off, y: lerp(a[1], b[1], t) - ((b[0] - a[0]) / l) * off };
+    const cx = lerp(a[0], b[0], t),
+      cy = lerp(a[1], b[1], t);
+    return { x: cx + ((b[1] - a[1]) / l) * off, y: cy - ((b[0] - a[0]) / l) * off, cx, cy };
   };
   const s0 = sAt(0),
     Lp = sAt(W) - s0,
@@ -1851,34 +1873,135 @@ function polesPeriodic(P, spacing, off) {
   for (let i = 0; i <= n; i++) {
     const p = at(s0 + sp * (i + 0.5));
     if (i === n) p.ghost = true;
-    else if (inBuild(p.x, p.y, 8) || nearCrossing(p.x, p.y, 55)) continue;
+    else if (inBuild(p.x, p.y, 8) || nearCrossing(p.x, p.y, clear)) continue;
     poles.push(p);
   }
   return poles;
 }
+// where a wire from pole p to pole q is strung: each pole's two insulators sit out on its crossarm, and the two
+// wires pair up whichever way round keeps them from crossing. An anchor (a house wall) is a pole with a short arm.
+function wireEnds(p, q) {
+  const ins = e => {
+    const ca = e.ang + Math.PI / 2,
+      w = e.aw ?? 6,
+      dx = Math.cos(ca) * w,
+      dy = Math.sin(ca) * w;
+    return [
+      [e.x - dx, e.y - dy],
+      [e.x + dx, e.y + dy]
+    ];
+  };
+  const A = ins(p),
+    B = ins(q),
+    d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  return d(A[0], B[0]) + d(A[1], B[1]) <= d(A[0], B[1]) + d(A[1], B[0])
+    ? [
+        [A[0], B[0]],
+        [A[1], B[1]]
+      ]
+    : [
+        [A[0], B[1]],
+        [A[1], B[0]]
+      ];
+}
 function wireUp(poles) {
   if (poles.length < 2) return;
   for (let i = 0; i < poles.length; i++) {
+    if (poles[i].ang !== undefined) continue; // a pole already on another line keeps its crossarm
     const a = poles[Math.max(0, i - 1)],
       b = poles[Math.min(poles.length - 1, i + 1)];
     poles[i].ang = Math.atan2(b.y - a.y, b.x - a.x);
   }
-  for (const p of poles) if (!p.ghost) addPerch(p.x, p.y, POLE_H + 0.05, 'pole', false, p.ang);
+  for (const p of poles)
+    if (!p.ghost && !p.anchor && !p.placed) {
+      p.placed = true;
+      POLES.push(p);
+      addPerch(p.x, p.y, POLE_H + 0.05, 'pole', false, p.ang);
+    }
   for (let i = 0; i < poles.length - 1; i++) {
     const p = poles[i],
       q = poles[i + 1];
     const L = Math.hypot(q.x - p.x, q.y - p.y);
-    const wa = Math.atan2(q.y - p.y, q.x - p.x);
-    for (const w of [-6, 6]) {
-      const ox = Math.cos(wa + Math.PI / 2) * w,
-        oy = Math.sin(wa + Math.PI / 2) * w;
+    for (const [[ax, ay], [bx, by]] of wireEnds(p, q)) {
+      const wa = Math.atan2(by - ay, bx - ax);
       for (let s = 14; s < L - 10; s += 13) {
         const t = s / L;
-        addPerch(lerp(p.x, q.x, t) + ox, lerp(p.y, q.y, t) + oy, WIRE_H - SAG * 4 * t * (1 - t), 'wire', false, wa);
+        addPerch(lerp(ax, bx, t), lerp(ay, by, t), WIRE_H - SAG * 4 * t * (1 - t), 'wire', false, wa);
       }
     }
   }
   LINES.push(poles);
+}
+// the railway's overhead line: masts alongside the track, the wire over its centre line
+function catenaryUp(masts) {
+  for (let i = 0; i < masts.length; i++) {
+    const a = masts[Math.max(0, i - 1)],
+      b = masts[Math.min(masts.length - 1, i + 1)];
+    masts[i].ang = Math.atan2(b.cy - a.cy, b.cx - a.cx);
+    if (masts[i].ghost) continue;
+    CATS.push(masts[i]);
+    addPerch(masts[i].x, masts[i].y, MAST_H + 0.05, 'pole', false, masts[i].ang);
+  }
+  LINES.push(Object.assign(masts, { cat: true }));
+}
+// A house takes its power from the road line: a branch pole is set into the road line beside the junction, the
+// branch runs out along the lane (or straight across, where there is none) to a pole by the house, and the last
+// span drops to the eave of the wall nearest it.
+function serviceLine(b, roadPoles, lane) {
+  const start = lane
+      ? lane[0]
+      : ROAD.reduce((m, q) => (Math.hypot(q[0] - b.cx, q[1] - b.cy) < Math.hypot(m[0] - b.cx, m[1] - b.cy) ? q : m)),
+    ta = roadAng(start[0], 80),
+    jx = start[0] + Math.sin(ta) * 40,
+    jy = start[1] - Math.cos(ta) * 40;
+  if (jx < 20 || jx > W - 20 || b.cx < 40 || b.cx > W - 40) return null;
+  // the junction pole: an existing road pole if one stands close enough, else a new one in the line
+  let J = roadPoles.find(p => !p.ghost && Math.hypot(p.x - jx, p.y - jy) < 34);
+  if (!J) {
+    J = { x: jx, y: jy };
+    let at = roadPoles.findIndex(p => p.x > jx);
+    if (at < 1) return null;
+    roadPoles.splice(at, 0, J);
+  }
+  const chain = [J];
+  if (lane) for (const p of polesAlong(lane, 120, -18, 40)) chain.push(p);
+  // the wall nearest the last pole, and a pole standing off it
+  const last = chain[chain.length - 1],
+    cs = Math.cos(b.ang),
+    sn = Math.sin(b.ang),
+    u = (last.x - b.cx) * cs + (last.y - b.cy) * sn,
+    v = -(last.x - b.cx) * sn + (last.y - b.cy) * cs,
+    alongLen = Math.abs(u) / b.len > Math.abs(v) / b.dep,
+    nu = alongLen ? Math.sign(u) || 1 : 0,
+    nv = alongLen ? 0 : Math.sign(v) || 1,
+    au = alongLen ? (b.len / 2) * nu : clamp(u, -b.len * 0.3, b.len * 0.3),
+    av = alongLen ? clamp(v, -b.dep * 0.3, b.dep * 0.3) : (b.dep / 2) * nv,
+    ax = b.cx + au * cs - av * sn,
+    ay = b.cy + au * sn + av * cs,
+    na = Math.atan2(nu * sn + nv * cs, nu * cs - nv * sn); // the wall's outward normal
+  let Y = null;
+  for (const d of [34, 46, 60, 26])
+    for (const da of [0, 0.5, -0.5, 1, -1]) {
+      const a = na + da,
+        y = { x: ax + Math.cos(a) * d, y: ay + Math.sin(a) * d };
+      if (!Y && !inBuild(y.x, y.y, 7) && !inWater(y.x, y.y, 6)) Y = y;
+    }
+  if (!Y) return null;
+  chain.push(Y);
+  // any span that would run long gets another pole partway
+  for (let i = chain.length - 1; i > 0; i--) {
+    const p = chain[i - 1],
+      q = chain[i],
+      d = Math.hypot(q.x - p.x, q.y - p.y),
+      n = Math.ceil(d / 125) - 1;
+    for (let k = n; k >= 1; k--) {
+      const t = k / (n + 1),
+        m = { x: lerp(p.x, q.x, t), y: lerp(p.y, q.y, t) };
+      if (!inBuild(m.x, m.y, 8) && !inWater(m.x, m.y, 6)) chain.splice(i, 0, m);
+    }
+  }
+  chain.push({ x: ax, y: ay, ang: na, aw: 2.5, wh: Math.max(0.3, b.wh / HZ - 0.06), anchor: true });
+  return chain;
 }
 
 /* ---------- field outlines ----------

@@ -491,18 +491,26 @@ function drawCar(c) {
     tBox(c, -cab, cab, hu * 0.86, H, H + 0.04, shade(top, 1.04), null, shade(top, 1.12), 2.4); // roof shoulder
     tBox(c, -cab + 2, cab - 2, hu * 0.56, H + 0.04, H + 0.075, shade(top, 1.1), null, shade(top, 1.2), 1.8); // roof crown
     slope(-farE);
-    // pantograph up to the wire
-    const a = P(-hl * 0.28, 0, H + 0.075),
-      m = P(-hl * 0.05, 0, H + 0.3),
-      b = P(-hl * 0.28, 0, H + 0.5);
+    // single-arm pantograph, raised: the collector bow tops out at CAT_H, exactly where the contact wire runs
+    const roof = H + 0.075,
+      bx = -hl * 0.28,
+      a = P(bx, 0, roof),
+      m = P(bx + hl * 0.17, 0, roof + (CAT_H - roof) * 0.55),
+      b = P(bx, 0, CAT_H),
+      bow = 4.4;
+    tBox(c, bx - 4, bx + 4, 2.4, roof - 0.005, roof + 0.03, '#34363A', null, '#3E4044', 1.6); // base frame on its insulators
     ctx.strokeStyle = '#2A2A2C';
-    ctx.lineWidth = 0.9;
+    ctx.lineWidth = 1.1;
     ctx.beginPath();
     ctx.moveTo(a[0], a[1]);
     ctx.lineTo(m[0], m[1]);
     ctx.lineTo(b[0], b[1]);
-    const b1 = P(-hl * 0.28, -4, H + 0.5),
-      b2 = P(-hl * 0.28, 4, H + 0.5);
+    ctx.stroke();
+    const b1 = P(bx, -bow, CAT_H),
+      b2 = P(bx, bow, CAT_H);
+    ctx.strokeStyle = '#1E1E20';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
     ctx.moveTo(b1[0], b1[1]);
     ctx.lineTo(b2[0], b2[1]);
     ctx.stroke();
