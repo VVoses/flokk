@@ -750,6 +750,38 @@ function genLayout() {
     }
   }
   STREAM = bestStream;
+  if (STREAM) {
+    // Hashes keep this decoration stable without changing the world's random sequence.
+    STREAM.rocks = [];
+    STREAM.riffles = [];
+    for (let i = 0; i < 22; i++) {
+      const a = i * 2.4,
+        r = 7 + 19 * hash2(i + 310, SEED),
+        y = 91 + Math.sin(a) * r * 0.72;
+      STREAM.rocks.push({
+        x: STREAM.source[0] + Math.cos(a) * r,
+        y,
+        r: 4 + 6 * hash2(i + 311, SEED),
+        p: hash2(i + 312, SEED),
+        source: true
+      });
+    }
+    for (let y = 132, i = 0; y < STREAM.mouth[1] - 36; y += 38, i++) {
+      const rough = hash2(Math.floor(y / 160) + 410, SEED) > 0.58 || y < 230,
+        w = streamWidth(y);
+      if (rough || hash2(i + 420, SEED) > 0.65) {
+        const offset = (hash2(i + 421, SEED) - 0.5) * w * 1.25;
+        STREAM.rocks.push({
+          x: streamXAt(y) + offset,
+          y,
+          r: 1.8 + 2.3 * hash2(i + 422, SEED),
+          p: hash2(i + 423, SEED),
+          source: false
+        });
+      }
+      if (rough) STREAM.riffles.push({ y: y + 10, p: hash2(i + 424, SEED) });
+    }
+  }
   // farmsteads beside the road: a main farm and a second, differently laid-out one further along
   LANES = [];
   BUILDS = [];

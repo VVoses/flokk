@@ -65,7 +65,9 @@ camera, hawks and weather may drift slightly past that range and get recentred b
 - **The bekk is a different water scale from the lake and fjord.** `streamXAt` and `inWater` in `world.js` give
   placement and movement one clearance rule, with bridge decks passable at their crossings. `paintStream` in
   `ground.js` bakes the narrow bed and banks into seasonal ground. Open-water waves in `waves.js` are reserved
-  for the lake, pond and fjord; the bekk gets a quiet nearby ambience instead.
+  for the lake, pond and fjord; the bekk uses seeded bed stones and local downstream ripple and foam trains
+  (`drawStreamFlow` in `render.js`), with a quiet nearby ambience. The riffles skip bridge decks and narrow
+  into the open channel in winter.
 
 ## Time and seasons: two clocks, and a rebuild that happens *once*, on the boundary
 

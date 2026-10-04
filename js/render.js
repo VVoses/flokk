@@ -1751,6 +1751,37 @@ function seamStrip(img) {
 }
 // the screen row (device pixels) where the ground plane starts: it is painted opaque from there down
 const groundTopPx = () => Math.max(0, ((-150 * TILT - cam.py) * cam.z + vh / 2) * dpr);
+// Short downstream wave trains gather behind stones; calm stretches stay quiet.
+function drawStreamFlow(c) {
+  if (!STREAM) return;
+  const ice = winterW(),
+    fade = TRANS.prevG ? tEase() : 1;
+  c.save();
+  c.lineCap = 'round';
+  c.lineWidth = 0.9;
+  c.strokeStyle = tintHex('#D4E8DF');
+  for (const riffle of STREAM.riffles) {
+    if (!visG(streamXAt(riffle.y), riffle.y, 40)) continue;
+    for (let j = 0; j < 3; j++) {
+      const q = (((T * 0.65 + riffle.p + j / 3) % 1) + 1) % 1,
+        y = riffle.y + q * 22,
+        x = streamXAt(y),
+        width = streamWidth(y) * (1 - ice * 0.6);
+      if (x === null || onStreamBridge(x, y)) continue;
+      c.globalAlpha = Math.sin(q * Math.PI) * 0.5 * fade * (1 - ice * 0.55);
+      c.beginPath();
+      c.moveTo(x - width * 0.65, y);
+      c.bezierCurveTo(x - width * 0.2, y - 2, x + width * 0.2, y + 3, x + width * 0.65, y + 1);
+      c.stroke();
+      // Small foam beads travel with the wave, staying in the open central channel in winter.
+      c.beginPath();
+      c.ellipse(x + Math.sin(riffle.p * 17 + j) * width * 0.35, y + 3, 0.8, 1.1, 0, 0, TAU);
+      c.stroke();
+    }
+  }
+  c.restore();
+}
+
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
@@ -1837,6 +1868,7 @@ function render() {
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     drawWaterMood(ctx);
+    drawStreamFlow(ctx);
     if (winterW() < 0.5) {
       drawLilies(ctx);
       // glints twinkle on calm water and give way to the wind's own waves as it roughens (waves.js)

@@ -39,32 +39,28 @@ function paintStream(winter) {
     sx = STREAM.source[0];
   g.save();
   g.lineJoin = g.lineCap = 'round';
-  // A modest patch of permanent ice in the northern forest, partly beyond the map edge.
+  // A sheltered ice remnant feeds a moraine of boulders, rather than ending in a bare point.
   g.beginPath();
-  g.moveTo(sx - 22, -18);
-  g.lineTo(sx - 26, 11);
-  g.quadraticCurveTo(sx - 20, 26, sx - 23, 39);
-  g.lineTo(sx - 16, 53);
-  g.quadraticCurveTo(sx - 18, 72, sx - 9, 86);
-  g.lineTo(sx + 1, 99);
-  g.quadraticCurveTo(sx + 11, 80, sx + 12, 62);
-  g.lineTo(sx + 19, 48);
-  g.quadraticCurveTo(sx + 18, 26, sx + 25, 13);
-  g.lineTo(sx + 20, -18);
+  g.moveTo(sx - 20, -18);
+  g.lineTo(sx - 23, 14);
+  g.quadraticCurveTo(sx - 15, 34, sx - 18, 49);
+  g.lineTo(sx - 12, 69);
+  g.lineTo(sx - 17, 81);
+  g.lineTo(sx + 8, 88);
+  g.lineTo(sx + 16, 70);
+  g.quadraticCurveTo(sx + 10, 47, sx + 20, 28);
+  g.lineTo(sx + 18, -18);
   g.closePath();
   g.fillStyle = winter ? '#D7E0E7' : '#B9D0CF';
   g.fill();
-  g.strokeStyle = winter ? 'rgba(116,140,158,.35)' : 'rgba(75,132,150,.38)';
-  g.lineWidth = 2;
-  for (const [a, b, c, d] of [
-    [-16, 8, -8, 57],
-    [13, 17, 4, 75]
-  ]) {
-    g.beginPath();
-    g.moveTo(sx + a, b);
-    g.lineTo(sx + c, d);
-    g.stroke();
-  }
+  g.strokeStyle = winter ? 'rgba(116,140,158,.25)' : 'rgba(75,132,150,.25)';
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.moveTo(sx - 9, 18);
+  g.quadraticCurveTo(sx - 5, 40, sx - 8, 58);
+  g.moveTo(sx + 12, 31);
+  g.lineTo(sx + 6, 64);
+  g.stroke();
   // One continuous tapered ribbon per layer prevents the regular dark bands that overlapping
   // translucent segment strokes made. Tiny width changes give the banks an unsurveyed edge.
   const ribbon = (extra, k = 1) => {
@@ -143,6 +139,49 @@ function paintStream(winter) {
       g.ellipse(x, y, 3 + hash2(i + 1, SEED) * 4, 2.2, 0, 0, TAU);
       g.fill();
     }
+  }
+  // Faceted wet boulders form the moraine outlet and break up the bed downstream.
+  // Bridges are painted afterwards, so their decks remain clear.
+  for (const rock of STREAM.rocks) {
+    const { x, y, r, p } = rock;
+    if (onStreamBridge(x, y)) continue;
+    g.save();
+    g.translate(x, y);
+    g.fillStyle = 'rgba(23,36,32,.3)';
+    g.beginPath();
+    g.ellipse(1.5, 2.5, r * 1.2, r * 0.75, 0, 0, TAU);
+    g.fill();
+    const outline = () => {
+      g.beginPath();
+      for (let j = 0; j < 7; j++) {
+        const a = (j / 7) * TAU + p,
+          k = 0.8 + 0.2 * Math.sin(j * 3.7 + p * 12),
+          px = Math.cos(a) * r * k,
+          py = Math.sin(a) * r * k * 1.1 - r * 0.3;
+        j ? g.lineTo(px, py) : g.moveTo(px, py);
+      }
+      g.closePath();
+    };
+    outline();
+    g.fillStyle = winter ? '#9BA9AF' : p > 0.5 ? '#7A827B' : '#687772';
+    g.fill();
+    g.clip();
+    g.fillStyle = winter ? '#DAE3E7' : '#A0A69A';
+    g.beginPath();
+    g.moveTo(-r, -r);
+    g.lineTo(r, -r);
+    g.lineTo(r * 0.25, 0);
+    g.lineTo(-r * 0.5, r * 0.12);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = 'rgba(37,48,43,.35)';
+    g.lineWidth = 0.8;
+    g.beginPath();
+    g.moveTo(-r * 0.5, r * 0.12);
+    g.lineTo(r * 0.25, 0);
+    g.lineTo(r * 0.4, r);
+    g.stroke();
+    g.restore();
   }
   // Where it reaches the tide, a little wider shallow fan disappears beneath the fjord paint.
   const [mx, my] = STREAM.mouth;
