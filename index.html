@@ -86,8 +86,22 @@
             <span class="meter-label">dash</span>
             <div class="line leaf"><i id="stBar"></i></div>
           </div>
+          <div class="meter" id="goalRow" hidden>
+            <svg
+              class="meter-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
+            </svg>
+            <span class="meter-label">goal</span>
+            <span class="aim" id="aimEl" aria-live="polite"></span>
+          </div>
         </div>
-        <div class="aim" id="aimEl" aria-live="polite"></div>
       </div>
       <div class="tr">
         <div class="year" id="yearEl" aria-hidden="true">

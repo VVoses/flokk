@@ -25,6 +25,7 @@ function setAim(text, cls) {
   const el = $('aimEl');
   el.className = 'aim ' + cls;
   el.textContent = text;
+  $('goalRow').hidden = !text;
 }
 function milestones(dt) {
   if (st.mode !== 'play') return;
@@ -42,7 +43,7 @@ function milestones(dt) {
   });
   MS.quiet = false;
   if (MS.t > 0) return;
-  setAim(next ? 'goal · ' + next.aim : '', '');
+  setAim(next ? next.aim : '', '');
 }
 function hud(dt) {
   hudT -= dt;

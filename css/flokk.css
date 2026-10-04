@@ -123,6 +123,7 @@ body.no-hud .hud {
 /* the next small aim, and a quiet moment when one is reached; settles back to the next aim */
 .aim {
   min-height: 13px;
+  white-space: nowrap;
   opacity: 0.85;
   transition:
     opacity 0.9s,
