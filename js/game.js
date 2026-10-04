@@ -695,6 +695,8 @@ function startGame() {
   $('titleOv').hidden = true;
   $('overOv').hidden = true;
   $('pauseOv').hidden = true;
+  // a new flight started from the year-won card (New land) must not leave that card up over the run
+  $('wonOv').hidden = true;
   pauseIcon(false);
   dashBtn.hidden = !coarse;
   resetMilestones();
@@ -758,6 +760,7 @@ $('shareBtn').onclick = async () => {
   shareTimer = setTimeout(() => (b.textContent = 'Share'), 2000);
 };
 function keepFlying() {
+  if (st.mode !== 'won') return;
   CAL.year++;
   st.mode = 'play';
   $('wonOv').hidden = true;
