@@ -7,9 +7,9 @@ let hudT = 0;
    then it settles back to the next aim. Derived from the run's state, nothing saved. */
 const MILESTONES = [
   { aim: 'grow to 10 birds', got: 'a flock of 10', ok: () => (st.maxFlock || 0) >= 10 },
-  { aim: 'reach the autumn', got: 'summer behind you', ok: () => SEASON >= 2 || CAL.year > 1 },
+  { aim: 'live to see autumn', got: 'summer behind you', ok: () => SEASON >= 2 || CAL.year > 1 },
   { aim: 'grow to 20 birds', got: 'a flock of 20', ok: () => (st.maxFlock || 0) >= 20 },
-  { aim: 'reach the winter', got: 'winter has come', ok: () => SEASON === 3 || CAL.year > 1 },
+  { aim: 'live to see winter', got: 'winter has come', ok: () => SEASON === 3 || CAL.year > 1 },
   { aim: 'grow to 40 birds', got: 'a flock of 40', ok: () => (st.maxFlock || 0) >= 40 },
   { aim: 'make it to spring', got: 'winter survived', ok: () => CAL.year > 1 || st.mode === 'won' }
 ];
@@ -42,7 +42,7 @@ function milestones(dt) {
   });
   MS.quiet = false;
   if (MS.t > 0) return;
-  setAim(next ? 'next · ' + next.aim : '', '');
+  setAim(next ? 'goal · ' + next.aim : '', '');
 }
 function hud(dt) {
   hudT -= dt;
