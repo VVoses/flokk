@@ -33,30 +33,52 @@ function strokePoly(c, P, w, col) {
 }
 // The glacial bekk is ground, not a screen overlay. The narrow bed winds out of a small ice
 // tongue and broadens only near its fjord mouth; bridges are laid back over it below.
+function paintStreamRock(c, rock, winter, lit = false) {
+  const color = hex => (lit ? tintHex(hex) : hex);
+  const { x, y, r, p } = rock;
+  c.save();
+  c.translate(x, y);
+  c.fillStyle = 'rgba(23,36,32,.3)';
+  c.beginPath();
+  c.ellipse(1.5, 2.5, r * 1.2, r * 0.75, 0, 0, TAU);
+  c.fill();
+  const outline = () => {
+    c.beginPath();
+    for (let j = 0; j < 7; j++) {
+      const a = (j / 7) * TAU + p,
+        k = 0.8 + 0.2 * Math.sin(j * 3.7 + p * 12),
+        px = Math.cos(a) * r * k,
+        py = Math.sin(a) * r * k * 1.1 - r * 0.3;
+      j ? c.lineTo(px, py) : c.moveTo(px, py);
+    }
+    c.closePath();
+  };
+  outline();
+  c.fillStyle = color(winter ? '#9BA9AF' : p > 0.5 ? '#7A827B' : '#687772');
+  c.fill();
+  c.clip();
+  c.fillStyle = color(winter ? '#DAE3E7' : '#A0A69A');
+  c.beginPath();
+  c.moveTo(-r, -r);
+  c.lineTo(r, -r);
+  c.lineTo(r * 0.25, 0);
+  c.lineTo(-r * 0.5, r * 0.12);
+  c.closePath();
+  c.fill();
+  c.strokeStyle = 'rgba(37,48,43,.35)';
+  c.lineWidth = 0.8;
+  c.beginPath();
+  c.moveTo(-r * 0.5, r * 0.12);
+  c.lineTo(r * 0.25, 0);
+  c.lineTo(r * 0.4, r);
+  c.stroke();
+  c.restore();
+}
 function paintStream(winter) {
   if (!STREAM) return;
-  const P = STREAM.points,
-    sx = STREAM.source[0];
+  const P = STREAM.points;
   g.save();
   g.lineJoin = g.lineCap = 'round';
-  // The glacier stays tucked into scree: only little blue-grey ice pockets show between rocks.
-  // There is no exposed tongue or pointed mouth above the spring.
-  g.fillStyle = winter ? '#CBD5DC' : 'rgba(100,115,103,.5)';
-  g.beginPath();
-  g.ellipse(sx, 76, 28, 27, 0, 0, TAU);
-  g.fill();
-  for (let i = 0; i < 6; i++) {
-    const x = sx + (hash2(i + 510, SEED) - 0.5) * 24,
-      y = 48 + i * 6;
-    g.fillStyle = winter ? '#DDE5E9' : 'rgba(183,205,203,.65)';
-    g.beginPath();
-    g.moveTo(x - 5, y);
-    g.lineTo(x + 7, y - 2);
-    g.lineTo(x + 3, y + 6);
-    g.lineTo(x - 3, y + 4);
-    g.closePath();
-    g.fill();
-  }
   // One continuous tapered ribbon per layer prevents the regular dark bands that overlapping
   // translucent segment strokes made. Tiny width changes give the banks an unsurveyed edge.
   const ribbon = (extra, k = 1) => {
@@ -136,49 +158,9 @@ function paintStream(winter) {
       g.fill();
     }
   }
-  // Faceted wet boulders form the moraine outlet and break up the bed downstream.
-  // Bridges are painted afterwards, so their decks remain clear.
-  for (const rock of STREAM.rocks) {
-    const { x, y, r, p } = rock;
-    if (onStreamBridge(x, y)) continue;
-    g.save();
-    g.translate(x, y);
-    g.fillStyle = 'rgba(23,36,32,.3)';
-    g.beginPath();
-    g.ellipse(1.5, 2.5, r * 1.2, r * 0.75, 0, 0, TAU);
-    g.fill();
-    const outline = () => {
-      g.beginPath();
-      for (let j = 0; j < 7; j++) {
-        const a = (j / 7) * TAU + p,
-          k = 0.8 + 0.2 * Math.sin(j * 3.7 + p * 12),
-          px = Math.cos(a) * r * k,
-          py = Math.sin(a) * r * k * 1.1 - r * 0.3;
-        j ? g.lineTo(px, py) : g.moveTo(px, py);
-      }
-      g.closePath();
-    };
-    outline();
-    g.fillStyle = winter ? '#9BA9AF' : p > 0.5 ? '#7A827B' : '#687772';
-    g.fill();
-    g.clip();
-    g.fillStyle = winter ? '#DAE3E7' : '#A0A69A';
-    g.beginPath();
-    g.moveTo(-r, -r);
-    g.lineTo(r, -r);
-    g.lineTo(r * 0.25, 0);
-    g.lineTo(-r * 0.5, r * 0.12);
-    g.closePath();
-    g.fill();
-    g.strokeStyle = 'rgba(37,48,43,.35)';
-    g.lineWidth = 0.8;
-    g.beginPath();
-    g.moveTo(-r * 0.5, r * 0.12);
-    g.lineTo(r * 0.25, 0);
-    g.lineTo(r * 0.4, r);
-    g.stroke();
-    g.restore();
-  }
+  // Source boulders are drawn after the mirrored northern ground, so the heap appears only once.
+  for (const rock of STREAM.rocks)
+    if (!rock.source && !onStreamBridge(rock.x, rock.y)) paintStreamRock(g, rock, winter);
   // Where it reaches the tide, a little wider shallow fan disappears beneath the fjord paint.
   const [mx, my] = STREAM.mouth;
   g.fillStyle = winter ? 'rgba(156,183,196,.7)' : 'rgba(75,127,128,.7)';

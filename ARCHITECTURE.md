@@ -67,7 +67,8 @@ camera, hawks and weather may drift slightly past that range and get recentred b
   `ground.js` bakes the narrow bed and banks into seasonal ground. Open-water waves in `waves.js` are reserved
   for the lake, pond and fjord; the bekk uses seeded bed stones and local downstream ripple and foam trains
   (`drawStreamFlow` in `render.js`), with a quiet nearby ambience. The riffles skip bridge decks and narrow
-  into the open channel in winter.
+  into the open channel in winter. Source boulders draw after the mirrored northern ground so the
+  heap appears once; a small source clearing lets trees stand immediately behind it.
 
 ## Time and seasons: two clocks, and a rebuild that happens *once*, on the boundary
 

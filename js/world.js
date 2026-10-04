@@ -60,8 +60,8 @@ function inStream(x, y, m = 0) {
 function inGlacier(x, y, m = 0) {
   if (!STREAM) return false;
   const dx = wdx(x, STREAM.source[0]),
-    dy = y - 48;
-  return (dx / (34 + m)) ** 2 + (dy / (70 + m)) ** 2 < 1;
+    dy = y - 91;
+  return (dx / (32 + m)) ** 2 + (dy / (22 + m)) ** 2 < 1;
 }
 function onStreamBridge(x, y) {
   for (const c of STREAM_CROSSINGS) {
@@ -754,12 +754,6 @@ function genLayout() {
     // Hashes keep this decoration stable without changing the world's random sequence.
     STREAM.rocks = [];
     STREAM.riffles = [];
-    // Loose scree rises behind the outlet, concealing the ice beneath a natural rocky slope.
-    for (let i = 0; i < 38; i++) {
-      const y = 52 + hash2(i + 319, SEED) * 42,
-        x = STREAM.source[0] + (hash2(i + 320, SEED) - 0.5) * 52;
-      STREAM.rocks.push({ x, y, r: 4 + 5 * hash2(i + 321, SEED), p: hash2(i + 322, SEED), source: true });
-    }
     for (let i = 0; i < 22; i++) {
       const a = i * 2.4,
         r = 7 + 19 * hash2(i + 310, SEED),
@@ -1730,6 +1724,17 @@ function genWorld(seed) {
       if (type === 'decid') r *= 1.1;
       addTree(x, y, type, r);
     }
+  // Close the woodland directly behind the source while leaving the outlet visible.
+  if (STREAM) {
+    for (const [dx, y, type, r] of [
+      [-25, 49, 'spruce', 18],
+      [1, 45, 'birch', 19],
+      [27, 51, 'spruce', 17]
+    ]) {
+      const x = wrapX(STREAM.source[0] + dx);
+      if (!blocked(x, y, r)) addTree(x, y, type, r);
+    }
+  }
   // hedgerows along open field edges; where a field meets forest, a ragged tree line closes up to it
   for (const f of FIELDS) {
     if (f.t === 'sty') continue; // too small a plot for full-size hedge trees - it'd swallow the pen whole

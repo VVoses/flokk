@@ -1868,6 +1868,9 @@ function render() {
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     drawWaterMood(ctx);
+    if (STREAM)
+      for (const rock of STREAM.rocks)
+        if (rock.source && visG(rock.x, rock.y, 20)) paintStreamRock(ctx, rock, winterW() > 0.5, true);
     drawStreamFlow(ctx);
     if (winterW() < 0.5) {
       drawLilies(ctx);
