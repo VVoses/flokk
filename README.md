@@ -133,3 +133,6 @@ Install `requirements-ci.txt` for browser-backed checks. Contact-sheet tools suc
 ## License
 
 Copyright (c) 2026 Karl (VVoses). All rights reserved. See [LICENSE](LICENSE).
+
+Owl ambience and hunting calls share a 24–40 second audio cooldown, preventing stacked voices.
+`node tools/owl_audio_check.cjs` checks scheduling, overlapping callers and mute behavior; it also runs in `npm run check`.

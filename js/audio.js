@@ -9,6 +9,7 @@ let ac = null,
   verb = null,
   muted = false,
   lastChirp = 0,
+  owlNextCall = 0,
   amb = null;
 function noiseBuf(sec) {
   const b = ac.createBuffer(1, ac.sampleRate * sec, ac.sampleRate),
@@ -649,7 +650,9 @@ function songbird(v = 1) {
   }
 }
 function owlHoot(v, x, y, range = 900) {
-  if (!ac || muted) return;
+  if (!ac || muted || ac.currentTime < owlNextCall) return;
+  // Background voices, hunting calls and attack warnings share one quiet interval.
+  owlNextCall = ac.currentTime + rr(24, 40);
   const t = ac.currentTime + 0.05,
     out = ac.createGain(),
     sp = x == null ? null : spatial(x, y, range);
@@ -1711,10 +1714,10 @@ function audioTick(dt) {
       }
       amb.songT = rr(3, 9) / Math.max(0.2, SEASON === 3 ? 1 : bl * chorus);
     }
-    amb.owlT = (amb.owlT || 8) - dt;
+    amb.owlT = (amb.owlT ?? 18) - dt;
     if (amb.owlT <= 0) {
       if (nf > 0.6) owlHoot(hawks.some(h => h.kind === 'owl') ? 0.05 : 0.025);
-      amb.owlT = rr(18, 44);
+      amb.owlT = rr(45, 90);
     }
     // a hunting owl gives itself away to the ear first: you hear it from where it is before you can see it
     const hunter = hawks.find(
@@ -1724,7 +1727,7 @@ function audioTick(dt) {
       amb.owlHuntT = (amb.owlHuntT ?? 0.8) - dt;
       if (amb.owlHuntT <= 0) {
         owlHoot(0.16, hunter.x, hunter.y, 1500);
-        amb.owlHuntT = rr(5, 9);
+        amb.owlHuntT = rr(24, 42);
       }
     } else amb.owlHuntT = undefined;
     amb.frogT = (amb.frogT || 5) - dt;
