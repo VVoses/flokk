@@ -439,7 +439,7 @@ const exposed = b => !coveredNow(b) && !b.joining;
 const keys = {};
 const pointer = { down: false, x: 0, y: 0, id: null };
 addEventListener('keydown', e => {
-  if (activeMenu()?.id === 'confirmOv') return;
+  if (MENU_JOB || activeMenu()?.id === 'confirmOv') return;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) && st.mode === 'play')
     e.preventDefault();
   keys[e.code] = st.mode === 'play';
@@ -523,7 +523,8 @@ function dash() {
 const coarse = matchMedia('(pointer:coarse)').matches;
 const dashBtn = document.getElementById('dashBtn');
 if (coarse)
-  document.getElementById('keysTxt').textContent = 'hold where you want to fly · lift your finger to land · › to dash';
+  document.getElementById('keysTxt').innerHTML =
+    '<li>hold where you want to fly</li><li>lift your finger to land</li><li>tap dash to burst</li>';
 dashBtn.addEventListener('pointerdown', e => {
   e.preventDefault();
   dash();
@@ -651,23 +652,15 @@ function landLabels() {
     .join(' · ');
 }
 // roll a different land for the title world (Reroll); nothing saved is touched
-function newLand(btn) {
-  const old = btn.textContent;
-  btn.textContent = 'Shaping the land…';
-  btn.disabled = true;
-  setTimeout(() => {
-    genWorld(newSeed());
-    refreshInsects();
-    landLabels();
-    btn.textContent = old;
-    btn.disabled = false;
-    resetWorld(14, START.x, START.y - 150);
-    cam.x = L.x;
-    cam.py = PY(L.y, L.z * 0.7);
-    demo.tx = 0;
-    demo.rest = 0;
-    if ($('titleCard').dataset.view === 'land') btn.focus({ preventScroll: true });
-  }, 40);
+function newLand() {
+  genWorld(newSeed());
+  refreshInsects();
+  landLabels();
+  resetWorld(14, START.x, START.y - 150);
+  cam.x = L.x;
+  cam.py = PY(L.y, L.z * 0.7);
+  demo.tx = 0;
+  demo.rest = 0;
 }
 function startGame() {
   claimSlot();
@@ -773,8 +766,11 @@ $('shareBtn').onclick = async () => {
   const b = $('shareBtn'),
     text = shareText();
   b.disabled = true;
+  b.setAttribute('aria-busy', 'true');
+  $('shareNote').textContent = 'Copying flight summary…';
   const ok = await copyText(text);
   b.disabled = false;
+  b.removeAttribute('aria-busy');
   $('shareNote').textContent = ok
     ? 'Flight summary copied.'
     : 'Could not copy automatically. Select and copy the summary below.';
@@ -820,9 +816,9 @@ function pause() {
   dashBtn.hidden = true;
   $('pauseStats').innerHTML = statsHTML();
   $('pauseSeason').textContent = `${SEASONS[CAL.season]} · year ${CAL.year}`;
-  $('pauseControls').textContent = coarse
+  $('pauseControls').innerHTML = coarse
     ? 'hold where you want to fly · tap dash to burst'
-    : 'move with mouse or arrows · dash with space';
+    : '<span>mouse or</span> <span class="key-group" role="img" aria-label="Arrow keys"><kbd aria-hidden="true">↑</kbd><kbd aria-hidden="true">←</kbd><kbd aria-hidden="true">↓</kbd><kbd aria-hidden="true">→</kbd></span> <span>to fly</span> <kbd>Space</kbd> <span>dash</span> <kbd>Esc</kbd> <span>resume</span>';
   syncPauseSound();
   $('pauseOv').hidden = false;
   syncHud();
@@ -889,16 +885,57 @@ function goNewLand() {
 $('startBtn').onclick = requestStartGame;
 $('rerollBtn').onclick = e => {
   initAudio();
-  newLand(e.currentTarget);
+  runMenuJob(e.currentTarget, 'Shaping the land…', newLand);
 };
-$('pauseNewBtn').onclick = goNewLand;
-$('wonNewBtn').onclick = goNewLand;
-$('overNewBtn').onclick = goNewLand;
-$('keepBtn').onclick = keepFlying;
+for (const id of ['pauseNewBtn', 'wonNewBtn', 'overNewBtn'])
+  $(id).onclick = e => runMenuJob(e.currentTarget, 'Opening a new land…', goNewLand);
+$('keepBtn').onclick = e => runMenuJob(e.currentTarget, 'Preparing spring…', keepFlying);
 $('againBtn').onclick = requestStartGame;
 $('resumeBtn').onclick = resume;
-$('returnTitleBtn').onclick = returnToTitle;
+$('returnTitleBtn').onclick = e => runMenuJob(e.currentTarget, 'Saving your flight…', returnToTitle);
 $('pauseSoundBtn').onclick = () => $('muteBtn').click();
+// Paint feedback before expensive world work, and guard against repeat activation while it runs.
+let MENU_JOB = null;
+async function runMenuJob(button, label, work) {
+  if (MENU_JOB) return;
+  const menu = activeMenu(),
+    controls = menu ? menuControls(menu) : [],
+    states = controls.map(el => [el, el.disabled]),
+    html = button.innerHTML,
+    status = document.createElement('div');
+  status.className = 'menu-loading';
+  status.setAttribute('role', 'status');
+  status.textContent = label;
+  menu?.querySelector('.menu-loading')?.remove();
+  menu?.appendChild(status);
+  MENU_JOB = { button, status };
+  for (const [el] of states) el.disabled = true;
+  button.textContent = 'Please wait…';
+  button.setAttribute('aria-busy', 'true');
+  try {
+    // Two frames let the browser paint the first frame before the synchronous job begins.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const result = await work();
+    if (result === false) {
+      status.classList.add('error');
+      status.textContent = 'That action could not be completed. Please try again.';
+    } else status.remove();
+  } catch (error) {
+    status.classList.add('error');
+    status.textContent = 'That action could not be completed. Please try again.';
+    console.error('Flokk menu action failed', error);
+  } finally {
+    MENU_JOB = null;
+    button.innerHTML = html;
+    button.removeAttribute('aria-busy');
+    for (const [el, disabled] of states) el.disabled = disabled;
+    syncMenuAccess();
+    if (!activeMenu() && st.mode === 'play') cv.focus({ preventScroll: true });
+    else if (button.isConnected && button.getClientRects().length && !button.closest('[inert]'))
+      button.focus({ preventScroll: true });
+  }
+}
+
 // One modal boundary for every menu, including confirmations layered above another screen.
 function activeMenu() {
   for (const id of ['confirmOv', 'pauseOv', 'wonOv', 'overOv', 'titleOv']) if (!$(id).hidden) return $(id);
@@ -938,15 +975,17 @@ function closeConfirmation(accept) {
 }
 $('confirmCancelBtn').onclick = () => closeConfirmation(false);
 $('confirmActionBtn').onclick = () => closeConfirmation(true);
-function requestStartGame() {
+function requestStartGame(e) {
+  const button = e?.currentTarget || document.activeElement,
+    start = () => runMenuJob(button, 'Preparing your flight…', startGame);
   const rows = listSlots();
-  if (rows.length < MAX_SLOTS) return startGame();
+  if (rows.length < MAX_SLOTS) return start();
   const oldest = rows[rows.length - 1];
   confirmMenu(
     'Replace the oldest flight?',
     `All save slots are used. Taking off will delete the oldest flight${oldest.summary?.land ? ' in ' + oldest.summary.land : ''}. This cannot be undone.`,
     'Replace & take off',
-    startGame
+    start
   );
 }
 document.addEventListener(
@@ -954,6 +993,11 @@ document.addEventListener(
   e => {
     const menu = activeMenu();
     if (!menu) return;
+    if (MENU_JOB && ['Escape', 'p', 'P', 'Enter', ' '].includes(e.key)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
     if (e.key === 'Escape' && !e.repeat) {
       if (confirmation) closeConfirmation(false);
       else if (menu.id === 'pauseOv') resume();

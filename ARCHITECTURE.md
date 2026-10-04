@@ -151,6 +151,16 @@ All four menus are named modal dialogs. Shared keyboard handling contains focus,
 HUD with `inert`, and returns focus to flight when menus close. Deletion and full-slot replacement use an
 alert dialog focused on Cancel. Copying the year-end summary has a live status message and selectable-text
 fallback. `menu_check.py` verifies these interactions and narrow-screen reflow.
+World-building menu actions paint a live loading status before synchronous work, disable their controls,
+and restore focus and button state afterwards. Desktop control hints use keycaps; touch hints describe gestures.
+Phone and short touch landscape media queries compact the HUD into status corners, retain accessible
+meter names, and keep sound/pause touch targets at least 44px. Optional milestones are hidden in compact views.
+`loading_hud_check.py` checks the loading guard and five touch viewport sizes.
+
+Open-water surface rendering runs once per frame across the wrapped viewport. CPU and GPU wave phase
+use the camera’s unwrapped coordinate (`cam.x + WX`) so neighbouring copies and recentering agree.
+Gust foam samples the same travelling wind field as vegetation, fades in stronger wind, and disappears
+in calm or frozen water. `water_check.py` covers phase continuity, both renderers and foam suppression.
 
 ## Animals and people: a shared movement toolkit, a per-kind behaviour switch
 

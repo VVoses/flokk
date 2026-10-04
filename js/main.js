@@ -109,15 +109,6 @@ function hud(dt) {
 }
 
 /* ---------- loop ---------- */
-CAL.t = (3 / 24) * DAY_LEN;
-calUpdate();
-genWorld(newSeed());
-refreshInsects();
-landLabels();
-resetWorld(14, START.x, START.y - 150);
-cam.x = L.x;
-cam.py = PY(L.y, L.z * 0.7);
-cam.z = clamp(Math.min(vw, vh) / 760, 0.72, 1.15);
 let last = performance.now(),
   lastDt = 0.016;
 function frame(now) {
@@ -131,5 +122,17 @@ function frame(now) {
   hud(dt);
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
-initSession();
+runMenuJob($('startBtn'), 'Preparing the landscape…', () => {
+  CAL.t = (3 / 24) * DAY_LEN;
+  calUpdate();
+  genWorld(newSeed());
+  refreshInsects();
+  landLabels();
+  resetWorld(14, START.x, START.y - 150);
+  cam.x = L.x;
+  cam.py = PY(L.y, L.z * 0.7);
+  cam.z = clamp(Math.min(vw, vh) / 760, 0.72, 1.15);
+  initSession();
+  last = performance.now();
+  requestAnimationFrame(frame);
+});
