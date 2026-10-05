@@ -46,7 +46,7 @@ files; function bodies can use anything, since they run after everything has loa
 | `sprites.js` | tree sprites per season (`buildSprites`, `NV` variants) |
 | `ground.js` | yielding `paintGroundGen` → wide canvas `GE` → seam-blended `G`; fields, forest floor and tracks; `paintStream` and small crossing decks |
 | `audio.js` | WebAudio graph, animal voices (`animalCall`, `quack`, `baa`, `moo`, `bark`), ambience including nearby stream water, `audioTick` |
-| `music.js` | generative background music, one voice per season (`musicTick`) |
+| `music.js` | generative background music, one voice per season (`musicTick`); first phrase after 3–6 seconds, audible direct mix and shorter phrase gaps |
 | `sky.js` | shoreline `shoreY`, ridges, clouds, boulders |
 | `life.js` | `ANIMALS`, spawning, per-kind behaviour `updateAnimals`, passing flocks, smoke |
 | `interact.js` | animals reacting to each other (mobbing, cat, dog, herds, ducks); `callAt` sound queue |
@@ -62,7 +62,8 @@ files; function bodies can use anything, since they run after everything has loa
 | `crops.js` | standing grain, rapeseed, potato and onion plants; their growth and wind response above the painted fields |
 | `air.js` | light and air (`AIR`): morning mist over the lake and hollows, dew/frost/snow glints, light shafts at dawn and dusk; never at night |
 | `weather.js` | moving weather (`WEATHER`): the wind veering and freshening (sets `WIND`), gales, gusts travelling across the land (`gustAt`, used by tree sway, the grass, sound, the flag and smoke); rain and snow falling through the world (`WEATHER.fall`) to rings on the water, splashes and the snow; leaves torn off in autumn; grazing animals turning their backs to a hard wind (`a.lee`, used by `figPost`); spindrift and blizzards (`WEATHER.storm`) in winter; fog banks lying among the trees. Drops, flakes and leaves go into the painter's list in bands by ground y and fog banks as slices (`weatherItems`, kinds 16 and 15), so what stands in front hides them; `drawFog` adds only a thin veil that closes the view down round the flock and shorten how far hawks see (`seeK`, `hawkSee`); a gale also pushes the flock (`windPush`) |
-| `waves.js` | wind on the lake, pond and fjord: a travelling height field shaded by WebGL where available, with a canvas fallback; wave-driven shore swash and breakers (`drawWaves`, `drawSwash`, `drawWaterMood`, `drawGustFoam`); shared unwrapped phase keeps map copies continuous, and gusts carry subtle foam. The narrow bekk has a rocky source and bed painted in `ground.js`, with local animated riffles in `render.js` |
+| `basins.js` | separate bounded lake and pond height fields: wind forcing, reflecting shoreline cells, fixed average level, damping, sampling and surface drawing |
+| `waves.js` | open-fjord wind waves, plus shared water sampling for lakes and ponds: a travelling height field shaded by WebGL where available, with a canvas fallback; wave-driven shore swash and breakers (`drawWaves`, `drawSwash`, `drawWaterMood`, `drawGustFoam`); shared unwrapped phase keeps map copies continuous, and gusts carry subtle foam. The narrow bekk has a rocky source and bed painted in `ground.js`, with local animated riffles in `render.js` |
 | `dock.js` | the lake jetty and rowboat, including wave-driven boat lift, pitch and roll |
 | `yard.js` | farmyard props (`PROPS`): flagpole with pennant, woodpile, clothesline, wheelbarrow; `yardSpot` finds open ground |
 | `station.js` | the roadside petrol station out front of its kiosk: flat canopy on pillars, pump island, price pylon, forecourt tarmac |
@@ -103,6 +104,7 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
 - `python3 tools/road_check.py [N]`: over N generated lands, fails if a farm lane runs alongside the road before
   turning in, or the road cuts through a farmyard.
 - `python3 tools/loading_hud_check.py`: checks loading feedback, blocked repeat activation, and touch HUD geometry across portrait and landscape sizes.
+- `python3 tools/basin_music_check.py`: checks bounded-water conservation, reflecting shores, independent basins and damping, then renders all four seasonal music voices to WAV and checks onset, RMS and headroom.
 - `python3 tools/water_check.py`: checks wrapped wave phase, recentering, one surface pass, both renderers and gust/calm/frozen foam.
 - `python3 tools/menu_check.py`: checks menu keyboard focus, dialog semantics, safe confirmations, clipboard fallback and narrow-screen layouts.
 - `python3 tools/stream_check.py [N]`: checks the glacial bekk's fjord outlet, bridges, and clearance from fields,

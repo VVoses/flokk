@@ -104,6 +104,7 @@ const waveX = x => cam.x + WX + wdx(x, cam.x);
 function drawWaves(ctx) {
   const wf = waveFreeze();
   if (wf < 0.02) return;
+  drawClosedBasins(ctx);
   waveGrid();
   const glm = waveGLInit();
   waveState();
@@ -151,7 +152,7 @@ function drawWaves(ctx) {
         y = y0 + ly * LY,
         ni = (((lx % nx) + nx) % nx) + ly * nx;
       let w = ws[ni];
-      if (w < 0) w = ws[ni] = waveDepth(x, y);
+      if (w < 0) w = ws[ni] = y > shoreY(x) ? smooth(0, 26, y - shoreY(x)) : 0;
       let r;
       {
         r = waveRough(x, y);
@@ -228,7 +229,7 @@ function drawWaves(ctx) {
       if (glm) {
         const ni = (((lx % nx) + nx) % nx) + ly * nx;
         let w = ws[ni];
-        if (w < 0) w = ws[ni] = waveDepth(x, y);
+        if (w < 0) w = ws[ni] = y > shoreY(x) ? smooth(0, 26, y - shoreY(x)) : 0;
         const r = w > 0 ? bl(rc, k0, fx, fy) : 0;
         WV.tex[o] = r < 0.04 ? 0 : Math.min(255, ((waveLevel(r) * w * 255) / 1.4 + 0.5) | 0);
         if (WV.tex[o]) any = 1;
@@ -239,7 +240,7 @@ function drawWaves(ctx) {
         ph[t][o] = (TR[t].kx * (waveX(x) - ox) + TR[t].ky * (y - oy) - TR[t].om * WV.tw + warp * (1 + 0.5 * t)) / TAU;
       const ni = (((lx % nx) + nx) % nx) + ly * nx;
       let w = ws[ni];
-      if (w < 0) w = ws[ni] = waveDepth(x, y);
+      if (w < 0) w = ws[ni] = y > shoreY(x) ? smooth(0, 26, y - shoreY(x)) : 0;
       if (w <= 0) continue;
       const r = bl(rc, k0, fx, fy);
       if (r < 0.04) continue;
@@ -747,6 +748,15 @@ function waveAt(x, y) {
   if (!WV.init || !WV.ws || wf < 0.02) return WS;
   const w = waveDepth(x, y);
   if (w <= 0) return WS;
+  const basin = basinSample(x, y);
+  if (basin) {
+    const fade = w * wf;
+    WS.h = basin.h * fade;
+    WS.gx = basin.gx * fade;
+    WS.gy = basin.gy * fade;
+    WS.r = waveRough(x, y) * fade;
+    return WS;
+  }
   let R = waveRough(x, y);
   {
     // the block amplitude the water has settled to, blended the way the shader's texture is, where it has been drawn lately

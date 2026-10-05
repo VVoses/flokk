@@ -6,7 +6,7 @@ decisions a change should respect, and the recurring patterns worth reusing rath
 
 ## The one deliberate constraint: plain scripts, one shared scope, no build step
 
-There is no bundler, no modules, no `import`/`export`, and (deliberately) no framework. `index.html` loads 35
+There is no bundler, no modules, no `import`/`export`, and (deliberately) no framework. `index.html` loads 36
 game scripts in a fixed order (plus `dev.js` with `?dev` or `admin.js` with `?debug=1`). Every top-level
 `const`/`let`/`function` in those plain scripts lands in the same shared scope. This is not an oversight —
 it's what makes the rest of the toolchain possible:
@@ -157,10 +157,19 @@ Phone and short touch landscape media queries compact the HUD into status corner
 meter names, and keep sound/pause touch targets at least 44px. Optional milestones are hidden in compact views.
 `loading_hud_check.py` checks the loading guard and five touch viewport sizes.
 
-Open-water surface rendering runs once per frame across the wrapped viewport. CPU and GPU wave phase
+The fjord surface rendering runs once per frame across the wrapped viewport. CPU and GPU wave phase
 use the camera’s unwrapped coordinate (`cam.x + WX`) so neighbouring copies and recentering agree.
 Phase distortion stays below half the longest wave’s base slope, preventing crests from flattening
 into diagonal gaps. Wave groups keep a stronger baseline of ripples between their peaks.
+Lakes and ponds have independent finite-difference height fields (`basins.js`), advanced at a fixed 30 Hz
+simulation step. Land neighbours contribute no spatial flux, reflecting ripples at the shoreline. Mean
+height and velocity are removed after each step to preserve the resting water level. Wind forces the
+surface through short-lived, scattered pressure patches whose ripples overlap and reflect, rather than
+translating a shared pattern; damping settles it in calm weather. These are bounded surface-wave approximations,
+not full fluid simulations. Their sampled heights and slopes drive boats and ducks; a clipped canvas
+surface renders the same field with either GPU or canvas fjord rendering. They reset on world rebuild
+or a backwards animation-clock jump, and freeze with winter. `basin_music_check.py` checks conservation,
+shore boundaries, isolation and decay, and captures lake/pond views.
 Gust foam samples the same travelling wind field as vegetation, fades in stronger wind, and disappears
 in calm or frozen water. `water_check.py` covers phase continuity, both renderers and foam suppression.
 
@@ -218,6 +227,11 @@ a fresh implementation.
   find and retune in isolation; keep new ones equally named and equally easy to find, not buried inline.
 
 ## Audio: build a small graph per sound, parameterize instead of branching in the caller
+
+Music starts its first phrase after 3–6 seconds, then leaves 18–35 second base gaps (longer in winter).
+Its direct output and note envelopes keep it audible above the ambience; predator danger still ducks it.
+Offline audio checks render each seasonal voice through the actual synthesis/mix path and measure onset,
+RMS output and headroom.
 
 Nearly every sound function follows the same shape: create one or more `OscillatorNode`/`AudioBufferSourceNode`s,
 run them through a filter, envelope the gain with `setValueAtTime`/`linearRampToValueAtTime`/

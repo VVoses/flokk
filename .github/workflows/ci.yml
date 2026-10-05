@@ -71,6 +71,9 @@ jobs:
       - name: continuous water and gust foam
         run: python3 tools/water_check.py
 
+      - name: bounded water and audible seasonal music
+        run: python3 tools/basin_music_check.py
+
       - name: upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,6 +85,7 @@ jobs:
             tools/out/menu-ux/*.png
             tools/out/loading-hud/*.png
             tools/out/water/*.png
+            tools/out/basin-music/*
           if-no-files-found: ignore
 
   # How each element of the land animates through every season change and every dawn and dusk (DESIGN.md pillar 3:

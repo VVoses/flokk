@@ -66,13 +66,13 @@ function musInit() {
   soft.type = 'lowpass';
   soft.frequency.value = 1900;
   const dry = ac.createGain();
-  dry.gain.value = 0.28;
+  dry.gain.value = 0.75;
   bus.connect(soft);
   soft.connect(dry).connect(master);
   const wet = ac.createGain();
   wet.gain.value = 0.9;
   soft.connect(wet).connect(verb);
-  MUS = { bus, next: 0, beat: 0, bar: 0, on: false, wait: rr(35, 60), motif: null, chord: 0, level: 1 };
+  MUS = { bus, next: 0, beat: 0, bar: 0, on: false, wait: rr(3, 6), motif: null, chord: 0, level: 1 };
 }
 function degMidi(S, d) {
   const n = S.mode.length,
@@ -219,7 +219,7 @@ function musicTick() {
           tri.concat([degMidi(S, c) - 24]),
           t,
           beat * 8,
-          0.0013 * (1 - 0.3 * nf),
+          0.0025 * (1 - 0.3 * nf),
           S.inst === 'bell' ? 900 : 700 + 500 * (1 - nf)
         );
     }
@@ -229,8 +229,8 @@ function musicTick() {
       const m = degMidi(S, dd) + S.oct - (nf > 0.6 ? 12 : 0);
       const pan = rr(-0.35, 0.35);
       const inst = nf > 0.7 && SEASON < 3 && Math.random() < 0.5 ? 'bell' : S.inst;
-      if (inst === 'bell') bell(m + (SEASON === 3 ? 12 : 0), t, 0.0075, pan * 1.5);
-      else pluck(m - (S.oct ? 12 : 0), t + rr(0, 0.02), 0.011, S.bright * 0.6 * (1 - 0.4 * nf), pan * 1.5);
+      if (inst === 'bell') bell(m + (SEASON === 3 ? 12 : 0), t, 0.02, pan * 1.5);
+      else pluck(m - (S.oct ? 12 : 0), t + rr(0, 0.02), 0.025, S.bright * 0.6 * (1 - 0.4 * nf), pan * 1.5);
       if (SEASON === 1 && Math.random() < 0.1) pluck(degMidi(S, dd + 2), t + beat * 0.5, 0.006, S.bright * 0.6, -pan); // summer grace notes
     }
     MUS.beat++;
@@ -238,7 +238,7 @@ function musicTick() {
       MUS.bar++;
       if (MUS.bar >= MUS.bars) {
         MUS.on = false;
-        MUS.wait = rr(70, 160) * (st.settled ? 0.75 : 1) * (SEASON === 3 ? 1.3 : 1);
+        MUS.wait = rr(18, 35) * (st.settled ? 0.75 : 1) * (SEASON === 3 ? 1.3 : 1);
       }
     }
   }
