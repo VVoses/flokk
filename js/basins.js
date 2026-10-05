@@ -197,8 +197,11 @@ function drawClosedBasins(c) {
         ny = -gy * 1.4,
         norm = Math.hypot(nx, ny, 1),
         d = (-0.4 * nx - 0.55 * ny + 0.73) / Math.hypot(0.4, 0.55, 0.73) / norm - 0.73 / Math.hypot(0.4, 0.55, 0.73),
+        // The shared wind field sweeps a soft sheen over the independent surface ripples.
+        gust = gustAt(b.c.x + ((k % n) - b.half) * cell, b.c.y + (Math.floor(k / n) - b.half) * cell),
+        sheen = 0.055 * smooth(0.2, 0.9, WEATHER.s) * smooth(0.15, 0.85, gust),
         // A small daylight lift keeps enclosed water from looking dull beside the fjord.
-        lit = d + 0.025 * (1 - LIGHT.night),
+        lit = d + (0.025 + sheen) * (1 - LIGHT.night),
         light = lit > 0,
         a = (1 - Math.exp(-Math.abs(lit) * 3.2)) * (light ? 0.36 : 0.2) * dim * freeze * b.depth[k],
         o = k * 4;

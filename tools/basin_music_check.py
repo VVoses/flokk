@@ -60,6 +60,15 @@ with sync_playwright() as p:
     assert 0 < motion['coverage'] < .6 and motion['positive'] > 10 and motion['negative'] > 10, motion
     assert motion['finite'] and abs(motion['volume']) < 1e-4, motion
     print('ok localized forcing, opposing surface motion and wind-driven conservation', motion)
+    sheen = page.evaluate('''() => {
+      dev.to(LAKE.x,LAKE.y,.95);
+      const sum=()=>{let v=0;for(const b of BASINS.list) for(let k=3;k<b.img.data.length;k+=4) v+=b.img.data[k];return v;};
+      WEATHER.s=0;drawClosedBasins(ctx);const calm=sum();
+      WEATHER.s=1;drawClosedBasins(ctx);const windy=sum();
+      return {calm,windy};
+    }''')
+    assert sheen['windy'] > sheen['calm'], sheen
+    print('ok shared gust field adds a wind-dependent water sheen', sheen)
     for name in ['LAKE', 'POND']:
         page.evaluate(f'dev.to({name}.x,{name}.y,.95);render();')
         page.screenshot(path=str(out / (name.lower()+'.png')))

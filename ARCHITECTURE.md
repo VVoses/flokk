@@ -170,7 +170,8 @@ not full fluid simulations. Their sampled heights and slopes drive boats and duc
 surface renders the same field with either GPU or canvas fjord rendering. They reset on world rebuild
 or a backwards animation-clock jump, and freeze with winter. `basin_music_check.py` checks conservation,
 shore boundaries, isolation and decay, and captures lake/pond views.
-Gust foam samples the same travelling wind field as vegetation, fades in stronger wind, and disappears
+Enclosed water also gains a soft wind-dependent sheen from that same gust field, without translating
+the underlying ripples. Gust foam samples the same travelling wind field as vegetation, fades in stronger wind, and disappears
 in calm or frozen water. `water_check.py` covers phase continuity, both renderers and foam suppression.
 
 ## Animals and people: a shared movement toolkit, a per-kind behaviour switch
