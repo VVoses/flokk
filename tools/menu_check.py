@@ -28,6 +28,13 @@ with sync_playwright() as p:
 
     keyboard_boundary('titleOv')
     check(page.get_by_role('dialog', name='Flokk', exact=True).count() == 1, 'title has an accessible dialog name')
+    check(page.locator('#titleCard .pause-topline').count() == 0, 'title omits the duplicate tagline')
+    check(page.get_by_role('img', name='Hold the left mouse button').count() == 1, 'mouse control uses an accessible icon')
+    original_seed = page.evaluate('SEED')
+    page.click('#rerollBtn')
+    page.wait_for_function('!MENU_JOB')
+    check(page.evaluate('SEED') != original_seed, 'explicit reroll changes a URL-pinned world')
+    check(page.evaluate("$('landName').textContent===LAND_NAME"), 'reroll updates the displayed land name')
     page.click('#startBtn');page.wait_for_function("st.mode==='play' && !MENU_JOB")
     check(page.evaluate('document.activeElement === cv && !cv.inert'), 'taking off returns focus to flight')
     page.keyboard.press('Escape')

@@ -248,8 +248,9 @@ function musicYearWon() {
   // The year's suspended harmony finally finds D major: a small release, not a victory fanfare.
   musicChord([57, 61, 64, 67], t, 1.6, 0.021);
   musicChord([50, 57, 62, 66, 69, 74], t + 1.35, 3.4, 0.033, 1900);
-  for (const [i, midi] of [68, 69, 66, 62].entries())
-    pluck(midi, t + [0, 0.65, 1.6, 2.5][i], 0.02, 2300, (i - 1.5) * 0.07);
+  // Rise through the dominant into the tonic, ending an octave above spring's root.
+  for (const [i, midi] of [57, 61, 64, 66, 69, 74].entries())
+    pluck(midi, t + [0, 0.35, 0.75, 1.35, 1.85, 2.65][i], i === 5 ? 0.018 : 0.02, 2300, (i - 2.5) * 0.055);
 }
 function seasonJingle(season, t, echo = -1) {
   const S = MUS_SEASON[season],

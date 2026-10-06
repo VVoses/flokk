@@ -3,14 +3,14 @@
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 /* ---------- game state ---------- */
-// a new land is seeded from the current date and time; ?seed=N pins it for tests and debugging
+// ?seed=N pins the initial world for debugging; an explicit reroll uses a fresh time-based seed.
 const PINNED_SEED = (() => {
   const m = /[?&]seed=(\d+)/.exec(location.search);
   return m ? Number(m[1]) >>> 0 : null;
 })();
 let seedCalls = 0;
-function newSeed() {
-  if (PINNED_SEED !== null) return PINNED_SEED;
+function newSeed(reroll = false) {
+  if (PINNED_SEED !== null && !reroll) return PINNED_SEED;
   // the millisecond clock, scrambled so lands made a moment apart look nothing alike
   const now = Date.now();
   let h = ((now % 4294967296) ^ Math.imul(Math.floor(now / 4294967296) + ++seedCalls, 0x9e3779b1)) >>> 0;
@@ -653,7 +653,7 @@ function landLabels() {
 }
 // roll a different land for the title world (Reroll); nothing saved is touched
 function newLand() {
-  genWorld(newSeed());
+  genWorld(newSeed(true));
   refreshInsects();
   landLabels();
   resetWorld(14, START.x, START.y - 150);

@@ -41,6 +41,14 @@ with sync_playwright() as p:
       TREES.length=0;for(const t of old)TREES.push(t);REFLsrc=null;
       return beyondOldStrip&&selected&&refreshed;
     })()'''), 'mirrored canopy reaches water beyond the old fixed shoreline strip'
+    assert page.evaluate('''(() => {
+      const old={el:LIGHT.el,night:LIGHT.night,rain:LIGHT.rain,fog:WEATHER.fog};
+      LIGHT.el=60;LIGHT.night=0;LIGHT.rain=0;WEATHER.fog=0;const bright=waterSunStrength();
+      LIGHT.rain=1;const rain=waterSunStrength();LIGHT.rain=0;LIGHT.night=1;const night=waterSunStrength();
+      LIGHT.night=0;WEATHER.fog=1;const fog=waterSunStrength();
+      LIGHT.el=old.el;LIGHT.night=old.night;LIGHT.rain=old.rain;WEATHER.fog=old.fog;
+      return bright>.5 && rain===0 && night===0 && fog===0;
+    })()'''), 'sun shimmer needs direct daylight and disappears under rain, fog and night'
     for gpu in [False, True]:
         result = page.evaluate("""gpu => {
           WAVES_GL.gl=null;WAVES_GL.tried=!gpu;DEV.glWaves=gpu;

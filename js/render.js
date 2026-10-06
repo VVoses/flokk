@@ -1883,18 +1883,6 @@ function render() {
     drawStreamFlow(ctx);
     if (winterW() < 0.5) {
       drawLilies(ctx);
-      // glints twinkle on calm water and give way to the wind's own waves as it roughens (waves.js)
-      for (const s of SPARK) {
-        if (!visG(s.x, s.y, 10)) continue;
-        const a = Math.max(0, Math.sin(T * s.s + s.p));
-        const al = a ** 10 * (1 - smooth(0.15, 0.7, waterRough(s)));
-        if (al < 0.04) continue;
-        ctx.globalAlpha = al * 0.8;
-        ctx.beginPath();
-        ctx.moveTo(s.x - s.l / 2, s.y);
-        ctx.lineTo(s.x + s.l / 2, s.y);
-        ctx.stroke();
-      }
       if (k === 0) {
         drawWaves(ctx);
         drawSwash(ctx);
@@ -1906,17 +1894,6 @@ function render() {
       drawDew();
       ctx.strokeStyle = sc;
       ctx.lineWidth = 2;
-    }
-    for (const s of SEASPARK) {
-      if (!visG(s.x, s.y, 10)) continue;
-      const a = Math.max(0, Math.sin(T * s.s + s.p));
-      const al = a ** 8;
-      if (al < 0.04) continue;
-      ctx.globalAlpha = al * 0.75;
-      ctx.beginPath();
-      ctx.moveTo(s.x - s.l / 2, s.y);
-      ctx.lineTo(s.x + s.l / 2, s.y);
-      ctx.stroke();
     }
     ctx.globalAlpha = 1;
     // ripples: fish rises, diving ducks, heron strikes; and duck wakes

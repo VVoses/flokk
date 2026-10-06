@@ -170,8 +170,12 @@ not full fluid simulations. Their sampled heights and slopes drive boats and duc
 surface renders the same field with either GPU or canvas fjord rendering. They reset on world rebuild
 or a backwards animation-clock jump, and freeze with winter. `basin_music_check.py` checks conservation,
 shore boundaries, isolation and decay, and captures lake/pond views.
-Enclosed water also gains a soft wind-dependent sheen from that same gust field, without translating
-the underlying ripples. Gust foam samples the same travelling wind field as vegetation, fades in stronger wind, and disappears
+Enclosed water also gains a soft wind-dependent sheen from that same gust field, eased over 1.8 seconds,
+without translating the underlying ripples. Sun shimmer uses surface normals and solar direction in the
+fjord fragment shader, with equivalent shading on bounded water. Direct sunlight controls its strength;
+rain, fog, darkness and ice suppress it. Independent animated water-glint dashes are no longer rendered.
+Gust foam is confined to the fjord; lakes use their surface sheen rather than another stroke layer.
+Gust foam samples the same travelling wind field as vegetation, fades in stronger wind, and disappears
 in calm or frozen water. `water_check.py` covers phase continuity, both renderers and foam suppression.
 
 ## Animals and people: a shared movement toolkit, a per-kind behaviour switch
@@ -295,7 +299,8 @@ overlap and skips a backlog after suspension. `basin_music_check.py` renders all
 checks output, scheduling, year rollover, pause/danger gating and resumed milestone selection.
 
 Seasonal arrivals also layer short, softly filtered chord beds underneath the lead and low pedal.
-`musicYearWon()` resolves the year's tension from A7 into D major on the win screen, once per year,
+`musicYearWon()` resolves the year's tension from A7 into D major with a six-note ascending melody
+on the win screen, once per year,
 respecting mute. The audio regression renders this closing phrase and checks duplicate/mute gating.
 Shore-tree reflection selection uses the mirrored canopy's height to find water under its projected
 footprint, rather than restricting reflections to trees within a fixed 34-unit bank strip.

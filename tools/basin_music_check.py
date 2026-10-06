@@ -64,7 +64,7 @@ with sync_playwright() as p:
       dev.to(LAKE.x,LAKE.y,.95);
       const sum=()=>{let v=0;for(const b of BASINS.list) for(let k=3;k<b.img.data.length;k+=4) v+=b.img.data[k];return v;};
       WEATHER.s=0;drawClosedBasins(ctx);const calm=sum();
-      WEATHER.s=1;drawClosedBasins(ctx);const windy=sum();
+      WEATHER.s=1;for(let i=0;i<90;i++){T+=1/30;drawClosedBasins(ctx);}const windy=sum();
       return {calm,windy};
     }''')
     assert sheen['windy'] > sheen['calm'], sheen
@@ -129,15 +129,16 @@ with sync_playwright() as p:
       const synced=banners===1&&calls.length===count+1&&openingSeasonCue===null;
       muted=true;beginSeasonIntro();seasonIntroTick(12);
       const mutedBanner=banners===2&&openingSeasonCue===null;
-      const oldChord=musicChord,oldPluck=pluck,oldYear=CAL.year;let winNotes=0;
-      musicChord=()=>winNotes++;pluck=()=>winNotes++;muted=false;wonMusicKey=null;
-      musicYearWon();const winOnce=winNotes===6;musicYearWon();
-      const noRepeat=winNotes===6;muted=true;CAL.year++;musicYearWon();
-      const mutedWin=winNotes===6;
+      const oldChord=musicChord,oldPluck=pluck,oldYear=CAL.year;let winNotes=0;const winPitches=[];
+      musicChord=()=>winNotes++;pluck=m=>{winNotes++;winPitches.push(m);};muted=false;wonMusicKey=null;
+      musicYearWon();const winOnce=winNotes===8;musicYearWon();
+      const noRepeat=winNotes===8;muted=true;CAL.year++;musicYearWon();
+      const mutedWin=winNotes===8;
+      const ascending=winPitches.every((m,i)=>i===0||m>winPitches[i-1])&&winPitches[5]===74;
       musicChord=oldChord;pluck=oldPluck;CAL.year=oldYear;wonMusicKey=null;
       seasonBanner=oldBanner;muted=oldMuted;
       ac=oldAc;seasonJingle=oldJingle;MUS=null;
-      return {once,first,paused,danger,noBacklog,transition,newYear,resumed,delayed,introPause,synced,mutedBanner,winOnce,noRepeat,mutedWin};
+      return {once,first,paused,danger,noBacklog,transition,newYear,resumed,delayed,introPause,synced,mutedBanner,winOnce,noRepeat,mutedWin,ascending};
     }''')
     assert all(cues.values()), cues
     print('ok composed arrival, calendar echoes, pause/danger gating and no backlog', cues)
