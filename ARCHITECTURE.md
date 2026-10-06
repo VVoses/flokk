@@ -278,3 +278,15 @@ actually boot the game headless and confirm it starts.
   envelopes that fade rather than cut off (`DESIGN.md`: sound is ambience, not noise).
 - **A new tool script**: headless Playwright, one concern, screenshots to `tools/out/<name>/` for anything
   visual, printed pass/fail for anything mechanical. Look at `fox_check.py` for the shortest template.
+
+## Seasonal music
+
+`music.js` contains four composed arrival phrases, rather than randomly generated motifs: D-major
+spring plucks, F-lydian summer plucks, A-dorian autumn plucks, and E-minor winter bells. Each has an
+explicit melody, rhythm, chord progression and tonic ending. A season/year key triggers the full phrase
+once on arrival; the first flight phrase waits three audio seconds. Three quieter echoes at 32%, 66%
+and 86% of the game season quote the opening, final chord, and cadence respectively. They follow
+`CAL.t`, not wall-clock timers, so pausing cannot advance echoes and resuming skips elapsed milestones.
+Danger ducks the bus and defers new cues; mute stays controlled by `audioTick`. The scheduler bounds
+overlap and skips a backlog after suspension. `basin_music_check.py` renders all seasonal voices and
+checks output, scheduling, year rollover, pause/danger gating and resumed milestone selection.

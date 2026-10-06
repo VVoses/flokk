@@ -1,5 +1,5 @@
 /* Flokk - audio.js
-   WebAudio: flock sounds, ambience, animal voices, seasonal one-shots. The generative background
+   WebAudio: flock sounds, ambience, animal voices, seasonal one-shots. The composed seasonal
    music lives in music.js; audioTick() below drives both.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';

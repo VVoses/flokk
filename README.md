@@ -46,7 +46,7 @@ files; function bodies can use anything, since they run after everything has loa
 | `sprites.js` | tree sprites per season (`buildSprites`, `NV` variants) |
 | `ground.js` | yielding `paintGroundGen` → wide canvas `GE` → seam-blended `G`; fields, forest floor and tracks; `paintStream` and small crossing decks |
 | `audio.js` | WebAudio graph, animal voices (`animalCall`, `quack`, `baa`, `moo`, `bark`), ambience including nearby stream water, `audioTick` |
-| `music.js` | generative background music, one voice per season (`musicTick`); first phrase after 3–6 seconds, audible direct mix and shorter phrase gaps |
+| `music.js` | composed seasonal arrival jingles and three quieter calendar-based echoes (`musicTick`); plucked/bell phrases with seasonal chord progressions |
 | `sky.js` | shoreline `shoreY`, ridges, clouds, boulders |
 | `life.js` | `ANIMALS`, spawning, per-kind behaviour `updateAnimals`, passing flocks, smoke |
 | `interact.js` | animals reacting to each other (mobbing, cat, dog, herds, ducks); `callAt` sound queue |
@@ -104,7 +104,7 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
 - `python3 tools/road_check.py [N]`: over N generated lands, fails if a farm lane runs alongside the road before
   turning in, or the road cuts through a farmyard.
 - `python3 tools/loading_hud_check.py`: checks loading feedback, blocked repeat activation, and touch HUD geometry across portrait and landscape sizes.
-- `python3 tools/basin_music_check.py`: checks bounded-water conservation, reflecting shores, independent basins and damping, then renders all four seasonal music voices to WAV and checks onset, RMS and headroom.
+- `python3 tools/basin_music_check.py`: checks bounded-water conservation, reflecting shores, independent basins and damping, then renders all four seasonal jingles to WAV and checks onset, RMS and headroom, plus arrival/echo scheduling, pause/danger gating and resume behavior.
 - `python3 tools/water_check.py`: checks wrapped wave phase, recentering, one surface pass, both renderers and gust/calm/frozen foam.
 - `python3 tools/menu_check.py`: checks menu keyboard focus, dialog semantics, safe confirmations, clipboard fallback and narrow-screen layouts.
 - `python3 tools/stream_check.py [N]`: checks the glacial bekk's fjord outlet, bridges, and clearance from fields,
