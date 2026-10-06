@@ -105,6 +105,7 @@ Headless tools need Python 3 with Playwright; lint and format need Node (`npm in
   turning in, or the road cuts through a farmyard.
 - `python3 tools/loading_hud_check.py`: checks loading feedback, blocked repeat activation, and touch HUD geometry across portrait and landscape sizes.
 - `python3 tools/basin_music_check.py`: checks bounded-water conservation, reflecting shores, independent basins and damping, then renders all four seasonal jingles to WAV and checks onset, RMS and headroom, plus arrival/echo scheduling, pause/danger gating and resume behavior.
+- `python3 tools/pole_check.py`: checks road/lane clearance for utility poles and railway masts across eight seeds, and verifies reduced railway mast density with connected overhead lines.
 - `python3 tools/water_check.py`: checks wrapped wave phase, recentering, one surface pass, both renderers and gust/calm/frozen foam.
 - `python3 tools/menu_check.py`: checks menu keyboard focus, dialog semantics, safe confirmations, clipboard fallback and narrow-screen layouts.
 - `python3 tools/stream_check.py [N]`: checks the glacial bekk's fjord outlet, bridges, and clearance from fields,
@@ -139,4 +140,3 @@ Copyright (c) 2026 Karl (VVoses). All rights reserved. See [LICENSE](LICENSE).
 Owl ambience and hunting calls share a 24–40 second audio cooldown, preventing stacked voices.
 `node tools/owl_audio_check.cjs` checks scheduling, overlapping callers and mute behavior; it also runs in `npm run check`.
 
-- `python3 tools/pole_check.py`: checks road/lane clearance for utility poles and railway masts across eight seeds, and verifies reduced railway mast density with connected overhead lines.
