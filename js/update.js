@@ -25,6 +25,7 @@ function update(dt) {
   }
   weatherTick(dt);
   calUpdate();
+  seasonIntroTick(dt);
   runBgJob();
   if (TRANS.t < 1 && !BG_JOB) {
     // Reveal the incoming season only when every asset and growth stage is ready.

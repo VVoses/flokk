@@ -711,10 +711,11 @@ function startGame() {
   dashBtn.hidden = !coarse;
   resetMilestones();
   syncHud();
-  seasonBanner();
+  hideBanner();
+  beginSeasonIntro();
   setTimeout(() => {
     if (st.mode === 'play') teach('goal', 'bring the flock through to spring');
-  }, 14000);
+  }, 24000);
 }
 function yearWon() {
   hideBanner();

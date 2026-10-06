@@ -87,6 +87,24 @@ const MUS_SEASON = [
 ];
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 let MUS = null;
+let openingSeasonCue = null;
+function beginSeasonIntro() {
+  openingSeasonCue = { remaining: 12 };
+  if (MUS) {
+    MUS.key = musicSeasonKey();
+    MUS.arrival = ac.currentTime + 12;
+    MUS.echo = musicEchoIndex();
+    MUS.busyUntil = 0;
+  }
+}
+function seasonIntroTick(dt) {
+  if (!openingSeasonCue || st.mode !== 'play') return;
+  openingSeasonCue.remaining -= dt;
+  if (openingSeasonCue.remaining <= 0 && (muted || !ac)) {
+    openingSeasonCue = null;
+    seasonBanner();
+  }
+}
 function musInit() {
   const bus = ac.createGain();
   bus.gain.value = 0;
@@ -257,6 +275,12 @@ function musicTick() {
     MUS.echo = musicEchoIndex();
   }
   if (!active || danger || now < MUS.busyUntil) return;
+  if (openingSeasonCue) {
+    if (openingSeasonCue.remaining > 0 || st.mode !== 'play') return;
+    openingSeasonCue = null;
+    MUS.arrival = now;
+    seasonBanner();
+  }
   if (MUS.arrival !== null && now >= MUS.arrival) {
     MUS.busyUntil = now + seasonJingle(SEASON, now + 0.05);
     MUS.arrival = null;

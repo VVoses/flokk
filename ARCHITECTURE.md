@@ -285,7 +285,9 @@ actually boot the game headless and confirm it starts.
 spring plucks, F-lydian summer plucks, A-minor autumn plucks, and E-phrygian winter bells. Each has an
 explicit sparse melody, asymmetric rhythm and chord progression, with an unresolved ending. A quiet low
 pedal gives arrivals a serious undertone; spring also has a brief major-seventh swell and open arpeggio. A season/year key triggers the full phrase
-once on arrival; the first flight phrase waits three audio seconds. Three quieter echoes at 32%, 66%
+once on arrival. New flights hold the opening banner and phrase for twelve seconds of active play,
+then reveal the banner with the first notes; pausing holds the countdown and mute retains the delayed
+banner. Continuing a save clears this opening cue. Other audio initialization waits three audio seconds. Three quieter echoes at 32%, 66%
 and 86% of the game season quote the opening, final chord, and cadence respectively. They follow
 `CAL.t`, not wall-clock timers, so pausing cannot advance echoes and resuming skips elapsed milestones.
 Danger ducks the bus and defers new cues; mute stays controlled by `audioTick`. The scheduler bounds

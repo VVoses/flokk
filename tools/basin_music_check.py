@@ -118,8 +118,19 @@ with sync_playwright() as p:
       SEASON=0;CAL.t=0;const keyBefore=musicSeasonKey();CAL.t=1200;
       const newYear=musicSeasonKey()!==keyBefore;
       CAL.t=210;const resumed=musicEchoIndex()===2;
+      const oldBanner=seasonBanner,oldMuted=muted;let banners=0;
+      seasonBanner=()=>banners++;muted=false;st.mode='play';CAL.t=0;SEASON=0;
+      beginSeasonIntro();seasonIntroTick(11.9);ac.currentTime=100;musicTick();
+      const delayed=banners===0&&openingSeasonCue.remaining>0;
+      st.mode='pause';const left=openingSeasonCue.remaining;seasonIntroTick(5);
+      const introPause=openingSeasonCue.remaining===left;
+      st.mode='play';seasonIntroTick(.2);const count=calls.length;musicTick();
+      const synced=banners===1&&calls.length===count+1&&openingSeasonCue===null;
+      muted=true;beginSeasonIntro();seasonIntroTick(12);
+      const mutedBanner=banners===2&&openingSeasonCue===null;
+      seasonBanner=oldBanner;muted=oldMuted;
       ac=oldAc;seasonJingle=oldJingle;MUS=null;
-      return {once,first,paused,danger,noBacklog,transition,newYear,resumed};
+      return {once,first,paused,danger,noBacklog,transition,newYear,resumed,delayed,introPause,synced,mutedBanner};
     }''')
     assert all(cues.values()), cues
     print('ok composed arrival, calendar echoes, pause/danger gating and no backlog', cues)
