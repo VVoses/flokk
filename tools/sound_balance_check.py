@@ -35,6 +35,21 @@ with sync_playwright() as p:
         page.screenshot(path=str(out / f'sound-balance-{width}.png'))
     page.reload()
     assert page.evaluate('soundLevels.music===1 && soundLevels.world===0'), 'balance persists across reload'
+    recovery = page.evaluate('''async () => {
+      let attempts=0;
+      ac={state:'suspended',resume:() => {
+        attempts++;
+        if(attempts===1) return Promise.reject(new Error('Audio resume denied'));
+        ac.state='running';return Promise.resolve();
+      }};
+      initAudio();
+      await new Promise(resolve=>setTimeout(resolve,0));
+      const retryable=ac.state==='suspended';
+      initAudio();
+      await new Promise(resolve=>setTimeout(resolve,0));
+      return {retryable,running:ac.state==='running',attempts};
+    }''')
+    assert recovery == dict(retryable=True,running=True,attempts=2), recovery
     page.evaluate("st.mode='pause';muted=true;openingSeasonCue=null;")
     for source in ['music', 'world']:
         for music, world in [(1,0),(0,1),(0,0)]:
