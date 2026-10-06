@@ -70,6 +70,8 @@ jobs:
 
       - name: continuous water and gust foam
         run: python3 tools/water_check.py
+      - name: roadside power poles and sparse railway masts
+        run: python3 tools/pole_check.py
 
       - name: bounded water and audible seasonal music
         run: python3 tools/basin_music_check.py

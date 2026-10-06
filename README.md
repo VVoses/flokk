@@ -138,3 +138,5 @@ Copyright (c) 2026 Karl (VVoses). All rights reserved. See [LICENSE](LICENSE).
 
 Owl ambience and hunting calls share a 24–40 second audio cooldown, preventing stacked voices.
 `node tools/owl_audio_check.cjs` checks scheduling, overlapping callers and mute behavior; it also runs in `npm run check`.
+
+- `python3 tools/pole_check.py`: checks road/lane clearance for utility poles and railway masts across eight seeds, and verifies reduced railway mast density with connected overhead lines.
