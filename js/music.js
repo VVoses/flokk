@@ -1,64 +1,112 @@
 /* Flokk - music.js
-   Generative background music: one gentle voice per season, built from a short random motif
-   that comes and goes over a slow chord loop, quieted whenever a hawk is hunting.
+   Composed seasonal arrival phrases with three quiet calendar-based echoes.
+   Short plucked/bell melodies leave room for the world and duck whenever a hawk is hunting.
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 const MUS_SEASON = [
-  // spring: D major, pentatonic melody, bright plucks
+  // Spring: D lydian. Open light, with a major seventh and raised fourth left unresolved.
   {
     root: 62,
-    mode: [0, 2, 4, 5, 7, 9, 11],
-    mel: [0, 1, 2, 4, 5],
-    prog: [0, 4, 5, 3],
-    beat: 0.6,
-    p: 0.46,
-    oct: 12,
+    mode: [0, 2, 4, 6, 7, 9, 11],
+    beat: 0.62,
     inst: 'pluck',
-    pad: 0.4,
-    bright: 3400
+    bright: 2600,
+    oct: 0,
+    melody: [
+      [0, 4],
+      [1.4, 8],
+      [3.2, 6],
+      [5.1, 3]
+    ],
+    chords: [
+      [0, [0, 4, 6]],
+      [2.4, [0, 3, 8]],
+      [5.1, [0, 4, 8]]
+    ]
   },
-  // summer: F lydian, warm plucks over pads
+  // Summer: F lydian. Suspended warmth above a steady low pedal, no tonic cadence.
   {
     root: 65,
     mode: [0, 2, 4, 6, 7, 9, 11],
-    mel: [0, 1, 2, 3, 4, 5, 6],
-    prog: [0, 1, 5, 4],
     beat: 0.72,
-    p: 0.38,
-    oct: 0,
     inst: 'pluck',
-    pad: 1,
-    bright: 2600
+    bright: 2300,
+    oct: 0,
+    melody: [
+      [0, 4],
+      [1.8, 6],
+      [3.6, 3],
+      [5.6, 1]
+    ],
+    chords: [
+      [0, [0, 2, 6]],
+      [2.6, [0, 3, 5]],
+      [5.6, [0, 4, 8]]
+    ]
   },
-  // autumn: A dorian, low and slow
+  // Autumn: A minor. The falling phrase catches on the sixth and leaves an added ninth.
   {
     root: 57,
-    mode: [0, 2, 3, 5, 7, 9, 10],
-    mel: [0, 1, 2, 3, 4, 5, 6],
-    prog: [0, 3, 0, 6],
-    beat: 0.9,
-    p: 0.32,
-    oct: 0,
+    mode: [0, 2, 3, 5, 7, 8, 10],
+    beat: 0.78,
     inst: 'pluck',
-    pad: 1,
-    bright: 1500
+    bright: 1700,
+    oct: 0,
+    melody: [
+      [0, 4],
+      [1.5, 2],
+      [3.4, 5],
+      [5.2, 1]
+    ],
+    chords: [
+      [0, [0, 2, 4]],
+      [2.5, [0, 5, 9]],
+      [5.2, [0, 4, 8]]
+    ]
   },
-  // winter: E aeolian, sparse bells over a cold drone
+  // Winter: E phrygian. Sparse bells leave a quiet semitone hanging over the open fifth.
   {
     root: 64,
-    mode: [0, 2, 3, 5, 7, 8, 10],
-    mel: [0, 2, 3, 4, 6],
-    prog: [0, 5, 3, 0],
-    beat: 1.15,
-    p: 0.2,
-    oct: 0,
+    mode: [0, 1, 3, 5, 7, 8, 10],
+    beat: 0.88,
     inst: 'bell',
-    pad: 0.8,
-    bright: 2000
+    bright: 1600,
+    oct: 12,
+    melody: [
+      [0, 4],
+      [1.9, 1],
+      [3.8, 2],
+      [5.7, 1]
+    ],
+    chords: [
+      [0, [0, 4, 7]],
+      [3, [0, 5, 9]],
+      [5.7, [0, 4, 8]]
+    ]
   }
 ];
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 let MUS = null;
+let openingSeasonCue = null;
+let wonMusicKey = null;
+function beginSeasonIntro() {
+  wonMusicKey = null;
+  openingSeasonCue = { remaining: 12 };
+  if (MUS) {
+    MUS.key = musicSeasonKey();
+    MUS.arrival = ac.currentTime + 12;
+    MUS.echo = musicEchoIndex();
+    MUS.busyUntil = 0;
+  }
+}
+function seasonIntroTick(dt) {
+  if (!openingSeasonCue || st.mode !== 'play') return;
+  openingSeasonCue.remaining -= dt;
+  if (openingSeasonCue.remaining <= 0 && (muted || !ac)) {
+    openingSeasonCue = null;
+    seasonBanner();
+  }
+}
 function musInit() {
   const bus = ac.createGain();
   bus.gain.value = 0;
@@ -72,7 +120,7 @@ function musInit() {
   const wet = ac.createGain();
   wet.gain.value = 0.9;
   soft.connect(wet).connect(verb);
-  MUS = { bus, next: 0, beat: 0, bar: 0, on: false, wait: rr(3, 6), motif: null, chord: 0, level: 1 };
+  MUS = { bus, key: musicSeasonKey(), arrival: ac.currentTime + 3, echo: musicEchoIndex(), level: 1, busyUntil: 0 };
 }
 function degMidi(S, d) {
   const n = S.mode.length,
@@ -129,117 +177,173 @@ function bell(m, t, v, pan) {
     o.stop(t + d + 0.05);
   }
 }
-function pad(ms, t, dur, v, cut) {
+// Echoes follow the game calendar, not an audio wall-clock loop. Resuming a save skips past cues.
+const MUSIC_ECHOES = [0.32, 0.66, 0.86];
+function musicSeasonKey() {
+  return `${Math.floor(CAL.t / (DAY_LEN * YEAR_DAYS))}:${SEASON}`;
+}
+function musicSeasonProgress() {
+  const duration = DAY_LEN * DAYS_PER_SEASON;
+  return (((CAL.t % duration) + duration) % duration) / duration;
+}
+function musicEchoIndex() {
+  let i = 0;
+  while (i < MUSIC_ECHOES.length && MUSIC_ECHOES[i] <= musicSeasonProgress()) i++;
+  return i;
+}
+function springBloom(t) {
+  const S = MUS_SEASON[0],
+    out = ac.createGain(),
+    lp = ac.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(650, t);
+  lp.frequency.linearRampToValueAtTime(2200, t + 0.3);
+  lp.frequency.exponentialRampToValueAtTime(700, t + 1.8);
+  out.gain.setValueAtTime(0, t);
+  out.gain.linearRampToValueAtTime(0.009, t + 0.22);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+  lp.connect(out).connect(MUS.bus);
+  // D major seventh: a warm swell, with its seventh held above the low tonic.
+  for (const degree of [-14, -7, 2, 4, 6])
+    for (const detune of [-4, 4]) {
+      const o = ac.createOscillator();
+      o.type = degree < 0 ? 'sine' : 'triangle';
+      o.frequency.value = mtof(degMidi(S, degree));
+      o.detune.value = detune;
+      o.connect(lp);
+      o.start(t);
+      o.stop(t + 1.9);
+    }
+  for (const [i, degree] of [0, 4, 6, 8].entries())
+    pluck(degMidi(S, degree), t + 0.06 + i * 0.14, 0.013, 2400, (i - 2) * 0.1);
+}
+function musicChord(notes, t, duration, volume, brightness = 1400) {
   const out = ac.createGain(),
     lp = ac.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = cut;
-  lp.Q.value = 0.6;
+  lp.frequency.value = brightness;
   out.gain.setValueAtTime(0, t);
-  out.gain.linearRampToValueAtTime(v, t + dur * 0.4);
-  out.gain.setValueAtTime(v, t + dur * 0.6);
-  out.gain.linearRampToValueAtTime(0, t + dur + 1.5);
+  out.gain.linearRampToValueAtTime(volume / notes.length, t + 0.15);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + duration);
   lp.connect(out).connect(MUS.bus);
-  for (const m of ms)
-    for (const det of [-7, 7]) {
-      const o = ac.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = mtof(m);
-      o.detune.value = det;
-      o.connect(lp);
-      o.start(t);
-      o.stop(t + dur + 1.6);
-    }
-}
-function makeMotif(S) {
-  const m = [];
-  let d = pickP(S.mel);
-  for (let i = 0; i < 8; i++) {
-    const on = i === 0 || Math.random() < (i % 2 ? S.p * 0.4 : S.p * 0.85);
-    if (on) {
-      d += pickP([-2, -1, -1, 0, 1, 1, 2]);
-      d = clamp(d, -2, 9);
-    }
-    m.push(on ? d : null);
+  for (const [i, midi] of notes.entries()) {
+    const o = ac.createOscillator();
+    o.type = i === 0 ? 'sine' : 'triangle';
+    o.frequency.value = mtof(midi);
+    o.detune.value = i % 2 ? -3 : 3;
+    panned(o, (i / Math.max(1, notes.length - 1) - 0.5) * 0.4).connect(lp);
+    o.start(t);
+    o.stop(t + duration + 0.05);
   }
-  return m;
 }
-function snapMel(S, d) {
-  if (S.mel.length === S.mode.length) return d;
-  const n = S.mode.length,
-    o = Math.floor(d / n),
-    r = ((d % n) + n) % n;
-  let best = S.mel[0],
-    bd = 99;
-  for (const x of S.mel)
-    if (Math.abs(x - r) < bd) {
-      bd = Math.abs(x - r);
-      best = x;
-    }
-  return best + o * n;
+function musicYearWon() {
+  openingSeasonCue = null;
+  if (!ac || muted || wonMusicKey === CAL.year) return;
+  wonMusicKey = CAL.year;
+  if (!MUS) musInit();
+  const t = ac.currentTime + 0.15;
+  MUS.bus.gain.setTargetAtTime(1, ac.currentTime, 0.2);
+  MUS.arrival = null;
+  MUS.busyUntil = t + 6;
+  // The year's suspended harmony finally finds D major: a small release, not a victory fanfare.
+  musicChord([57, 61, 64, 67], t, 1.6, 0.021);
+  musicChord([50, 57, 62, 66, 69, 74], t + 1.35, 3.4, 0.033, 1900);
+  // Rise through the dominant into the tonic, ending an octave above spring's root.
+  for (const [i, midi] of [57, 61, 64, 66, 69, 74].entries())
+    pluck(midi, t + [0, 0.35, 0.75, 1.35, 1.85, 2.65][i], i === 5 ? 0.018 : 0.02, 2300, (i - 2.5) * 0.055);
+}
+function seasonJingle(season, t, echo = -1) {
+  const S = MUS_SEASON[season],
+    scale = echo < 0 ? 1 : 0.48,
+    voice = (degree, at, volume, pan = 0) => {
+      const midi = degMidi(S, degree) + S.oct;
+      if (S.inst === 'bell') bell(midi, at, volume * 0.7, pan);
+      else pluck(midi, at, volume, S.bright, pan);
+    };
+  if (season === 0 && echo < 0) springBloom(t);
+  if (echo < 0) {
+    const first = S.chords[0],
+      last = S.chords[S.chords.length - 1];
+    musicChord(
+      first[1].map(d => degMidi(S, d)),
+      t + 0.1,
+      1.8,
+      season === 0 ? 0.009 : 0.018,
+      S.bright * 0.65
+    );
+    musicChord(
+      last[1].map(d => degMidi(S, d)),
+      t + last[0] * S.beat,
+      1.9,
+      0.012,
+      S.bright * 0.55
+    );
+    // A low, restrained pedal carries weight beneath the surface beauty; it never resolves the phrase.
+    const low = ac.createOscillator(),
+      body = ac.createGain();
+    low.type = 'sine';
+    low.frequency.value = mtof(S.root - 24);
+    body.gain.setValueAtTime(0, t);
+    body.gain.linearRampToValueAtTime(0.012, t + 0.35);
+    body.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+    low.connect(body).connect(MUS.bus);
+    low.start(t);
+    low.stop(t + 3.3);
+  }
+  if (echo === 1) {
+    // The middle echo recalls only the arrival's final chord.
+    const chord = S.chords[S.chords.length - 1][1];
+    for (let i = 0; i < chord.length; i++) voice(chord[i] - 7, t + i * 0.045, 0.013 * scale, (i - 1) * 0.12);
+    return 2.8;
+  }
+  const melody = echo < 0 ? S.melody : echo === 0 ? S.melody.slice(0, 3) : S.melody.slice(-2),
+    origin = melody[0][0];
+  for (let i = 0; i < melody.length; i++) {
+    const [beat, degree] = melody[i];
+    voice(
+      degree,
+      t + (beat - origin) * S.beat,
+      0.024 * scale * (i === melody.length - 1 ? 0.9 : 1),
+      0.08 * Math.sin(i)
+    );
+  }
+  if (echo < 0)
+    for (const [beat, chord] of S.chords)
+      for (let i = 0; i < chord.length; i++)
+        pluck(degMidi(S, chord[i]) - 12, t + beat * S.beat + i * 0.025, 0.008, S.bright * 0.5, (i - 1) * 0.14);
+  return (melody[melody.length - 1][0] - origin) * S.beat + 3.8;
 }
 function musicTick() {
   if (!MUS) musInit();
-  const now = ac.currentTime;
-  const danger = hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover');
-  const nf = LIGHT.night;
-  const target = (danger ? 0.12 : 1) * (st.mode === 'play' || st.mode === 'pause' ? 1 : 0.6);
+  const now = ac.currentTime,
+    key = musicSeasonKey(),
+    danger = hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover'),
+    active = st.mode === 'play' || st.mode === 'pause',
+    target = st.mode === 'won' ? 1 : (danger ? 0.12 : 1) * (active ? 1 : 0.6);
   MUS.level += (target - MUS.level) * 0.05;
   MUS.bus.gain.setTargetAtTime(MUS.level, now, 0.8);
-  if (MUS.next < now - 0.5) MUS.next = now + 0.1;
-  const S = MUS_SEASON[SEASON],
-    beat = S.beat * 1.3 * (1 + 0.35 * nf);
-  while (MUS.next < now + 0.25) {
-    const t = MUS.next;
-    MUS.next += beat;
-    if (!MUS.on) {
-      MUS.wait -= beat;
-      if (MUS.wait <= 0 && !danger) {
-        MUS.on = true;
-        MUS.bar = 0;
-        MUS.beat = 0;
-        MUS.bars = Math.random() < 0.35 ? 2 : 1;
-        MUS.motif = makeMotif(S);
-      }
-      continue;
-    }
-    const b = MUS.beat % 8;
-    if (b === 0) {
-      // new bar: chord change, pad, maybe vary the motif
-      MUS.chord = S.prog[MUS.bar % S.prog.length];
-      if (MUS.bar % 2 === 1 || Math.random() < 0.3) {
-        const i = (Math.random() * 8) | 0;
-        if (MUS.motif[i] !== null) MUS.motif[i] += Math.random() < 0.5 ? 1 : -1;
-        else if (Math.random() < 0.5) MUS.motif[i] = MUS.chord + 2;
-      }
-      const c = MUS.chord,
-        tri = [c, c + 2, c + 4].map(d => degMidi(S, d) - 12);
-      if (S.pad && Math.random() < S.pad * 0.45)
-        pad(
-          tri.concat([degMidi(S, c) - 24]),
-          t,
-          beat * 8,
-          0.0025 * (1 - 0.3 * nf),
-          S.inst === 'bell' ? 900 : 700 + 500 * (1 - nf)
-        );
-    }
-    const d = MUS.motif[b];
-    if (d !== null && Math.random() < 1 - 0.45 * nf) {
-      let dd = snapMel(S, d + (b === 0 || b === 4 ? MUS.chord % 3 : 0));
-      const m = degMidi(S, dd) + S.oct - (nf > 0.6 ? 12 : 0);
-      const pan = rr(-0.35, 0.35);
-      const inst = nf > 0.7 && SEASON < 3 && Math.random() < 0.5 ? 'bell' : S.inst;
-      if (inst === 'bell') bell(m + (SEASON === 3 ? 12 : 0), t, 0.02, pan * 1.5);
-      else pluck(m - (S.oct ? 12 : 0), t + rr(0, 0.02), 0.025, S.bright * 0.6 * (1 - 0.4 * nf), pan * 1.5);
-      if (SEASON === 1 && Math.random() < 0.1) pluck(degMidi(S, dd + 2), t + beat * 0.5, 0.006, S.bright * 0.6, -pan); // summer grace notes
-    }
-    MUS.beat++;
-    if (MUS.beat % 8 === 0) {
-      MUS.bar++;
-      if (MUS.bar >= MUS.bars) {
-        MUS.on = false;
-        MUS.wait = rr(18, 35) * (st.settled ? 0.75 : 1) * (SEASON === 3 ? 1.3 : 1);
-      }
-    }
+  if (key !== MUS.key) {
+    MUS.key = key;
+    MUS.arrival = now + 0.35;
+    MUS.echo = musicEchoIndex();
+  }
+  if (!active || danger || now < MUS.busyUntil) return;
+  if (openingSeasonCue) {
+    if (openingSeasonCue.remaining > 0 || st.mode !== 'play') return;
+    openingSeasonCue = null;
+    MUS.arrival = now;
+    seasonBanner();
+  }
+  if (MUS.arrival !== null && now >= MUS.arrival) {
+    MUS.busyUntil = now + seasonJingle(SEASON, now + 0.05);
+    MUS.arrival = null;
+    return;
+  }
+  if (st.mode !== 'play') return;
+  const progress = musicSeasonProgress();
+  if (MUS.echo < MUSIC_ECHOES.length && progress >= MUSIC_ECHOES[MUS.echo]) {
+    const echo = MUS.echo;
+    MUS.echo = musicEchoIndex(); // a long mute or suspension never queues a backlog
+    MUS.busyUntil = now + seasonJingle(SEASON, now + 0.05, echo);
   }
 }

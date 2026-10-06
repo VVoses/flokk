@@ -290,6 +290,7 @@ function restoreSession(id) {
     )
       throw new Error('Invalid game state');
     Object.assign(st, s.st);
+    openingSeasonCue = null;
     Object.assign(CAL, s.cal);
     Object.assign(cam, s.cam);
     birds = s.birds;

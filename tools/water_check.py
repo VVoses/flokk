@@ -32,6 +32,16 @@ with sync_playwright() as p:
     })()"""), 'one surface pass at map seam'
     print('ok wrapped phase, recentering, and single surface pass')
     assert page.evaluate('''(() => {
+      const old=TREES.slice(),tree={x:LAKE.x,y:LAKE.y-lakeR(-Math.PI/2)-55,k:1.2,gh:false};
+      TREES.length=0;TREES.push(tree);REFLsrc=null;
+      const beyondOldStrip=!inBlob(tree.x,tree.y+34,LAKE,lakeR,-4);
+      const selected=reflTrees().some(r=>r.t===tree&&r.c===LAKE);
+      TREES[0]={...tree,x:tree.x+.1};
+      const refreshed=reflTrees().some(r=>r.t===TREES[0]);
+      TREES.length=0;for(const t of old)TREES.push(t);REFLsrc=null;
+      return beyondOldStrip&&selected&&refreshed;
+    })()'''), 'mirrored canopy reaches water beyond the old fixed shoreline strip'
+    assert page.evaluate('''(() => {
       const old={el:LIGHT.el,night:LIGHT.night,rain:LIGHT.rain,fog:WEATHER.fog};
       LIGHT.el=60;LIGHT.night=0;LIGHT.rain=0;WEATHER.fog=0;const bright=waterSunStrength();
       LIGHT.rain=1;const rain=waterSunStrength();LIGHT.rain=0;LIGHT.night=1;const night=waterSunStrength();

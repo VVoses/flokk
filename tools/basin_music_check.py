@@ -72,15 +72,16 @@ with sync_playwright() as p:
     for name in ['LAKE', 'POND']:
         page.evaluate(f'dev.to({name}.x,{name}.y,.95);render();')
         page.screenshot(path=str(out / (name.lower()+'.png')))
-    for season in range(4):
+    for season in range(5):
         music = page.evaluate('''async season => {
-          SEASON=season;hawks=[];st.mode='pause';muted=true;amb=null;MUS=null;
-          ac=new OfflineAudioContext(2,48000*10,48000);
+          SEASON=season===4?0:season;hawks=[];st.mode='pause';muted=true;amb=null;MUS=null;
+          ac=new OfflineAudioContext(2,48000*14,48000);
           master=ac.createGain();master.gain.value=.9;master.connect(ac.destination);
           verb=ac.createGain();verb.gain.value=.16;verb.connect(master);
           musicTick();
+          if(season===4){st.mode='won';muted=false;wonMusicKey=null;musicYearWon();}
           const waits=[];
-          for(let t=.2;t<9.9;t+=.2) waits.push(ac.suspend(t).then(()=>{musicTick();return ac.resume();}));
+          for(let t=.2;t<13.9;t+=.2) waits.push(ac.suspend(t).then(()=>{musicTick();return ac.resume();}));
           const buffer=await ac.startRendering();await Promise.all(waits);
           const left=buffer.getChannelData(0),right=buffer.getChannelData(1);
           let sum=0,peak=0,first=-1;
@@ -103,5 +104,43 @@ with sync_playwright() as p:
         (out / f'music-{season}.wav').write_bytes(base64.b64decode(music.pop('wav')))
         assert 0 <= music['first'] < 8 and music['rms'] > .0005 and .002 < music['peak'] < .5, music
         print('ok seasonal music onset, RMS and headroom', season, music)
+    cues = page.evaluate('''() => {
+      const oldAc=ac, oldJingle=seasonJingle, calls=[];
+      ac={currentTime:0};seasonJingle=(season,t,echo=-1)=>{calls.push({season,echo});return 4;};
+      SEASON=0;CAL.t=0;hawks=[];st.mode='play';
+      MUS={bus:{gain:{setTargetAtTime(){}}},key:musicSeasonKey(),arrival:3,echo:0,level:1,busyUntil:0};
+      ac.currentTime=3;musicTick();musicTick();const once=calls.length===1;
+      ac.currentTime=20;CAL.t=100;musicTick();musicTick();const first=calls.length===2&&calls[1].echo===0;
+      st.mode='pause';ac.currentTime=30;CAL.t=210;musicTick();const paused=calls.length===2;
+      st.mode='play';hawks=[{state:'dive'}];musicTick();const danger=calls.length===2;
+      hawks=[];CAL.t=270;musicTick();const noBacklog=calls.length===3&&MUS.echo===3;
+      ac.currentTime=40;SEASON=1;CAL.t=300;musicTick();ac.currentTime=40.5;musicTick();
+      const transition=calls.length===4&&calls[3].season===1&&calls[3].echo===-1;
+      SEASON=0;CAL.t=0;const keyBefore=musicSeasonKey();CAL.t=1200;
+      const newYear=musicSeasonKey()!==keyBefore;
+      CAL.t=210;const resumed=musicEchoIndex()===2;
+      const oldBanner=seasonBanner,oldMuted=muted;let banners=0;
+      seasonBanner=()=>banners++;muted=false;st.mode='play';CAL.t=0;SEASON=0;
+      beginSeasonIntro();seasonIntroTick(11.9);ac.currentTime=100;musicTick();
+      const delayed=banners===0&&openingSeasonCue.remaining>0;
+      st.mode='pause';const left=openingSeasonCue.remaining;seasonIntroTick(5);
+      const introPause=openingSeasonCue.remaining===left;
+      st.mode='play';seasonIntroTick(.2);const count=calls.length;musicTick();
+      const synced=banners===1&&calls.length===count+1&&openingSeasonCue===null;
+      muted=true;beginSeasonIntro();seasonIntroTick(12);
+      const mutedBanner=banners===2&&openingSeasonCue===null;
+      const oldChord=musicChord,oldPluck=pluck,oldYear=CAL.year;let winNotes=0;const winPitches=[];
+      musicChord=()=>winNotes++;pluck=m=>{winNotes++;winPitches.push(m);};muted=false;wonMusicKey=null;
+      musicYearWon();const winOnce=winNotes===8;musicYearWon();
+      const noRepeat=winNotes===8;muted=true;CAL.year++;musicYearWon();
+      const mutedWin=winNotes===8;
+      const ascending=winPitches.every((m,i)=>i===0||m>winPitches[i-1])&&winPitches[5]===74;
+      musicChord=oldChord;pluck=oldPluck;CAL.year=oldYear;wonMusicKey=null;
+      seasonBanner=oldBanner;muted=oldMuted;
+      ac=oldAc;seasonJingle=oldJingle;MUS=null;
+      return {once,first,paused,danger,noBacklog,transition,newYear,resumed,delayed,introPause,synced,mutedBanner,winOnce,noRepeat,mutedWin,ascending};
+    }''')
+    assert all(cues.values()), cues
+    print('ok composed arrival, calendar echoes, pause/danger gating and no backlog', cues)
     assert not errors, errors
     browser.close()

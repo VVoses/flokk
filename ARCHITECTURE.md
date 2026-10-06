@@ -282,3 +282,25 @@ actually boot the game headless and confirm it starts.
   envelopes that fade rather than cut off (`DESIGN.md`: sound is ambience, not noise).
 - **A new tool script**: headless Playwright, one concern, screenshots to `tools/out/<name>/` for anything
   visual, printed pass/fail for anything mechanical. Look at `fox_check.py` for the shortest template.
+
+## Seasonal music
+
+`music.js` contains four composed arrival phrases, rather than randomly generated motifs: D-lydian
+spring plucks, F-lydian summer plucks, A-minor autumn plucks, and E-phrygian winter bells. Each has an
+explicit sparse melody, asymmetric rhythm and chord progression, with an unresolved ending. A quiet low
+pedal gives arrivals a serious undertone; spring also has a brief major-seventh swell and open arpeggio. A season/year key triggers the full phrase
+once on arrival. New flights hold the opening banner and phrase for twelve seconds of active play,
+then reveal the banner with the first notes; pausing holds the countdown and mute retains the delayed
+banner. Continuing a save clears this opening cue. Other audio initialization waits three audio seconds. Three quieter echoes at 32%, 66%
+and 86% of the game season quote the opening, final chord, and cadence respectively. They follow
+`CAL.t`, not wall-clock timers, so pausing cannot advance echoes and resuming skips elapsed milestones.
+Danger ducks the bus and defers new cues; mute stays controlled by `audioTick`. The scheduler bounds
+overlap and skips a backlog after suspension. `basin_music_check.py` renders all seasonal voices and
+checks output, scheduling, year rollover, pause/danger gating and resumed milestone selection.
+
+Seasonal arrivals also layer short, softly filtered chord beds underneath the lead and low pedal.
+`musicYearWon()` resolves the year's tension from A7 into D major with a six-note ascending melody
+on the win screen, once per year,
+respecting mute. The audio regression renders this closing phrase and checks duplicate/mute gating.
+Shore-tree reflection selection uses the mirrored canopy's height to find water under its projected
+footprint, rather than restricting reflections to trees within a fixed 34-unit bank strip.

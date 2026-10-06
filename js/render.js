@@ -565,15 +565,24 @@ function drawTree(t) {
 let REFL = null,
   REFLsrc = null;
 function reflTrees() {
-  if (REFLsrc === TREES) return REFL;
-  REFLsrc = TREES;
+  // World generation refills the same TREES array; its identity cannot invalidate this cache.
+  if (REFLsrc === TREES[0]) return REFL;
+  REFLsrc = TREES[0];
   REFL = [];
   for (const [c, rf] of [
     [LAKE, lakeR],
     [POND, pondR]
   ])
-    for (const t of TREES)
-      if (!t.gh && !inBlob(t.x, t.y, c, rf, 2) && inBlob(t.x, t.y + 34, c, rf, -4)) REFL.push({ t, c, rf });
+    for (const t of TREES) {
+      if (t.gh || inBlob(t.x, t.y, c, rf, 2)) continue;
+      // Test the actual mirrored canopy reach, not a fixed strip next to the bank.
+      const reach = (AY * t.k * 0.72) / TILT;
+      for (let i = 1; i <= 4; i++)
+        if (inBlob(t.x, t.y + (reach * i) / 4, c, rf, -4)) {
+          REFL.push({ t, c, rf });
+          break;
+        }
+    }
   return REFL;
 }
 function drawReflections(tk, ty, z) {
