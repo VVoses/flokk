@@ -272,6 +272,29 @@ function walkerLife(a, dt) {
   }
 }
 function arrivalLife(a, dt) {
+  const car = a.vehicle;
+  if (car) {
+    if (!car.driverOut) {
+      a.hide = true;
+      a.vx = a.vy = 0;
+      return;
+    }
+    if (car.parkT <= 4) a.returning = true;
+    a.hide = false;
+    a.st = 'walk';
+    const target = a.returning ? [car.x, car.y] : a.arrivalGo;
+    if (steerA(a, target[0], target[1], 10, dt) < 3) {
+      a.st = 'idle';
+      a.vx = a.vy = 0;
+      if (a.returning) {
+        car.driverOut = false;
+        car.doorT = 1.2;
+        a.returning = false;
+        a.hide = true;
+      }
+    }
+    return;
+  }
   a.st = 'walk';
   a.hide = false;
   if (steerA(a, a.arrivalGo[0], a.arrivalGo[1], 10, dt) < 3) {

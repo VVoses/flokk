@@ -43,7 +43,13 @@ function update(dt) {
   growTick(dt);
   basinTick(dt);
   airTick(dt);
-  if (playing && CAL.day >= YEAR_DAYS * CAL.year + (st.dayOff || 0) && CAL.hour >= START_HOUR) {
+  if (
+    playing &&
+    birds.length &&
+    !st.overT &&
+    CAL.day >= YEAR_DAYS * CAL.year + (st.dayOff || 0) &&
+    CAL.hour >= START_HOUR
+  ) {
     yearWon();
     return;
   }

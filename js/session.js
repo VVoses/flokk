@@ -190,9 +190,14 @@ function deleteSlot(id) {
 // a new flight gets a slot of its own; when all are taken the oldest is the one it replaces
 function claimSlot() {
   const rows = listSlots();
-  if (rows.length >= MAX_SLOTS) for (const r of rows.slice(MAX_SLOTS - 1)) deleteSlot(r.id);
-  curSlot = newSlotId();
+  // Reuse the replacement slot: setItem is atomic, so a failed write keeps the old flight.
+  curSlot = rows.length >= MAX_SLOTS ? rows[MAX_SLOTS - 1].id : newSlotId();
   sessionLastRaw = null;
+  try {
+    sessionLastRaw = localStorage.getItem(sessionKey());
+  } catch {
+    // Starting a flight still works when storage is unavailable; saving reports the failure.
+  }
   sessionConflict = false;
   sessionWarning('');
 }

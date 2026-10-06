@@ -93,6 +93,31 @@ with sync_playwright() as playwright:
       return {visible: !$('sessionWarning').hidden, text: $('sessionWarning').textContent};
     }''')
     assert warning['visible'] and 'could not be saved' in warning['text'], 'storage failure is visible'
+    replacement = blocked.evaluate('''() => {
+      st.mode = 'pause'; saveSession();
+      const raw = localStorage.getItem(sessionKey());
+      for (let i = 0; i < MAX_SLOTS; i++) localStorage.setItem(slotKey('test-' + i), raw);
+      localStorage.removeItem(sessionKey());
+      claimSlot();
+      const key = sessionKey(), previous = localStorage.getItem(key);
+      const write = Storage.prototype.setItem;
+      Storage.prototype.setItem = () => {throw new DOMException('Full', 'QuotaExceededError');};
+      const failed = saveSession();
+      Storage.prototype.setItem = write;
+      const preserved = localStorage.getItem(key) === previous && listSlots().length === MAX_SLOTS;
+      st.energy = 0.73;
+      const saved = saveSession();
+      return {failed, preserved, saved, changed: localStorage.getItem(key) !== previous,
+        count: listSlots().length};
+    }''')
+    assert replacement == dict(failed=False, preserved=True, saved=True, changed=True, count=6), replacement
+    loss = blocked.evaluate('''() => {
+      CAL.year = 1; CAL.t = DAY_LEN * YEAR_DAYS; calUpdate();
+      st.mode = 'play'; st.overT = 0.1; birds.length = 0;
+      update(0.2);
+      return st.mode;
+    }''')
+    assert loss == 'over', 'last-bird loss takes precedence over the year boundary'
     blocked_context.close()
     browser.close()
 print('session conflict and world compatibility checks passed')

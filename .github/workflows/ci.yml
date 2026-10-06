@@ -50,6 +50,9 @@ jobs:
       - name: saved flight coordination
         run: python3 tools/session_check.py
 
+      - name: parked car driver lifecycle
+        run: python3 tools/driver_check.py
+
       - name: farms meet the road cleanly
         run: python3 tools/road_check.py
 

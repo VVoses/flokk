@@ -122,7 +122,12 @@ function driverExit(v) {
     x = v.x - sn * side * (v.hd + 4),
     y = v.y + cs * side * (v.hd + 4),
     away = [x - sn * side * 30 - cs * 8, y + cs * side * 30 - sn * 8];
-  ANIMALS.push(mkPerson('walker', x, y, { role: 'arrival', arrivalGo: away, fade: 1 }));
+  if (!v.driver || v.driver.dying) {
+    v.driver = mkPerson('walker', x, y, { role: 'arrival', arrivalGo: away, fade: 1, vehicle: v });
+    ANIMALS.push(v.driver);
+  } else {
+    Object.assign(v.driver, { x, y, arrivalGo: away, hide: false, fade: 1, returning: false });
+  }
 }
 function placeVehicle(v, dt) {
   if (v.resident || !v.route) return;
@@ -130,6 +135,15 @@ function placeVehicle(v, dt) {
     v.parkT -= dt;
     v.doorT = Math.max(0, (v.doorT || 0) - dt);
     v.v = 0;
+    return;
+  }
+  // The parked car waits for its own driver to return and close the door.
+  if (v.driverOut && v.driver) {
+    v.v = 0;
+    return;
+  }
+  if (v.doorT > 0) {
+    v.doorT = Math.max(0, v.doorT - dt);
     return;
   }
   if (v.s >= v.route.length - 0.2) {
@@ -213,6 +227,10 @@ function updateTraffic(dt) {
       if (!v.resident && v.engineOn) scatterFlock(v.x, v.y, v.kind === 'tractor' ? 45 : 55);
     }
     if (!(v.parkT <= 0 && v.dist > W * 0.9 && (!L || Math.abs(wdx(v.x, L.x)) > 1700))) TRAFFIC[write++] = v;
+    else if (v.driver) {
+      v.driver.dying = true;
+      v.driver.fade = 0;
+    }
   }
   // gone once it has done most of a lap and nobody can see it
   TRAFFIC.length = write;

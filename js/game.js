@@ -820,7 +820,7 @@ function pause() {
   $('pauseSeason').textContent = `${SEASONS[CAL.season]} · year ${CAL.year}`;
   $('pauseControls').innerHTML = coarse
     ? 'hold where you want to fly · tap dash to burst'
-    : '<span class="control-hint"><span>mouse or</span> <span class="key-group" role="img" aria-label="Arrow keys"><kbd aria-hidden="true">↑</kbd><kbd aria-hidden="true">←</kbd><kbd aria-hidden="true">↓</kbd><kbd aria-hidden="true">→</kbd></span> <span>to fly</span></span><span class="control-hint"><kbd>Space</kbd> <span>dash</span></span><span class="control-hint"><kbd>Esc</kbd> <span>resume</span></span>';
+    : '<span class="control-hint"><span>mouse or</span> <span class="key-group" role="img" aria-label="Arrow keys"><kbd aria-hidden="true">↑</kbd><kbd aria-hidden="true">←</kbd><kbd aria-hidden="true">↓</kbd><kbd aria-hidden="true">→</kbd></span> <kbd>WASD</kbd> <span>to fly</span></span><span class="control-hint"><kbd>Space</kbd> <span>or</span> <kbd>Shift</kbd> <span>dash</span></span><span class="control-hint"><kbd>Esc</kbd> <span>resume</span></span>';
   syncPauseSound();
   $('pauseOv').hidden = false;
   syncHud();
