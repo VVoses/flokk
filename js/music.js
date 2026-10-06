@@ -179,6 +179,32 @@ function musicEchoIndex() {
   while (i < MUSIC_ECHOES.length && MUSIC_ECHOES[i] <= musicSeasonProgress()) i++;
   return i;
 }
+function springBloom(t) {
+  const S = MUS_SEASON[0],
+    out = ac.createGain(),
+    lp = ac.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(650, t);
+  lp.frequency.linearRampToValueAtTime(2200, t + 0.3);
+  lp.frequency.exponentialRampToValueAtTime(700, t + 1.8);
+  out.gain.setValueAtTime(0, t);
+  out.gain.linearRampToValueAtTime(0.009, t + 0.22);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+  lp.connect(out).connect(MUS.bus);
+  // D major with an added sixth: warm body under the brighter, ascending plucks.
+  for (const degree of [-7, 0, 2, 4, 5])
+    for (const detune of [-4, 4]) {
+      const o = ac.createOscillator();
+      o.type = degree < 0 ? 'sine' : 'triangle';
+      o.frequency.value = mtof(degMidi(S, degree));
+      o.detune.value = detune;
+      o.connect(lp);
+      o.start(t);
+      o.stop(t + 1.9);
+    }
+  for (const [i, degree] of [0, 2, 4, 5, 7].entries())
+    pluck(degMidi(S, degree), t + 0.06 + i * 0.095, 0.016, 2800, (i - 2) * 0.1);
+}
 function seasonJingle(season, t, echo = -1) {
   const S = MUS_SEASON[season],
     scale = echo < 0 ? 1 : 0.48,
@@ -187,6 +213,7 @@ function seasonJingle(season, t, echo = -1) {
       if (S.inst === 'bell') bell(midi, at, volume * 0.7, pan);
       else pluck(midi, at, volume, S.bright, pan);
     };
+  if (season === 0 && echo < 0) springBloom(t);
   if (echo === 1) {
     // The middle echo recalls only the arrival's final chord.
     const chord = S.chords[S.chords.length - 1][1];
