@@ -11,6 +11,7 @@ const SLOT_PREFIX = 'flokk-slot-v1:',
 let sessionClock = 0,
   sessionLastRaw = null,
   sessionConflict = false,
+  sessionUnwritten = false,
   curSlot = null; // the slot the running flight saves into
 const slotKey = id => (id === LEGACY_SLOT ? 'flokk-session-v1' : SLOT_PREFIX + id);
 const sessionKey = () => (curSlot ? slotKey(curSlot) : null);
@@ -199,6 +200,7 @@ function claimSlot() {
     // Starting a flight still works when storage is unavailable; saving reports the failure.
   }
   sessionConflict = false;
+  sessionUnwritten = true;
   sessionWarning('');
 }
 function saveSession() {
@@ -244,6 +246,7 @@ function saveSession() {
     if (raw.length > SESSION_MAX_BYTES) throw new Error('Save exceeds storage limit');
     localStorage.setItem(sessionKey(), raw);
     sessionLastRaw = raw;
+    sessionUnwritten = false;
     sessionWarning('');
     return true;
   } catch (error) {
@@ -257,7 +260,8 @@ function clearSession() {
   if (!curSlot) return;
   try {
     if (localStorage.getItem(sessionKey()) !== sessionLastRaw) return sessionChangedElsewhere();
-    localStorage.removeItem(sessionKey());
+    // A new flight that never saved must not delete the older flight occupying its replacement slot.
+    if (!sessionUnwritten) localStorage.removeItem(sessionKey());
     sessionLastRaw = null;
     sessionConflict = false;
     sessionWarning('');
@@ -265,6 +269,7 @@ function clearSession() {
     /* unavailable storage */
   }
   curSlot = null;
+  sessionUnwritten = false;
 }
 function restoreSession(id) {
   const saved = readSession(id);
@@ -272,6 +277,7 @@ function restoreSession(id) {
   curSlot = id;
   sessionLastRaw = localStorage.getItem(slotKey(id));
   sessionConflict = false;
+  sessionUnwritten = false;
   try {
     CAL.t = saved.time;
     calUpdate();

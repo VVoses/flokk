@@ -17,11 +17,13 @@ with sync_playwright() as p:
     page.locator('#musicLevel').focus()
     page.keyboard.press('Home')
     assert page.locator('#musicLevelValue').inner_text() == '0%'
+    assert page.get_by_role('slider',name='Music',exact=True).get_attribute('aria-valuetext')=='0%'
     assert page.evaluate('soundLevels.music===0 && soundLevels.world===1')
     page.keyboard.press('End')
     page.locator('#worldLevel').focus()
     page.keyboard.press('Home')
     assert page.evaluate('soundLevels.world===0 && soundLevels.music===1')
+    assert page.get_by_role('slider',name='World sounds',exact=True).get_attribute('aria-valuetext')=='0%'
     page.keyboard.press('Tab')
     assert page.evaluate("document.activeElement.id==='resumeBtn'"), 'last slider wraps focus within pause'
     for width,height in [(1100,760),(320,568),(844,390)]:

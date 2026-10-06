@@ -105,12 +105,15 @@ with sync_playwright() as playwright:
       const failed = saveSession();
       Storage.prototype.setItem = write;
       const preserved = localStorage.getItem(key) === previous && listSlots().length === MAX_SLOTS;
+      clearSession();
+      const preservedAfterLoss = localStorage.getItem(key) === previous && listSlots().length === MAX_SLOTS;
+      claimSlot();
       st.energy = 0.73;
       const saved = saveSession();
-      return {failed, preserved, saved, changed: localStorage.getItem(key) !== previous,
+      return {failed, preserved, preservedAfterLoss, saved, changed: localStorage.getItem(key) !== previous,
         count: listSlots().length};
     }''')
-    assert replacement == dict(failed=False, preserved=True, saved=True, changed=True, count=6), replacement
+    assert replacement == dict(failed=False, preserved=True, preservedAfterLoss=True, saved=True, changed=True, count=6), replacement
     boundary = blocked.evaluate('''() => {
       CAL.year = 1; CAL.t = DAY_LEN * YEAR_DAYS; calUpdate();
       st.mode = 'play'; st.overT = -1;

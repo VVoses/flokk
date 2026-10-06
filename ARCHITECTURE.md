@@ -318,7 +318,8 @@ Resident cars keep a `home` descriptor, including their own parking bay and hous
 target. During daylight the sparse traffic scheduler can select a resident trip instead of
 spawning a passing vehicle. `residentJourney` sends its owner to the car; `placeVehicle` waits
 for boarding and door closure before driving the shared road graph. The first destination is
-a visit; the next is the home bay. At home the engine stops and the owner walks indoors.
+a visit; the next is the home bay. At a visit, the owner walks to the building's front door,
+goes indoors, and the visit timer starts once they arrive. At home the engine stops and the owner walks indoors.
 Resident cars stay in `TRAFFIC` between trips rather than being discarded with passing traffic.
 Older parked-car saves acquire a home by matching their existing bay.
 

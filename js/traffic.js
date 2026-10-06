@@ -131,6 +131,7 @@ function residentJourney(v, target) {
   v.stopKind = target.name;
   v.s = v.dist = v.parkT = 0;
   v.trip = true;
+  v.visitWalk = null;
   v.engineOn = false;
   if (!v.driver || v.driver.dying) {
     const door = v.home.walk || v.home.point;
@@ -151,13 +152,15 @@ function driverExit(v) {
     sn = Math.sin(v.ang),
     x = v.x - sn * side * (v.hd + 4),
     y = v.y + cs * side * (v.hd + 4),
-    away =
-      v.resident && !v.trip && v.home.walk ? v.home.walk : [x - sn * side * 30 - cs * 8, y + cs * side * 30 - sn * 8];
+    away = (v.resident && !v.trip ? v.home.walk : v.visitWalk) || [
+      x - sn * side * 30 - cs * 8,
+      y + cs * side * 30 - sn * 8
+    ];
   if (!v.driver || v.driver.dying) {
-    v.driver = mkPerson('walker', x, y, { role: 'arrival', arrivalGo: away, fade: 1, vehicle: v });
+    v.driver = mkPerson('walker', x, y, { role: 'arrival', arrivalGo: away, fade: 1, vehicle: v, atVisit: false });
     ANIMALS.push(v.driver);
   } else {
-    Object.assign(v.driver, { x, y, arrivalGo: away, hide: false, fade: 1, returning: false });
+    Object.assign(v.driver, { x, y, arrivalGo: away, hide: false, fade: 1, returning: false, atVisit: false });
   }
 }
 function placeVehicle(v, dt) {
@@ -166,7 +169,8 @@ function placeVehicle(v, dt) {
     return;
   }
   if (v.parkT > 0) {
-    v.parkT -= dt;
+    // A visit starts at the door, rather than expiring while the owner is still walking there.
+    if (!v.visitWalk || !v.driverOut || !v.driver || v.driver.returning || v.driver.atVisit) v.parkT -= dt;
     v.doorT = Math.max(0, (v.doorT || 0) - dt);
     v.v = 0;
     return;
@@ -182,6 +186,7 @@ function placeVehicle(v, dt) {
   }
   if (v.s >= v.route.length - 0.2) {
     const arrived = v.stop;
+    v.visitWalk = arrived?.walk || null;
     v.x = wrapX(v.destination[0]);
     v.y = v.destination[1];
     if (arrived?.ang !== undefined) v.ang = arrived.ang;

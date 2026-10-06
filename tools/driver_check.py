@@ -43,17 +43,21 @@ with sync_playwright() as p:
             // Saved journeys retain both owner/car links and the identity of the return destination.
             const restored=unpackSession(packSession({car})).car;
             const linked=restored.driver.vehicle===restored && restored.home.point[0]===home.point[0];
-            let visited=false, moved=false, returnLink=false;
+            let visited=false, moved=false, returnLink=false, visitedIndoors=false, heldVisitTimer=false;
             for(let i=0;i<12000 && car.trip;i++) {
               arrivalLife(owner,.1); placeVehicle(car,.1);
               visited ||= car.stop===home; moved ||= car.engineOn && car.dist>50;
+              visitedIndoors ||= car.trip && car.driverOut && car.stop===home && !owner.returning && owner.hide;
               if(car.stop===home && !returnLink) {
+                const remaining=car.parkT;
+                placeVehicle(car,1);
+                heldVisitTimer=car.parkT===remaining;
                 const saved=unpackSession(packSession({car})).car;
                 returnLink=saved.stop===saved.home && saved.driver.vehicle===saved;
               }
             }
             for(let i=0;i<1000 && !owner.hide;i++) arrivalLife(owner,.1);
-            results.push({started,linked,visited,moved,returnLink,returned:!car.trip,
+            results.push({started,linked,visited,visitedIndoors,heldVisitTimer,moved,returnLink,returned:!car.trip,
               bay:Math.hypot(wdx(car.x,home.point[0]),car.y-home.point[1])<1,
               quiet:!car.engineOn && car.v===0, indoors:owner.hide, same:car.driver===owner,
               debug:{s:car.s,length:car.route?.length,driverOut:car.driverOut,x:owner.x,y:owner.y}});

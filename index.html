@@ -252,9 +252,13 @@
         </div>
         <fieldset class="sound-levels">
           <legend>Sound balance</legend>
-          <label for="musicLevel">Music <output id="musicLevelValue" for="musicLevel">100%</output></label>
+          <label for="musicLevel"
+            >Music <output id="musicLevelValue" for="musicLevel" aria-hidden="true">100%</output></label
+          >
           <input id="musicLevel" type="range" min="0" max="100" value="100" step="5" />
-          <label for="worldLevel">World sounds <output id="worldLevelValue" for="worldLevel">100%</output></label>
+          <label for="worldLevel"
+            >World sounds <output id="worldLevelValue" for="worldLevel" aria-hidden="true">100%</output></label
+          >
           <input id="worldLevel" type="range" min="0" max="100" value="100" step="5" />
         </fieldset>
         <div class="pause-foot">

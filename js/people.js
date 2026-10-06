@@ -291,7 +291,10 @@ function arrivalLife(a, dt) {
         car.doorT = 1.2;
         a.returning = false;
         a.hide = true;
-      } else if (car.resident && !car.trip) a.hide = true;
+      } else {
+        a.atVisit = true;
+        if ((car.resident && !car.trip) || car.visitWalk) a.hide = true;
+      }
     }
     return;
   }

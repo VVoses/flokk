@@ -852,6 +852,7 @@ function syncPauseSound() {
   for (const key of ['music', 'world']) {
     const percent = Math.round(soundLevels[key] * 100);
     $(key + 'Level').value = percent;
+    $(key + 'Level').setAttribute('aria-valuetext', percent + '%');
     $(key + 'LevelValue').textContent = percent + '%';
   }
 }
