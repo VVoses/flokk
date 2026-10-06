@@ -293,3 +293,9 @@ and 86% of the game season quote the opening, final chord, and cadence respectiv
 Danger ducks the bus and defers new cues; mute stays controlled by `audioTick`. The scheduler bounds
 overlap and skips a backlog after suspension. `basin_music_check.py` renders all seasonal voices and
 checks output, scheduling, year rollover, pause/danger gating and resumed milestone selection.
+
+Seasonal arrivals also layer short, softly filtered chord beds underneath the lead and low pedal.
+`musicYearWon()` resolves the year's tension from A7 into D major on the win screen, once per year,
+respecting mute. The audio regression renders this closing phrase and checks duplicate/mute gating.
+Shore-tree reflection selection uses the mirrored canopy's height to find water under its projected
+footprint, rather than restricting reflections to trees within a fixed 34-unit bank strip.

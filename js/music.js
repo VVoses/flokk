@@ -88,7 +88,9 @@ const MUS_SEASON = [
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 let MUS = null;
 let openingSeasonCue = null;
+let wonMusicKey = null;
 function beginSeasonIntro() {
+  wonMusicKey = null;
   openingSeasonCue = { remaining: 12 };
   if (MUS) {
     MUS.key = musicSeasonKey();
@@ -215,6 +217,40 @@ function springBloom(t) {
   for (const [i, degree] of [0, 4, 6, 8].entries())
     pluck(degMidi(S, degree), t + 0.06 + i * 0.14, 0.013, 2400, (i - 2) * 0.1);
 }
+function musicChord(notes, t, duration, volume, brightness = 1400) {
+  const out = ac.createGain(),
+    lp = ac.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = brightness;
+  out.gain.setValueAtTime(0, t);
+  out.gain.linearRampToValueAtTime(volume / notes.length, t + 0.15);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+  lp.connect(out).connect(MUS.bus);
+  for (const [i, midi] of notes.entries()) {
+    const o = ac.createOscillator();
+    o.type = i === 0 ? 'sine' : 'triangle';
+    o.frequency.value = mtof(midi);
+    o.detune.value = i % 2 ? -3 : 3;
+    panned(o, (i / Math.max(1, notes.length - 1) - 0.5) * 0.4).connect(lp);
+    o.start(t);
+    o.stop(t + duration + 0.05);
+  }
+}
+function musicYearWon() {
+  openingSeasonCue = null;
+  if (!ac || muted || wonMusicKey === CAL.year) return;
+  wonMusicKey = CAL.year;
+  if (!MUS) musInit();
+  const t = ac.currentTime + 0.15;
+  MUS.bus.gain.setTargetAtTime(1, ac.currentTime, 0.2);
+  MUS.arrival = null;
+  MUS.busyUntil = t + 6;
+  // The year's suspended harmony finally finds D major: a small release, not a victory fanfare.
+  musicChord([57, 61, 64, 67], t, 1.6, 0.021);
+  musicChord([50, 57, 62, 66, 69, 74], t + 1.35, 3.4, 0.033, 1900);
+  for (const [i, midi] of [68, 69, 66, 62].entries())
+    pluck(midi, t + [0, 0.65, 1.6, 2.5][i], 0.02, 2300, (i - 1.5) * 0.07);
+}
 function seasonJingle(season, t, echo = -1) {
   const S = MUS_SEASON[season],
     scale = echo < 0 ? 1 : 0.48,
@@ -225,6 +261,22 @@ function seasonJingle(season, t, echo = -1) {
     };
   if (season === 0 && echo < 0) springBloom(t);
   if (echo < 0) {
+    const first = S.chords[0],
+      last = S.chords[S.chords.length - 1];
+    musicChord(
+      first[1].map(d => degMidi(S, d)),
+      t + 0.1,
+      1.8,
+      season === 0 ? 0.009 : 0.018,
+      S.bright * 0.65
+    );
+    musicChord(
+      last[1].map(d => degMidi(S, d)),
+      t + last[0] * S.beat,
+      1.9,
+      0.012,
+      S.bright * 0.55
+    );
     // A low, restrained pedal carries weight beneath the surface beauty; it never resolves the phrase.
     const low = ac.createOscillator(),
       body = ac.createGain();
@@ -266,7 +318,7 @@ function musicTick() {
     key = musicSeasonKey(),
     danger = hawks.some(h => h.state === 'dive' || h.state === 'stalk' || h.state === 'hover'),
     active = st.mode === 'play' || st.mode === 'pause',
-    target = (danger ? 0.12 : 1) * (active ? 1 : 0.6);
+    target = st.mode === 'won' ? 1 : (danger ? 0.12 : 1) * (active ? 1 : 0.6);
   MUS.level += (target - MUS.level) * 0.05;
   MUS.bus.gain.setTargetAtTime(MUS.level, now, 0.8);
   if (key !== MUS.key) {

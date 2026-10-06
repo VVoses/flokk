@@ -72,13 +72,14 @@ with sync_playwright() as p:
     for name in ['LAKE', 'POND']:
         page.evaluate(f'dev.to({name}.x,{name}.y,.95);render();')
         page.screenshot(path=str(out / (name.lower()+'.png')))
-    for season in range(4):
+    for season in range(5):
         music = page.evaluate('''async season => {
-          SEASON=season;hawks=[];st.mode='pause';muted=true;amb=null;MUS=null;
+          SEASON=season===4?0:season;hawks=[];st.mode='pause';muted=true;amb=null;MUS=null;
           ac=new OfflineAudioContext(2,48000*14,48000);
           master=ac.createGain();master.gain.value=.9;master.connect(ac.destination);
           verb=ac.createGain();verb.gain.value=.16;verb.connect(master);
           musicTick();
+          if(season===4){st.mode='won';muted=false;wonMusicKey=null;musicYearWon();}
           const waits=[];
           for(let t=.2;t<13.9;t+=.2) waits.push(ac.suspend(t).then(()=>{musicTick();return ac.resume();}));
           const buffer=await ac.startRendering();await Promise.all(waits);
@@ -128,9 +129,15 @@ with sync_playwright() as p:
       const synced=banners===1&&calls.length===count+1&&openingSeasonCue===null;
       muted=true;beginSeasonIntro();seasonIntroTick(12);
       const mutedBanner=banners===2&&openingSeasonCue===null;
+      const oldChord=musicChord,oldPluck=pluck,oldYear=CAL.year;let winNotes=0;
+      musicChord=()=>winNotes++;pluck=()=>winNotes++;muted=false;wonMusicKey=null;
+      musicYearWon();const winOnce=winNotes===6;musicYearWon();
+      const noRepeat=winNotes===6;muted=true;CAL.year++;musicYearWon();
+      const mutedWin=winNotes===6;
+      musicChord=oldChord;pluck=oldPluck;CAL.year=oldYear;wonMusicKey=null;
       seasonBanner=oldBanner;muted=oldMuted;
       ac=oldAc;seasonJingle=oldJingle;MUS=null;
-      return {once,first,paused,danger,noBacklog,transition,newYear,resumed,delayed,introPause,synced,mutedBanner};
+      return {once,first,paused,danger,noBacklog,transition,newYear,resumed,delayed,introPause,synced,mutedBanner,winOnce,noRepeat,mutedWin};
     }''')
     assert all(cues.values()), cues
     print('ok composed arrival, calendar echoes, pause/danger gating and no backlog', cues)

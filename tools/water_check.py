@@ -31,6 +31,16 @@ with sync_playwright() as p:
       const old=drawWaves;let n=0;drawWaves=c=>{n++;old(c);};render();drawWaves=old;return n===1;
     })()"""), 'one surface pass at map seam'
     print('ok wrapped phase, recentering, and single surface pass')
+    assert page.evaluate('''(() => {
+      const old=TREES.slice(),tree={x:LAKE.x,y:LAKE.y-lakeR(-Math.PI/2)-55,k:1.2,gh:false};
+      TREES.length=0;TREES.push(tree);REFLsrc=null;
+      const beyondOldStrip=!inBlob(tree.x,tree.y+34,LAKE,lakeR,-4);
+      const selected=reflTrees().some(r=>r.t===tree&&r.c===LAKE);
+      TREES[0]={...tree,x:tree.x+.1};
+      const refreshed=reflTrees().some(r=>r.t===TREES[0]);
+      TREES.length=0;for(const t of old)TREES.push(t);REFLsrc=null;
+      return beyondOldStrip&&selected&&refreshed;
+    })()'''), 'mirrored canopy reaches water beyond the old fixed shoreline strip'
     for gpu in [False, True]:
         result = page.evaluate("""gpu => {
           WAVES_GL.gl=null;WAVES_GL.tried=!gpu;DEV.glWaves=gpu;

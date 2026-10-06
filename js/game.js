@@ -720,6 +720,7 @@ function startGame() {
 function yearWon() {
   hideBanner();
   st.mode = 'won';
+  musicYearWon();
   $('wonStats').innerHTML = overHTML(true);
   $('wonTitle').textContent = CAL.year > 1 ? `${CAL.year} years` : 'A year';
   $('wonSub').textContent = `${birds.length} ${birds.length === 1 ? 'bird' : 'birds'} greet the spring`;
