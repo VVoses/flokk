@@ -281,9 +281,10 @@ actually boot the game headless and confirm it starts.
 
 ## Seasonal music
 
-`music.js` contains four composed arrival phrases, rather than randomly generated motifs: D-major
-spring plucks, F-lydian summer plucks, A-dorian autumn plucks, and E-minor winter bells. Each has an
-explicit melody, rhythm, chord progression and tonic ending. A season/year key triggers the full phrase
+`music.js` contains four composed arrival phrases, rather than randomly generated motifs: D-lydian
+spring plucks, F-lydian summer plucks, A-minor autumn plucks, and E-phrygian winter bells. Each has an
+explicit sparse melody, asymmetric rhythm and chord progression, with an unresolved ending. A quiet low
+pedal gives arrivals a serious undertone; spring also has a brief major-seventh swell and open arpeggio. A season/year key triggers the full phrase
 once on arrival; the first flight phrase waits three audio seconds. Three quieter echoes at 32%, 66%
 and 86% of the game season quote the opening, final chord, and cadence respectively. They follow
 `CAL.t`, not wall-clock timers, so pausing cannot advance echoes and resuming skips elapsed milestones.

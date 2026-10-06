@@ -4,92 +4,84 @@
    Plain script sharing one global scope with the other files; load order is set in index.html. */
 'use strict';
 const MUS_SEASON = [
-  // Spring: D major, a rising pentatonic greeting ending on an open tonic sixth.
+  // Spring: D lydian. Open light, with a major seventh and raised fourth left unresolved.
   {
     root: 62,
-    mode: [0, 2, 4, 5, 7, 9, 11],
-    beat: 0.48,
-    inst: 'pluck',
-    bright: 3200,
-    melody: [
-      [0, 0],
-      [0.5, 2],
-      [1, 4],
-      [2, 5],
-      [3, 4],
-      [4, 2],
-      [5.5, 0]
-    ],
-    chords: [
-      [0, [0, 2, 4]],
-      [2, [3, 5, 7]],
-      [4, [4, 6, 8]],
-      [5.5, [0, 2, 5]]
-    ]
-  },
-  // Summer: F lydian, a suspended, unhurried turn through the raised fourth.
-  {
-    root: 65,
     mode: [0, 2, 4, 6, 7, 9, 11],
     beat: 0.62,
     inst: 'pluck',
-    bright: 2700,
+    bright: 2600,
+    oct: 0,
     melody: [
-      [0, 2],
-      [1, 4],
-      [2.5, 5],
-      [3.5, 3],
-      [4.5, 2],
-      [6, 1],
-      [7, 0]
+      [0, 4],
+      [1.4, 8],
+      [3.2, 6],
+      [5.1, 3]
+    ],
+    chords: [
+      [0, [0, 4, 6]],
+      [2.4, [0, 3, 8]],
+      [5.1, [0, 4, 8]]
+    ]
+  },
+  // Summer: F lydian. Suspended warmth above a steady low pedal, no tonic cadence.
+  {
+    root: 65,
+    mode: [0, 2, 4, 6, 7, 9, 11],
+    beat: 0.72,
+    inst: 'pluck',
+    bright: 2300,
+    oct: 0,
+    melody: [
+      [0, 4],
+      [1.8, 6],
+      [3.6, 3],
+      [5.6, 1]
     ],
     chords: [
       [0, [0, 2, 6]],
-      [2.5, [1, 3, 5]],
-      [4.5, [4, 6, 8]],
-      [7, [0, 2, 4]]
+      [2.6, [0, 3, 5]],
+      [5.6, [0, 4, 8]]
     ]
   },
-  // Autumn: A dorian, falling thirds with a gentle minor-sixth landing.
+  // Autumn: A minor. The falling phrase catches on the sixth and leaves an added ninth.
   {
     root: 57,
-    mode: [0, 2, 3, 5, 7, 9, 10],
-    beat: 0.66,
+    mode: [0, 2, 3, 5, 7, 8, 10],
+    beat: 0.78,
     inst: 'pluck',
-    bright: 1900,
+    bright: 1700,
+    oct: 0,
     melody: [
       [0, 4],
-      [1, 3],
-      [2, 2],
-      [3.5, 0],
-      [5, -1],
-      [6.5, 0]
+      [1.5, 2],
+      [3.4, 5],
+      [5.2, 1]
     ],
     chords: [
       [0, [0, 2, 4]],
-      [2, [3, 5, 7]],
-      [5, [4, 6, 8]],
-      [6.5, [0, 2, 5]]
+      [2.5, [0, 5, 9]],
+      [5.2, [0, 4, 8]]
     ]
   },
-  // Winter: E minor, widely spaced bells over a quiet open fifth and added ninth.
+  // Winter: E phrygian. Sparse bells leave a quiet semitone hanging over the open fifth.
   {
     root: 64,
-    mode: [0, 2, 3, 5, 7, 8, 10],
-    beat: 0.82,
+    mode: [0, 1, 3, 5, 7, 8, 10],
+    beat: 0.88,
     inst: 'bell',
-    bright: 1800,
+    bright: 1600,
+    oct: 12,
     melody: [
-      [0, 0],
-      [1.5, 4],
-      [3, 2],
-      [4.5, 1],
-      [6.5, 0]
+      [0, 4],
+      [1.9, 1],
+      [3.8, 2],
+      [5.7, 1]
     ],
     chords: [
-      [0, [0, 4, 8]],
-      [3, [5, 7, 9]],
-      [6.5, [0, 2, 4]]
+      [0, [0, 4, 7]],
+      [3, [0, 5, 9]],
+      [5.7, [0, 4, 8]]
     ]
   }
 ];
@@ -191,8 +183,8 @@ function springBloom(t) {
   out.gain.linearRampToValueAtTime(0.009, t + 0.22);
   out.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
   lp.connect(out).connect(MUS.bus);
-  // D major with an added sixth: warm body under the brighter, ascending plucks.
-  for (const degree of [-7, 0, 2, 4, 5])
+  // D major seventh: a warm swell, with its seventh held above the low tonic.
+  for (const degree of [-14, -7, 2, 4, 6])
     for (const detune of [-4, 4]) {
       const o = ac.createOscillator();
       o.type = degree < 0 ? 'sine' : 'triangle';
@@ -202,18 +194,31 @@ function springBloom(t) {
       o.start(t);
       o.stop(t + 1.9);
     }
-  for (const [i, degree] of [0, 2, 4, 5, 7].entries())
-    pluck(degMidi(S, degree), t + 0.06 + i * 0.095, 0.016, 2800, (i - 2) * 0.1);
+  for (const [i, degree] of [0, 4, 6, 8].entries())
+    pluck(degMidi(S, degree), t + 0.06 + i * 0.14, 0.013, 2400, (i - 2) * 0.1);
 }
 function seasonJingle(season, t, echo = -1) {
   const S = MUS_SEASON[season],
     scale = echo < 0 ? 1 : 0.48,
     voice = (degree, at, volume, pan = 0) => {
-      const midi = degMidi(S, degree) + 12;
+      const midi = degMidi(S, degree) + S.oct;
       if (S.inst === 'bell') bell(midi, at, volume * 0.7, pan);
       else pluck(midi, at, volume, S.bright, pan);
     };
   if (season === 0 && echo < 0) springBloom(t);
+  if (echo < 0) {
+    // A low, restrained pedal carries weight beneath the surface beauty; it never resolves the phrase.
+    const low = ac.createOscillator(),
+      body = ac.createGain();
+    low.type = 'sine';
+    low.frequency.value = mtof(S.root - 24);
+    body.gain.setValueAtTime(0, t);
+    body.gain.linearRampToValueAtTime(0.012, t + 0.35);
+    body.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+    low.connect(body).connect(MUS.bus);
+    low.start(t);
+    low.stop(t + 3.3);
+  }
   if (echo === 1) {
     // The middle echo recalls only the arrival's final chord.
     const chord = S.chords[S.chords.length - 1][1];
@@ -227,7 +232,7 @@ function seasonJingle(season, t, echo = -1) {
     voice(
       degree,
       t + (beat - origin) * S.beat,
-      0.031 * scale * (i === melody.length - 1 ? 0.9 : 1),
+      0.024 * scale * (i === melody.length - 1 ? 0.9 : 1),
       0.08 * Math.sin(i)
     );
   }
