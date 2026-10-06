@@ -75,12 +75,12 @@ with sync_playwright() as p:
     for season in range(4):
         music = page.evaluate('''async season => {
           SEASON=season;hawks=[];st.mode='pause';muted=true;amb=null;MUS=null;
-          ac=new OfflineAudioContext(2,48000*10,48000);
+          ac=new OfflineAudioContext(2,48000*14,48000);
           master=ac.createGain();master.gain.value=.9;master.connect(ac.destination);
           verb=ac.createGain();verb.gain.value=.16;verb.connect(master);
           musicTick();
           const waits=[];
-          for(let t=.2;t<9.9;t+=.2) waits.push(ac.suspend(t).then(()=>{musicTick();return ac.resume();}));
+          for(let t=.2;t<13.9;t+=.2) waits.push(ac.suspend(t).then(()=>{musicTick();return ac.resume();}));
           const buffer=await ac.startRendering();await Promise.all(waits);
           const left=buffer.getChannelData(0),right=buffer.getChannelData(1);
           let sum=0,peak=0,first=-1;
