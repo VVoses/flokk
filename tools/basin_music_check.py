@@ -64,7 +64,7 @@ with sync_playwright() as p:
       dev.to(LAKE.x,LAKE.y,.95);
       const sum=()=>{let v=0;for(const b of BASINS.list) for(let k=3;k<b.img.data.length;k+=4) v+=b.img.data[k];return v;};
       WEATHER.s=0;drawClosedBasins(ctx);const calm=sum();
-      WEATHER.s=1;drawClosedBasins(ctx);const windy=sum();
+      WEATHER.s=1;for(let i=0;i<90;i++){T+=1/30;drawClosedBasins(ctx);}const windy=sum();
       return {calm,windy};
     }''')
     assert sheen['windy'] > sheen['calm'], sheen

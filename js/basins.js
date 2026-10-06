@@ -32,6 +32,8 @@ function basinInit() {
       sources: [],
       mask: new Uint8Array(n * n),
       depth: new Float32Array(n * n),
+      gust: new Float32Array(n * n),
+      gustT: 0,
       phase: hash2(c.x | 0, c.y | 0) * TAU,
       cv: document.createElement('canvas')
     };
@@ -179,7 +181,9 @@ function basinSample(x, y) {
 function drawClosedBasins(c) {
   basinInit();
   const freeze = waveFreeze(),
-    dim = 1 - 0.45 * LIGHT.night;
+    dim = 1 - 0.45 * LIGHT.night,
+    sun = waterSunHalf(),
+    sunStrength = waterSunStrength();
   if (freeze < 0.02) return;
   for (const b of BASINS.list) {
     const x = cam.x + wdx(b.c.x, cam.x),
@@ -187,6 +191,8 @@ function drawClosedBasins(c) {
     if (x + span < V.x0 || x - span > V.x1 || (b.c.y + span) * TILT < V.py0 || (b.c.y - span) * TILT > V.py1) continue;
     const { h, mask, n, cell } = b,
       p = b.img.data;
+    const gustBlend = 1 - Math.exp(-Math.max(0, Math.min(0.1, T - b.gustT)) / 1.8);
+    b.gustT = T;
     p.fill(0);
     for (let k = n; k < h.length - n; k++) {
       if (!mask[k]) continue;
@@ -198,17 +204,26 @@ function drawClosedBasins(c) {
         norm = Math.hypot(nx, ny, 1),
         d = (-0.4 * nx - 0.55 * ny + 0.73) / Math.hypot(0.4, 0.55, 0.73) / norm - 0.73 / Math.hypot(0.4, 0.55, 0.73),
         // The shared wind field sweeps a soft sheen over the independent surface ripples.
-        gust = gustAt(b.c.x + ((k % n) - b.half) * cell, b.c.y + (Math.floor(k / n) - b.half) * cell),
-        sheen = 0.055 * smooth(0.2, 0.9, WEATHER.s) * smooth(0.15, 0.85, gust),
+        gustTarget = gustAt(b.c.x + ((k % n) - b.half) * cell, b.c.y + (Math.floor(k / n) - b.half) * cell),
+        gust = (b.gust[k] += (gustTarget - b.gust[k]) * gustBlend),
+        sheen = 0.035 * smooth(0.2, 0.9, WEATHER.s) * smooth(0.15, 0.85, gust) * (1 - LIGHT.rain),
         // A small daylight lift keeps enclosed water from looking dull beside the fjord.
         lit = d + (0.025 + sheen) * (1 - LIGHT.night),
         light = lit > 0,
         a = (1 - Math.exp(-Math.abs(lit) * 3.2)) * (light ? 0.36 : 0.2) * dim * freeze * b.depth[k],
+        spec =
+          Math.pow(Math.max(0, (nx * sun[0] + ny * sun[1] + sun[2]) / norm), 180) *
+          sunStrength *
+          smooth(0.62, 0.9, hash2(k % n, Math.floor(k / n))) *
+          0.65 *
+          b.depth[k],
+        alpha = a * (1 - spec) + spec,
+        blend = alpha > 0 ? spec / alpha : 0,
         o = k * 4;
-      p[o] = light ? 199 : 14;
-      p[o + 1] = light ? 224 : 42;
-      p[o + 2] = light ? 219 : 51;
-      p[o + 3] = Math.min(255, a * 255);
+      p[o] = lerp(light ? 199 : 14, 255, blend);
+      p[o + 1] = lerp(light ? 224 : 42, 245, blend);
+      p[o + 2] = lerp(light ? 219 : 51, 212, blend);
+      p[o + 3] = Math.min(255, alpha * 255);
     }
     b.ctx.putImageData(b.img, 0, 0);
     for (const offset of [-W, 0, W]) {
