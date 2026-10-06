@@ -183,7 +183,10 @@ function drawClosedBasins(c) {
   const freeze = waveFreeze(),
     dim = 1 - 0.45 * LIGHT.night,
     sun = waterSunHalf(),
-    sunStrength = waterSunStrength();
+    sunStrength = waterSunStrength(),
+    roughness = Math.min(1.5, WEATHER.s),
+    lightGain = 0.28 + 0.14 * roughness,
+    darkGain = 0.22 + 0.12 * roughness;
   if (freeze < 0.02) return;
   for (const b of BASINS.list) {
     const x = cam.x + wdx(b.c.x, cam.x),
@@ -199,8 +202,9 @@ function drawClosedBasins(c) {
       const at = q => (mask[q] ? h[q] : h[k]),
         gx = (at(k + 1) - at(k - 1)) / (2 * cell),
         gy = (at(k + n) - at(k - n)) / (2 * cell),
-        nx = -gx * 1.4,
-        ny = -gy * 1.4,
+        // Short enclosed ripples need a stronger visual slope to share the fjord's surface definition.
+        nx = -gx * 3.2,
+        ny = -gy * 3.2,
         norm = Math.hypot(nx, ny, 1),
         d = (-0.4 * nx - 0.55 * ny + 0.73) / Math.hypot(0.4, 0.55, 0.73) / norm - 0.73 / Math.hypot(0.4, 0.55, 0.73),
         // The shared wind field sweeps a soft sheen over the independent surface ripples.
@@ -208,9 +212,9 @@ function drawClosedBasins(c) {
         gust = (b.gust[k] += (gustTarget - b.gust[k]) * gustBlend),
         sheen = 0.035 * smooth(0.2, 0.9, WEATHER.s) * smooth(0.15, 0.85, gust) * (1 - LIGHT.rain),
         // A small daylight lift keeps enclosed water from looking dull beside the fjord.
-        lit = d + (0.025 + sheen) * (1 - LIGHT.night),
+        lit = d + (0.012 + sheen) * (1 - LIGHT.night),
         light = lit > 0,
-        a = (1 - Math.exp(-Math.abs(lit) * 3.2)) * (light ? 0.36 : 0.2) * dim * freeze * b.depth[k],
+        a = (1 - Math.exp(-Math.abs(lit) * 3.2)) * (light ? lightGain : darkGain) * dim * freeze * b.depth[k],
         spec =
           Math.pow(Math.max(0, (nx * sun[0] + ny * sun[1] + sun[2]) / norm), 180) *
           sunStrength *
