@@ -11,6 +11,23 @@
 'use strict';
 // Keep curvature weaker than the longest wave’s slope, so it cannot fold a crest into a flat band.
 const WAVE_WARP = [0.65, 0.3, 0.12];
+function waterSunStrength() {
+  return (
+    smooth(8, 40, LIGHT.el) *
+    (1 - LIGHT.night) *
+    (1 - smooth(0.02, 0.55, LIGHT.rain)) *
+    (1 - smooth(0.05, 0.5, WEATHER.fog)) *
+    waveFreeze()
+  );
+}
+function waterSunHalf() {
+  const el = (clamp(LIGHT.el, 0, 90) * Math.PI) / 180,
+    x = Math.cos(LIGHT.theta) * Math.cos(el),
+    y = Math.sin(LIGHT.theta) * Math.cos(el),
+    z = Math.sin(el) + 1,
+    length = Math.hypot(x, y, z);
+  return [x / length, y / length, z / length];
+}
 const WV = {
   LX: 10, // the wave field is sampled on a lattice 10 wide, 7 deep (ground units); a block of 4 shares one gust reading
   LY: 7,
@@ -493,6 +510,7 @@ uniform vec2 org;
 uniform vec2 frame;
 uniform vec4 st;
 uniform vec3 mix3;
+uniform vec4 sun;
 uniform sampler2D tex;
 out vec4 o;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -563,6 +581,11 @@ void main() {
   float fa = f * f * 0.3 * mix3.x; // foam is only a lightening of the crest, never a white edge
   rgb = rgb * (1.0 - fa) + fc * fa;
   a = a * (1.0 - fa) + fa;
+  // Sun glints belong to the moving surface, rather than a second layer of animated dashes.
+  float spec = pow(max(0.0, dot(n, sun.xyz)), 180.0) * sun.w;
+  spec *= smoothstep(0.62, 0.9, vnoise(p * 0.34)) * 0.65;
+  rgb = rgb * (1.0 - spec) + vec3(1.0, 0.96, 0.83) * spec;
+  a = a * (1.0 - spec) + spec;
   o = vec4(rgb, a);
 }`;
 const WAVE_VS = `#version 300 es
@@ -600,7 +623,7 @@ function waveGLInit() {
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     G.prog = p;
-    for (const n of ['W', 'PD', 'S', 'SD', 'xf', 'ti', 'org', 'frame', 'st', 'mix3', 'tex'])
+    for (const n of ['W', 'PD', 'S', 'SD', 'xf', 'ti', 'org', 'frame', 'st', 'mix3', 'sun', 'tex'])
       G.u[n] = gl.getUniformLocation(p, n);
   } catch (e) {
     console.warn('Flokk: GPU waves unavailable, drawing them on the 2D canvas', e);
@@ -717,6 +740,8 @@ function waveShader(ctx, gl, o) {
   gl.uniform2f(G.u.frame, cam.x, cam.x + WX);
   gl.uniform4f(G.u.st, sm, WV.tw, T, c.height);
   gl.uniform3f(G.u.mix3, o.dim, smooth(0.65, 1.05, sm), o.st);
+  const sun = waterSunHalf();
+  gl.uniform4f(G.u.sun, sun[0], sun[1], sun[2], waterSunStrength());
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   gl.disable(gl.SCISSOR_TEST);
   ctx.save();
@@ -1066,7 +1091,9 @@ function drawGustFoam(c) {
         y = gy + (hash2(gy, px | 0) - 0.5) * 20,
         depth = waveDepth(x, y);
       if (depth < 0.15) continue;
-      const strength = smooth(0.32, 1.0, gustAt(x, y)) * (0.35 + 0.65 * smooth(-0.1, 0.6, windWave(x, y))),
+      // Enclosed water already shows gusts in its surface shading; avoid a competing stroke layer.
+      if (basinSample(x, y)) continue;
+      const strength = smooth(0.32, 1.0, gustAt(x, y)),
         alpha = 0.14 * fade * depth * strength;
       if (alpha < 0.008) continue;
       const len = 5 + 11 * h,

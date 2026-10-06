@@ -200,18 +200,6 @@ function windWave(x, y) {
 }
 // the gust felt at a point, on the scale of WEATHER.g (which is the one felt where the flock is)
 const windLocal = (x, y) => clamp(0.08 + 0.32 * WEATHER.s + 0.65 * gustAt(x, y), 0, 1.3);
-// how roughened the water is at a point: the breeze plus the gust over it, held down where the shore a little
-// way upwind shelters it (a short fetch gives little chop). s is a water sparkle, caching its fetch for a moment.
-function waterRough(s) {
-  const W2 = WEATHER;
-  if (T - s.fT > 1.5 || s.fT > T) {
-    s.fT = T;
-    let n = 0;
-    for (const d of [40, 110, 220]) if (inWater(s.x - W2.gc * d, s.y - W2.gs * d, 0)) n++;
-    s.fk = 0.25 + 0.25 * n;
-  }
-  return clamp(0.3 * (WV.init ? WV.sm : W2.s) + gustAt(s.x, s.y), 0, 1.3) * s.fk;
-}
 // what a tree, a reed or a flag feels: the steady wind plus whatever gust is on it
 const windAt = (x, y) => WEATHER.s * (0.25 + gustAt(x, y));
 // flying birds ride the air: the same wind the trees and grass feel (windAt), carrying them along as a
@@ -754,10 +742,10 @@ function drawWeatherGround() {
   // raindrop rings on the water
   if (W2.drops.length) {
     ctx.lineWidth = 0.8;
-    ctx.strokeStyle = 'rgba(220,232,236,.5)';
+    ctx.strokeStyle = 'rgba(190,210,219,.32)';
     for (const d of W2.drops) {
       if (!visG(d.x, d.y, 10)) continue;
-      ctx.globalAlpha = (1 - d.t / 0.7) * 0.8;
+      ctx.globalAlpha = (1 - d.t / 0.7) ** 2 * 0.65 * waveFreeze();
       ctx.beginPath();
       ctx.arc(d.x, d.y, (1 + d.t * 9) * d.s, 0, TAU);
       ctx.stroke();
