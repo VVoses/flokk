@@ -182,7 +182,14 @@ function vehicleDestinations() {
       inset = Math.min(110, Math.max(0, d - 32));
     if (f.park) {
       // visitors take the free bay on the pad beside the house; the resident car rests in the other
-      out.push({ name: 'farm', point: f.park.bays[1], ang: f.park.ang, rest: f.park.bays[0], pad: true });
+      out.push({
+        name: 'farm',
+        point: f.park.bays[1],
+        ang: f.park.ang,
+        rest: f.park.bays[0],
+        walk: frontOf(f.house),
+        pad: true
+      });
       continue;
     }
     out.push({

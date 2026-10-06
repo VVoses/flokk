@@ -626,6 +626,11 @@ function overHTML(won) {
   };
   return cell('flock', 'largest flock') + cell('days', 'days');
 }
+function lossSummary() {
+  const hunger = st.starved || 0,
+    predators = Math.max(0, (st.lost || 0) - hunger);
+  return `Lost to predators: ${predators} · hunger: ${hunger}`;
+}
 
 // how many midge clouds and dragonflies the season and the hour hold: summer thick with them, none in
 // winter, few at night
@@ -722,6 +727,7 @@ function yearWon() {
   st.mode = 'won';
   musicYearWon();
   $('wonStats').innerHTML = overHTML(true);
+  $('wonLosses').textContent = lossSummary();
   $('wonTitle').textContent = CAL.year > 1 ? `${CAL.year} years` : 'A year';
   $('wonSub').textContent = `${birds.length} ${birds.length === 1 ? 'bird' : 'birds'} greet the spring`;
   $('shareNote').textContent = '';
@@ -843,7 +849,17 @@ function resume() {
 function syncPauseSound() {
   $('pauseSoundBtn').textContent = muted ? 'Sound off' : 'Sound on';
   $('pauseSoundBtn').setAttribute('aria-pressed', String(!muted));
+  for (const key of ['music', 'world']) {
+    const percent = Math.round(soundLevels[key] * 100);
+    $(key + 'Level').value = percent;
+    $(key + 'LevelValue').textContent = percent + '%';
+  }
 }
+for (const key of ['music', 'world'])
+  $(key + 'Level').oninput = e => {
+    setSoundLevel(key, Number(e.target.value) / 100);
+    syncPauseSound();
+  };
 function returnToTitle() {
   const saved = saveSession();
   if (saved === false) {
@@ -864,6 +880,7 @@ function gameOver() {
   st.mode = 'over';
   $('overTitle').textContent = st.cause === 'starved' ? 'Starved' : 'Taken';
   $('overStats').innerHTML = overHTML();
+  $('overLosses').textContent = lossSummary();
   $('overOv').hidden = false;
   dashBtn.hidden = true;
   syncHud();
@@ -944,7 +961,7 @@ function activeMenu() {
   return null;
 }
 function menuControls(menu) {
-  return [...menu.querySelectorAll('button:not(:disabled), textarea:not([hidden])')].filter(
+  return [...menu.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not([hidden])')].filter(
     el => el.getClientRects().length && !el.hidden
   );
 }

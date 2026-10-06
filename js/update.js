@@ -46,7 +46,7 @@ function update(dt) {
   if (
     playing &&
     birds.length &&
-    !st.overT &&
+    st.overT <= 0 &&
     CAL.day >= YEAR_DAYS * CAL.year + (st.dayOff || 0) &&
     CAL.hour >= START_HOUR
   ) {

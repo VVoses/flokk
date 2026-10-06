@@ -111,13 +111,16 @@ with sync_playwright() as playwright:
         count: listSlots().length};
     }''')
     assert replacement == dict(failed=False, preserved=True, saved=True, changed=True, count=6), replacement
-    loss = blocked.evaluate('''() => {
+    boundary = blocked.evaluate('''() => {
       CAL.year = 1; CAL.t = DAY_LEN * YEAR_DAYS; calUpdate();
+      st.mode = 'play'; st.overT = -1;
+      update(0);
+      const won = st.mode;
       st.mode = 'play'; st.overT = 0.1; birds.length = 0;
       update(0.2);
-      return st.mode;
+      return {won, loss:st.mode};
     }''')
-    assert loss == 'over', 'last-bird loss takes precedence over the year boundary'
+    assert boundary == dict(won='won', loss='over'), boundary
     blocked_context.close()
     browser.close()
 print('session conflict and world compatibility checks passed')

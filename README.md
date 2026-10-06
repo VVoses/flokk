@@ -97,9 +97,12 @@ files; function bodies can use anything, since they run after everything has loa
 ## Tools
 Headless tools need Python 3 with Playwright; lint and format need Node (`npm install` once).
 - `npm run check` (or `sh tools/check.sh`): syntax-check every script, then load and start the game headless.
+- `python3 tools/check_failure_check.py`: injects invalid syntax, a console error and a browser exception in temporary copies; verifies each makes the check harness fail.
 - `python3 tools/flows.py`: end-to-end test of every screen: title, play, pause, mute, game over, fly again,
   save slots, a full year, new land, resize, night, and a phone viewport with touch.
-- `python3 tools/session_check.py`: save-slot isolation, cross-tab conflicts, and generated-world compatibility.
+- `python3 tools/session_check.py`: save-slot isolation, cross-tab conflicts, generated-world compatibility, failed replacement preservation and both year-end outcomes.
+- `python3 tools/driver_check.py`: driver boarding and door closure, resident round trips across five seeds, return to home parking bays, and saved car/owner links.
+- `python3 tools/sound_balance_check.py`: keyboard-accessible, persistent music/world levels, narrow pause layouts, and independent dry/reverb routing with offline audio renders.
 - `python3 tools/seasonpick.py`: checks the hidden season picker.
 - `python3 tools/road_check.py [N]`: over N generated lands, fails if a farm lane runs alongside the road before
   turning in, or the road cuts through a farmyard.
