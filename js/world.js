@@ -1901,7 +1901,7 @@ function genWorld(seed) {
   wireUp(roadPoles);
   for (const ch of branches) wireUp(ch);
   // the railway's overhead line, with a mast every ~70 m wherever the line isn't crossed by a road
-  catenaryUp(polesPeriodic(RAIL, 64, MAST_OFF, 20));
+  catenaryUp(polesPeriodic(RAIL, 96, MAST_OFF, 20));
   addPerch(BOAT.x + Math.cos(BOAT.ang) * 8, BOAT.y + Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang);
   addPerch(BOAT.x - Math.cos(BOAT.ang) * 8, BOAT.y - Math.sin(BOAT.ang) * 8, 0.12, 'boat', false, BOAT.ang + Math.PI);
   for (const b0 of BUILDS)
@@ -1992,6 +1992,15 @@ function fenceField(f) {
     FSEG.push({ p, q, k: Math.max(p.y, q.y) });
   }
 }
+function poleSiteClear(x, y, railway = false) {
+  return (
+    !inBuild(x, y, 8) &&
+    !inWater(x, y, 6) &&
+    roadDist(x, y) >= 28 &&
+    laneDist(x, y) >= 18 &&
+    (railway || railDist(x, y) >= 18)
+  );
+}
 function polesAlong(P, spacing, off, start) {
   const poles = [];
   let acc = start;
@@ -2006,7 +2015,7 @@ function polesAlong(P, spacing, off, start) {
       const t = acc / sl;
       const x = ax + (bx - ax) * t + nx * off,
         y = ay + (by - ay) * t + ny * off;
-      if (x > -40 && x < W + 40 && !inBuild(x, y, 8) && !nearCrossing(x, y, 45)) poles.push({ x, y });
+      if (x > -40 && x < W + 40 && poleSiteClear(x, y) && !nearCrossing(x, y, 45)) poles.push({ x, y });
       acc += spacing;
     }
     acc -= sl;
@@ -2044,7 +2053,7 @@ function polesPeriodic(P, spacing, off, clear = 55) {
   for (let i = 0; i <= n; i++) {
     const p = at(s0 + sp * (i + 0.5));
     if (i === n) p.ghost = true;
-    else if (inBuild(p.x, p.y, 8) || nearCrossing(p.x, p.y, clear)) continue;
+    else if (!poleSiteClear(p.x, p.y, P === RAIL) || nearCrossing(p.x, p.y, clear)) continue;
     poles.push(p);
   }
   return poles;
@@ -2129,6 +2138,7 @@ function serviceLine(b, roadPoles, lane) {
   // the junction pole: an existing road pole if one stands close enough, else a new one in the line
   let J = roadPoles.find(p => !p.ghost && Math.hypot(p.x - jx, p.y - jy) < 34);
   if (!J) {
+    if (!poleSiteClear(jx, jy)) return null;
     J = { x: jx, y: jy };
     let at = roadPoles.findIndex(p => p.x > jx);
     if (at < 1) return null;
@@ -2155,7 +2165,7 @@ function serviceLine(b, roadPoles, lane) {
     for (const da of [0, 0.5, -0.5, 1, -1]) {
       const a = na + da,
         y = { x: ax + Math.cos(a) * d, y: ay + Math.sin(a) * d };
-      if (!Y && !inBuild(y.x, y.y, 7) && !inWater(y.x, y.y, 6)) Y = y;
+      if (!Y && poleSiteClear(y.x, y.y)) Y = y;
     }
   if (!Y) return null;
   chain.push(Y);
@@ -2168,7 +2178,7 @@ function serviceLine(b, roadPoles, lane) {
     for (let k = n; k >= 1; k--) {
       const t = k / (n + 1),
         m = { x: lerp(p.x, q.x, t), y: lerp(p.y, q.y, t) };
-      if (!inBuild(m.x, m.y, 8) && !inWater(m.x, m.y, 6)) chain.splice(i, 0, m);
+      if (poleSiteClear(m.x, m.y)) chain.splice(i, 0, m);
     }
   }
   chain.push({ x: ax, y: ay, ang: na, aw: 2.5, wh: Math.max(0.3, b.wh / HZ - 0.06), anchor: true });
