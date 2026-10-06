@@ -182,18 +182,26 @@ function vehicleDestinations() {
       inset = Math.min(110, Math.max(0, d - 32));
     if (f.park) {
       // visitors take the free bay on the pad beside the house; the resident car rests in the other
-      out.push({ name: 'farm', point: f.park.bays[1], ang: f.park.ang, rest: f.park.bays[0], pad: true });
+      out.push({
+        name: 'farm',
+        point: f.park.bays[1],
+        ang: f.park.ang,
+        rest: f.park.bays[0],
+        walk: frontOf(f.house),
+        pad: true
+      });
       continue;
     }
     out.push({
       name: 'farm',
       point: [wrapX(Y.gate[0] + (dx / d) * inset), Y.gate[1] + (dy / d) * inset],
+      walk: f.house ? frontOf(f.house) : null,
       ang: Y.ang
     });
   }
   for (const b of BUILDS)
     if (b.service && b.stop)
       for (const point of b.parkingStops || [b.stop])
-        out.push({ name: b.service, point, ang: b.parkingStops ? b.ang + Math.PI / 2 : b.ang });
+        out.push({ name: b.service, point, walk: frontOf(b, 18), ang: b.parkingStops ? b.ang + Math.PI / 2 : b.ang });
   return out;
 }

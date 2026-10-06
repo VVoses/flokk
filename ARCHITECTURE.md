@@ -285,6 +285,13 @@ actually boot the game headless and confirm it starts.
 
 ## Seasonal music
 
+The pause menu exposes independent music and world-sound levels, stored under
+`flokk-sound-levels-v1` separately from flight saves. World voices, ambience and their room
+return feed `worldBus`; music and its independent room return feed `musicVolumeGain`.
+Both reach `master`, which retains the global mute and compressor. Changing a slider smooths
+its gain without changing the composed voices or restarting a cue. `sound_balance_check.py`
+checks persistence, keyboard focus, narrow layouts and isolation of both dry sound and tails.
+
 `music.js` contains four composed arrival phrases, rather than randomly generated motifs: D-lydian
 spring plucks, F-lydian summer plucks, A-minor autumn plucks, and E-phrygian winter bells. Each has an
 explicit sparse melody, asymmetric rhythm and chord progression, with an unresolved ending. A quiet low
@@ -304,3 +311,19 @@ on the win screen, once per year,
 respecting mute. The audio regression renders this closing phrase and checks duplicate/mute gating.
 Shore-tree reflection selection uses the mirrored canopy's height to find water under its projected
 footprint, rather than restricting reflections to trees within a fixed 34-unit bank strip.
+
+## Resident cars and drivers
+
+Resident cars keep a `home` descriptor, including their own parking bay and house-door walking
+target. During daylight the sparse traffic scheduler can select a resident trip instead of
+spawning a passing vehicle. `residentJourney` sends its owner to the car; `placeVehicle` waits
+for boarding and door closure before driving the shared road graph. The first destination is
+a visit; the next is the home bay. At a visit, the owner walks to the building's front door,
+goes indoors, and the visit timer starts once they arrive. At home the engine stops and the owner walks indoors.
+Resident cars stay in `TRAFFIC` between trips rather than being discarded with passing traffic.
+Older parked-car saves acquire a home by matching their existing bay.
+
+The car's `driver` and the person's `vehicle` reference each other. The session graph encoder
+preserves that cycle and the return destination's identity. `arrivalLife` drives this person's
+walking/boarding state; the existing human fade and door animation render the transition.
+`driver_check.py` checks the lifecycle and complete round trips across five generated lands.

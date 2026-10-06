@@ -25,7 +25,8 @@ const visU = (x, y, m, hpx) => x > V.x0 - m && x < V.x1 + m && y * TILT - hpx < 
 function drawPerched(b, alpha) {
   const s = b.s * 0.95,
     X = b.x + b.hx,
-    Y = PY(b.y + b.hy, b.z);
+    Y = PY(b.y + b.hy, b.z),
+    rest = coveredNow(b) ? clamp((LIGHT.night - 0.35) / 0.45, 0, 1) : 0;
   const f = Math.cos(b.heading) >= 0 ? 1 : -1;
   ctx.save();
   ctx.translate(X, Y);
@@ -49,7 +50,7 @@ function drawPerched(b, alpha) {
   ctx.fill();
   ctx.fillStyle = b.c2;
   ctx.beginPath();
-  ctx.ellipse(0, -s * 0.46, s * 0.56, s * 0.36, -0.12, 0, TAU);
+  ctx.ellipse(0, -s * 0.46, s * (0.56 + rest * 0.06), s * (0.36 + rest * 0.03), -0.12, 0, TAU);
   ctx.fill();
   ctx.fillStyle = '#BCA88C';
   ctx.beginPath();
@@ -65,8 +66,8 @@ function drawPerched(b, alpha) {
   ctx.moveTo(-s * 0.02, -s * 0.58);
   ctx.lineTo(-s * 0.38, -s * 0.5);
   ctx.stroke();
-  const hx = s * 0.44 + pk * 0.4,
-    hy = -s * 0.82 + pk;
+  const hx = s * (0.44 - rest * 0.08) + pk * 0.4,
+    hy = -s * (0.82 - rest * 0.1) + pk;
   ctx.fillStyle = b.c3;
   ctx.beginPath();
   ctx.arc(hx, hy, s * 0.25, 0, TAU);
@@ -77,7 +78,7 @@ function drawPerched(b, alpha) {
   ctx.fill();
   ctx.fillStyle = '#111';
   ctx.beginPath();
-  ctx.arc(hx + s * 0.1, hy - s * 0.04, s * 0.045, 0, TAU);
+  ctx.ellipse(hx + s * 0.1, hy - s * 0.04, s * 0.045, s * (0.045 - rest * 0.035), 0, 0, TAU);
   ctx.fill();
   ctx.fillStyle = '#D8B25A';
   ctx.beginPath();

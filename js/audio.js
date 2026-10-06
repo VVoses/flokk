@@ -6,11 +6,59 @@
 /* ---------- audio: flock sounds + layered ambience ---------- */
 let ac = null,
   master = null,
+  worldBus = null,
+  musicVolumeGain = null,
   verb = null,
   muted = false,
   lastChirp = 0,
   owlNextCall = 0,
   amb = null;
+const soundLevels = { music: 1, world: 1 };
+try {
+  const saved = JSON.parse(localStorage.getItem('flokk-sound-levels-v1'));
+  for (const key of ['music', 'world'])
+    if (saved && Number.isFinite(saved[key])) soundLevels[key] = clamp(saved[key], 0, 1);
+} catch {
+  // Preferences are optional when storage is unavailable.
+}
+function setSoundLevel(key, value) {
+  if (!(key in soundLevels) || !Number.isFinite(value)) return;
+  soundLevels[key] = clamp(value, 0, 1);
+  const gain = key === 'music' ? musicVolumeGain : worldBus;
+  if (ac && gain) gain.gain.setTargetAtTime(soundLevels[key], ac.currentTime, 0.04);
+  try {
+    localStorage.setItem('flokk-sound-levels-v1', JSON.stringify(soundLevels));
+  } catch {
+    // The controls still work without persistent storage.
+  }
+}
+// Independent rooms keep music tails audible when the world is turned down, and vice versa.
+function audioRoom(output) {
+  const input = ac.createGain(),
+    out = ac.createGain(),
+    filter = ac.createBiquadFilter();
+  out.gain.value = 0.16;
+  filter.type = 'lowpass';
+  filter.frequency.value = 2600;
+  out.connect(filter).connect(output);
+  for (const [time, feedback, cutoff] of [
+    [0.137, 0.55, 2600],
+    [0.211, 0.52, 2200],
+    [0.293, 0.48, 1800],
+    [0.389, 0.44, 1500]
+  ]) {
+    const delay = ac.createDelay(1),
+      low = ac.createBiquadFilter(),
+      gain = ac.createGain();
+    delay.delayTime.value = time;
+    low.type = 'lowpass';
+    low.frequency.value = cutoff;
+    gain.gain.value = feedback;
+    input.connect(delay).connect(low).connect(gain).connect(delay);
+    low.connect(out);
+  }
+  return { input, out, filter };
+}
 function noiseBuf(sec) {
   const b = ac.createBuffer(1, ac.sampleRate * sec, ac.sampleRate),
     d = b.getChannelData(0);
@@ -58,36 +106,13 @@ function initAudio() {
     comp.threshold.value = -15;
     comp.ratio.value = 2.3;
     master.connect(comp).connect(ac.destination);
-    // small feedback-delay room for distant sounds and tones
-    verb = ac.createGain();
-    const vout = ac.createGain();
-    vout.gain.value = 0.16;
-    // the reverb's own tail brightness: open field stays close to dry and open, forest canopy and
-    // farm walls dull and lengthen how present it feels - set every tick in audioTick from the
-    // flock's own position, so the room around it actually changes as it moves through the world
-    const verbLP = ac.createBiquadFilter();
-    verbLP.type = 'lowpass';
-    verbLP.frequency.value = 2600;
-    vout.connect(verbLP).connect(master);
-    for (const [t, fb, lp] of [
-      [0.137, 0.55, 2600],
-      [0.211, 0.52, 2200],
-      [0.293, 0.48, 1800],
-      [0.389, 0.44, 1500]
-    ]) {
-      const d = ac.createDelay(1);
-      d.delayTime.value = t;
-      const f = ac.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.value = lp;
-      const gg = ac.createGain();
-      gg.gain.value = fb;
-      verb.connect(d);
-      d.connect(f);
-      f.connect(gg);
-      gg.connect(d);
-      f.connect(vout);
-    }
+    worldBus = ac.createGain();
+    worldBus.gain.value = soundLevels.world;
+    worldBus.connect(master);
+    const room = audioRoom(worldBus);
+    verb = room.input;
+    const vout = room.out,
+      verbLP = room.filter;
     amb = { noise: noiseBuf(4), gust: 0.5, gustT: 0, cricketT: 1, hopperT: 6, songT: 3, toneT: 7, tick: 0 };
     // wind: broad bed + a faint whistle layer, both swept by gusts - a narrower band here reads as
     // moving air rather than flat hiss, since a wide-open bandpass is close to unfiltered noise
@@ -98,7 +123,9 @@ function initAudio() {
     wf.Q.value = 1.1;
     const wg = ac.createGain();
     wg.gain.value = 0;
-    w1.connect(wf).connect(wg).connect(master);
+    w1.connect(wf)
+      .connect(wg)
+      .connect(worldBus || master);
     const w2 = loopNoise(),
       wf2 = ac.createBiquadFilter();
     wf2.type = 'bandpass';
@@ -107,7 +134,7 @@ function initAudio() {
     const wg2 = ac.createGain();
     wg2.gain.value = 0;
     w2.connect(wf2).connect(wg2);
-    wg2.connect(master);
+    wg2.connect(worldBus || master);
     wg2.connect(verb);
     const w3 = loopNoise(),
       wf3 = ac.createBiquadFilter();
@@ -115,7 +142,9 @@ function initAudio() {
     wf3.frequency.value = 3200;
     const wg3 = ac.createGain();
     wg3.gain.value = 0;
-    w3.connect(wf3).connect(wg3).connect(master); // leaf rustle
+    w3.connect(wf3)
+      .connect(wg3)
+      .connect(worldBus || master); // leaf rustle
     // water lapping near the shore
     const wa = loopNoise(),
       waf = ac.createBiquadFilter();
@@ -123,7 +152,9 @@ function initAudio() {
     waf.frequency.value = 480;
     const wag = ac.createGain();
     wag.gain.value = 0;
-    wa.connect(waf).connect(wag).connect(master);
+    wa.connect(waf)
+      .connect(wag)
+      .connect(worldBus || master);
     // Close to the bekk, a quiet, low babble follows the flock and fades under winter ice.
     const streamNoise = loopNoise(),
       streamFilter = ac.createBiquadFilter(),
@@ -132,7 +163,10 @@ function initAudio() {
     streamFilter.frequency.value = 680;
     streamFilter.Q.value = 0.65;
     streamGain.gain.value = 0;
-    streamNoise.connect(streamFilter).connect(streamGain).connect(master);
+    streamNoise
+      .connect(streamFilter)
+      .connect(streamGain)
+      .connect(worldBus || master);
     amb.streamGain = streamGain;
     // midge hum near swarms
     const h1 = ac.createOscillator(),
@@ -156,7 +190,7 @@ function initAudio() {
     hg.gain.value = 0;
     h1.connect(hf);
     h2.connect(hf);
-    hf.connect(hg).connect(master);
+    hf.connect(hg).connect(worldBus || master);
     h1.start();
     h2.start();
     hl.start();
@@ -173,7 +207,9 @@ function initAudio() {
     tam.frequency.value = 5.5;
     tamg.gain.value = 0;
     tam.connect(tamg);
-    tr.connect(trf).connect(trg).connect(master);
+    tr.connect(trf)
+      .connect(trg)
+      .connect(worldBus || master);
     tr.start();
     tam.start();
     amb.callT = 4;
@@ -184,7 +220,9 @@ function initAudio() {
       rf.frequency.value = 240;
       const rgn = ac.createGain();
       rgn.gain.value = 0;
-      rs.connect(rf).connect(rgn).connect(master);
+      rs.connect(rf)
+        .connect(rgn)
+        .connect(worldBus || master);
       amb.rg = rgn;
       amb.clackT = 0;
     }
@@ -205,7 +243,7 @@ function initAudio() {
       nf.Q.value = 0.7;
       o.connect(f).connect(g);
       n.connect(nf).connect(g);
-      g.connect(master);
+      g.connect(worldBus || master);
       o.start();
       amb.carG = g;
       amb.carO = o;
@@ -220,14 +258,19 @@ function initAudio() {
       rnf.Q.value = 0.9;
       const rng = ac.createGain();
       rng.gain.value = 0;
-      rn.connect(rnf).connect(rng).connect(master);
+      rn.connect(rnf)
+        .connect(rng)
+        .connect(worldBus || master);
       const rn2 = loopNoise(),
         rnf2 = ac.createBiquadFilter();
       rnf2.type = 'highpass';
       rnf2.frequency.value = 5200;
       const rng2 = ac.createGain();
       rng2.gain.value = 0;
-      rn2.connect(rnf2).connect(rng2).connect(master);
+      rn2
+        .connect(rnf2)
+        .connect(rng2)
+        .connect(worldBus || master);
       amb.rng = rng;
       amb.rng2 = rng2;
     }
@@ -268,7 +311,7 @@ function chirp(vol = 0.045, base, x, y) {
   gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(gn).connect(mix);
   const p = panned(mix, pan);
-  p.connect(master);
+  p.connect(worldBus || master);
   if (d > 0.15) p.connect(verb);
   o.start(t);
   o.stop(t + dur + 0.01);
@@ -319,7 +362,7 @@ function hawkCry(x, y) {
   const p = panned(air, pan),
     send = ac.createGain();
   send.gain.value = 0.12 + d * 0.45;
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(send).connect(verb);
   voice.start(t);
   breath.start(t, rr(0, 2));
@@ -343,7 +386,7 @@ function whooshMiss(x, y) {
   gn.gain.linearRampToValueAtTime(0.11, t + 0.02);
   gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
   s.connect(f).connect(gn);
-  panned(gn, pan).connect(master);
+  panned(gn, pan).connect(worldBus || master);
   s.start(t, Math.random() * 3);
   s.stop(t + 0.3);
 }
@@ -371,7 +414,7 @@ function flutter(n, x, y) {
   }
   s.connect(f).connect(gn);
   const p = panned(gn, pan);
-  p.connect(master);
+  p.connect(worldBus || master);
   if (d > 0.2) p.connect(verb);
   s.start(t, Math.random() * 3);
   s.stop(at + 0.01);
@@ -398,7 +441,7 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
   soft.frequency.value = kind === 'owl' ? 750 : kind === 'fox' ? 600 : 1050;
   soft.Q.value = 0.4;
   bus.connect(soft);
-  busOut.connect(master);
+  busOut.connect(worldBus || master);
   if (d > 0.1) busOut.connect(verb);
   // a sparrow's distress squawk: a short, rasping 'chrrk' - a falling reedy tone chopped by a fast
   // flutter, cut off as it's seized. It skips the lowpass above (a squawk is nothing without its
@@ -542,7 +585,7 @@ function cricket() {
     v = rr(0.004, 0.009),
     out = ac.createGain();
   out.gain.value = 1;
-  panned(out, rr(-0.9, 0.9)).connect(master);
+  panned(out, rr(-0.9, 0.9)).connect(worldBus || master);
   for (let i = 0; i < n; i++) {
     const o = ac.createOscillator(),
       gn = ac.createGain();
@@ -560,7 +603,7 @@ function hopper() {
   const t = ac.currentTime + 0.02,
     n = rr(8, 16) | 0,
     out = ac.createGain();
-  panned(out, rr(-0.8, 0.8)).connect(master);
+  panned(out, rr(-0.8, 0.8)).connect(worldBus || master);
   const f = ac.createBiquadFilter();
   f.type = 'highpass';
   f.frequency.value = rr(5000, 7000);
@@ -590,7 +633,7 @@ function songbird(v = 1) {
     out = ac.createGain();
   out.gain.value = rr(0.007, 0.014) * v;
   const p = panned(out, rr(-1, 1));
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(verb);
   const kind = Math.random();
   if (kind < 0.4) {
@@ -658,7 +701,7 @@ function owlHoot(v, x, y, range = 900) {
     sp = x == null ? null : spatial(x, y, range);
   out.gain.value = sp ? v * (1 - sp.d * 0.5) : v;
   const p = panned(out, sp ? sp.pan : rr(-0.8, 0.8));
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(verb);
   const hoot = (t0, d, f) => {
     const o = ac.createOscillator(),
@@ -731,7 +774,7 @@ function stallShuffle(vol, pn) {
   const p = panned(lp, pn),
     send = ac.createGain();
   send.gain.value = 0.35;
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(send).connect(verb);
   const o = ac.createOscillator(),
     g = ac.createGain();
@@ -764,7 +807,7 @@ function frog() {
     out = ac.createGain();
   out.gain.value = rr(0.012, 0.025);
   const p = panned(out, rr(-0.9, 0.9));
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(verb);
   const n = rr(2, 5) | 0,
     f = rr(90, 160);
@@ -890,7 +933,7 @@ function animalCall(k, vol, pn, o = {}) {
   dry.gain.value = 1 - 0.45 * d;
   out.connect(air);
   const p = panned(air, pn);
-  p.connect(dry).connect(master);
+  p.connect(dry).connect(worldBus || master);
   const send = ac.createGain();
   send.gain.value = o.muffle ? 0.3 + 0.4 * d : 0.12 + 0.55 * d;
   p.connect(send).connect(verb);
@@ -1482,7 +1525,7 @@ function cuckoo() {
     out = ac.createGain();
   out.gain.value = rr(0.012, 0.02);
   const p = panned(out, rr(-1, 1));
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(verb);
   const n = rr(2, 5) | 0,
     f = rr(640, 700);
@@ -1513,7 +1556,7 @@ function churchBell(v, pan, n = 9) {
     out = ac.createGain();
   out.gain.value = v;
   const p = panned(out, pan);
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(verb);
   const f = rr(196, 212);
   for (let i = 0; i < n; i++) {
@@ -1557,10 +1600,10 @@ function skein() {
     pn.pan.setValueAtTime(pan0, t);
     pn.pan.linearRampToValueAtTime(-pan0, t + 9);
     lp.connect(pn);
-    pn.connect(master);
+    pn.connect(worldBus || master);
     pn.connect(verb);
   } else {
-    lp.connect(master);
+    lp.connect(worldBus || master);
     lp.connect(verb);
   }
   for (let i = 0; i < 16; i++) {
@@ -1589,7 +1632,7 @@ function titCall() {
     out = ac.createGain();
   out.gain.value = rr(0.006, 0.011);
   const p = panned(out, rr(-1, 1));
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(verb);
   const n = rr(2, 5) | 0,
     f = rr(5600, 6400);
@@ -1617,7 +1660,7 @@ function iceBoom(v) {
     out = ac.createGain();
   out.gain.value = v;
   const p = panned(out, rr(-0.7, 0.7));
-  p.connect(master);
+  p.connect(worldBus || master);
   p.connect(verb);
   const o = ac.createOscillator();
   o.type = 'sine';
@@ -1652,7 +1695,7 @@ function thunder() {
   out.gain.value = 0.09;
   const p = panned(out, rr(-0.6, 0.6));
   p.connect(verb);
-  p.connect(master);
+  p.connect(worldBus || master);
   const s = ac.createBufferSource();
   s.buffer = amb.noise;
   s.loop = true;

@@ -16,3 +16,4 @@ with sync_playwright() as p:
     pg.screenshot(path=os.path.join(root,'tools','out','smoke.png'))
     print('errors:',errs or 'none')
     b.close()
+    assert not errs, 'Game emitted browser errors: ' + '; '.join(errs)

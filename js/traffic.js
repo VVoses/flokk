@@ -99,6 +99,7 @@ function spawnResidentCars() {
     TRAFFIC.push({
       kind: 'car',
       resident: true,
+      home: { ...homes[i], point: [wrapX(x), y] },
       engineOn: false,
       parkT: Infinity,
       x: wrapX(x),
@@ -108,9 +109,39 @@ function spawnResidentCars() {
       len: 38,
       hd: 8.5,
       v: 0,
-      scareT: Infinity
+      vmax: 105,
+      dist: 0,
+      scareT: 0
     });
   }
+}
+function residentJourney(v, target) {
+  if (!v.resident || v.trip || !v.home) return false;
+  if (!target) {
+    const choices = vehicleDestinations().filter(
+      d => Math.hypot(wdx(d.point[0], v.home.point[0]), d.point[1] - v.home.point[1]) > 120
+    );
+    if (!choices.length) return false;
+    target = pickP(choices);
+  }
+  v.route = makeJourney(v.home.point, target.point);
+  if (!v.route || v.route.length < 1) return false;
+  v.destination = target.point;
+  v.stop = target;
+  v.stopKind = target.name;
+  v.s = v.dist = v.parkT = 0;
+  v.trip = true;
+  v.visitWalk = null;
+  v.engineOn = false;
+  if (!v.driver || v.driver.dying) {
+    const door = v.home.walk || v.home.point;
+    v.driver = mkPerson('walker', ...door, { role: 'arrival', vehicle: v, fade: 0 });
+    ANIMALS.push(v.driver);
+  }
+  v.driverOut = true;
+  v.driver.returning = true;
+  v.driver.hide = false;
+  return true;
 }
 function driverExit(v) {
   if (v.kind === 'tractor' || v.driverOut) return;
@@ -121,27 +152,59 @@ function driverExit(v) {
     sn = Math.sin(v.ang),
     x = v.x - sn * side * (v.hd + 4),
     y = v.y + cs * side * (v.hd + 4),
-    away = [x - sn * side * 30 - cs * 8, y + cs * side * 30 - sn * 8];
-  ANIMALS.push(mkPerson('walker', x, y, { role: 'arrival', arrivalGo: away, fade: 1 }));
+    away = (v.resident && !v.trip ? v.home.walk : v.visitWalk) || [
+      x - sn * side * 30 - cs * 8,
+      y + cs * side * 30 - sn * 8
+    ];
+  if (!v.driver || v.driver.dying) {
+    v.driver = mkPerson('walker', x, y, { role: 'arrival', arrivalGo: away, fade: 1, vehicle: v, atVisit: false });
+    ANIMALS.push(v.driver);
+  } else {
+    Object.assign(v.driver, { x, y, arrivalGo: away, hide: false, fade: 1, returning: false, atVisit: false });
+  }
 }
 function placeVehicle(v, dt) {
-  if (v.resident || !v.route) return;
+  if ((v.resident && !v.trip) || !v.route) {
+    v.doorT = Math.max(0, (v.doorT || 0) - dt);
+    return;
+  }
   if (v.parkT > 0) {
-    v.parkT -= dt;
+    // A visit starts at the door, rather than expiring while the owner is still walking there.
+    if (!v.visitWalk || !v.driverOut || !v.driver || v.driver.returning || v.driver.atVisit) v.parkT -= dt;
     v.doorT = Math.max(0, (v.doorT || 0) - dt);
     v.v = 0;
     return;
   }
+  // The parked car waits for its own driver to return and close the door.
+  if (v.driverOut && v.driver) {
+    v.v = 0;
+    return;
+  }
+  if (v.doorT > 0) {
+    v.doorT = Math.max(0, v.doorT - dt);
+    return;
+  }
   if (v.s >= v.route.length - 0.2) {
     const arrived = v.stop;
+    v.visitWalk = arrived?.walk || null;
     v.x = wrapX(v.destination[0]);
     v.y = v.destination[1];
     if (arrived?.ang !== undefined) v.ang = arrived.ang;
+    if (v.resident && arrived === v.home) {
+      v.trip = false;
+      v.route = null;
+      v.parkT = Infinity;
+      v.v = 0;
+      v.engineOn = false;
+      v.driverOut = false;
+      driverExit(v);
+      return;
+    }
     const choices = vehicleDestinations().filter(
       d => Math.hypot(wdx(d.point[0], v.destination[0]), d.point[1] - v.destination[1]) > 120
     );
     if (!choices.length) return;
-    const target = pickP(choices);
+    const target = v.resident ? v.home : pickP(choices);
     v.route = makeJourney(v.destination, target.point);
     v.destination = target.point;
     v.stop = target;
@@ -191,16 +254,32 @@ function updateTraffic(dt) {
     TRAFFIC = [];
     spawnResidentCars();
   }
+  // Older saves have parked cars without a home descriptor; match their existing resident bay.
+  let homes = null;
+  for (const v of TRAFFIC) {
+    if (!v.resident || v.home) continue;
+    homes ||= vehicleDestinations();
+    const home = homes.find(d => d.rest && Math.hypot(wdx(d.rest[0], v.x), d.rest[1] - v.y) < 2);
+    if (home) {
+      v.home = { ...home, point: home.rest };
+      v.vmax = 105;
+      v.dist = 0;
+      v.scareT = 0;
+    }
+  }
   let moving = false;
   for (const v of TRAFFIC)
-    if (!v.resident) {
+    if (!v.resident || v.trip) {
       moving = true;
       break;
     }
   if (!moving) {
     TRAFFIC_T -= dt;
     if (TRAFFIC_T <= 0 && st.mode !== 'pause') {
-      spawnVehicle();
+      const residents = TRAFFIC.filter(v => v.resident && !v.trip && v.home);
+      const resident =
+        residents.length && CAL.hour >= 8 && CAL.hour < 18 && Math.random() < 0.65 ? pickP(residents) : null;
+      if (!resident || !residentJourney(resident)) spawnVehicle();
       TRAFFIC_T = rr(35, 80) * (LIGHT.night > 0.6 ? 1.8 : 1);
     }
   }
@@ -210,9 +289,14 @@ function updateTraffic(dt) {
     v.scareT -= dt;
     if (v.scareT <= 0) {
       v.scareT = 0.25;
-      if (!v.resident && v.engineOn) scatterFlock(v.x, v.y, v.kind === 'tractor' ? 45 : 55);
+      if (v.engineOn) scatterFlock(v.x, v.y, v.kind === 'tractor' ? 45 : 55);
     }
-    if (!(v.parkT <= 0 && v.dist > W * 0.9 && (!L || Math.abs(wdx(v.x, L.x)) > 1700))) TRAFFIC[write++] = v;
+    if (v.resident || !(v.parkT <= 0 && v.dist > W * 0.9 && (!L || Math.abs(wdx(v.x, L.x)) > 1700)))
+      TRAFFIC[write++] = v;
+    else if (v.driver) {
+      v.driver.dying = true;
+      v.driver.fade = 0;
+    }
   }
   // gone once it has done most of a lap and nobody can see it
   TRAFFIC.length = write;

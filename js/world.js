@@ -2138,9 +2138,17 @@ function serviceLine(b, roadPoles, lane) {
   // the junction pole: an existing road pole if one stands close enough, else a new one in the line
   let J = roadPoles.find(p => !p.ghost && Math.hypot(p.x - jx, p.y - jy) < 34);
   if (!J) {
-    if (!poleSiteClear(jx, jy)) return null;
-    J = { x: jx, y: jy };
-    let at = roadPoles.findIndex(p => p.x > jx);
+    // A driveway can occupy the preferred junction; search the adjoining verge.
+    for (const offset of [0, -32, 32, -64, 64, -96, 96]) {
+      const x = start[0] + Math.cos(ta) * offset + Math.sin(ta) * 40,
+        y = start[1] + Math.sin(ta) * offset - Math.cos(ta) * 40;
+      if (x >= 20 && x <= W - 20 && poleSiteClear(x, y)) {
+        J = { x, y };
+        break;
+      }
+    }
+    if (!J) return null;
+    let at = roadPoles.findIndex(p => p.x > J.x);
     if (at < 1) return null;
     roadPoles.splice(at, 0, J);
   }

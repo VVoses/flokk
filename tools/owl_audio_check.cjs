@@ -26,6 +26,7 @@ const ctx = vm.createContext({
   owlNextCall: 0,
   amb: {},
   master: node(),
+  worldBus: null,
   verb: node(),
   rr: (a, b) => (a + b) / 2,
   wob: () => 1,

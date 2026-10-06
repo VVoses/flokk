@@ -115,11 +115,14 @@ function musInit() {
   soft.frequency.value = 1900;
   const dry = ac.createGain();
   dry.gain.value = 0.75;
+  musicVolumeGain = ac.createGain();
+  musicVolumeGain.gain.value = soundLevels.music;
+  musicVolumeGain.connect(master);
   bus.connect(soft);
-  soft.connect(dry).connect(master);
+  soft.connect(dry).connect(musicVolumeGain);
   const wet = ac.createGain();
   wet.gain.value = 0.9;
-  soft.connect(wet).connect(verb);
+  soft.connect(wet).connect(audioRoom(musicVolumeGain).input);
   MUS = { bus, key: musicSeasonKey(), arrival: ac.currentTime + 3, echo: musicEchoIndex(), level: 1, busyUntil: 0 };
 }
 function degMidi(S, d) {
