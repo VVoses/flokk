@@ -93,7 +93,8 @@ function loopNoise() {
 }
 function initAudio() {
   if (ac) {
-    if (ac.state === 'suspended') ac.resume();
+    // Browsers can reject resuming audio; keep the context available for the next gesture.
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
     return;
   }
   try {

@@ -74,5 +74,34 @@ with sync_playwright() as p:
       return !!car.home && Math.hypot(wdx(car.x,car.home.point[0]),car.y-car.home.point[1])<1;
     }''')
     assert migrated, 'older resident-car saves acquire their home bay'
+    for phase in ['outbound', 'visit', 'return']:
+        slot = page.evaluate('''phase => {
+          st.mode='pause'; TRAIN=null;
+          const car=TRAFFIC.find(car=>car.resident && !car.trip);
+          if(!car || !residentJourney(car)) throw Error('no resident journey');
+          let reached=false;
+          for(let i=0;i<20000;i++) {
+            arrivalLife(car.driver,.1); placeVehicle(car,.1);
+            reached=phase==='outbound' ? car.dist>50 && car.engineOn :
+              phase==='visit' ? car.driver.atVisit && car.parkT>4 :
+              car.stop===car.home && car.engineOn;
+            if(reached) break;
+          }
+          if(!reached) throw Error('trip phase not reached: '+phase);
+          saveSession(); return curSlot;
+        }''', phase)
+        page.reload()
+        assert page.evaluate('id=>restoreSession(id)', slot), (phase, 'restore failed')
+        returned = page.evaluate('''() => {
+          st.mode='pause'; TRAIN=null;
+          const car=TRAFFIC.find(car=>car.resident && car.trip);
+          if(!car || car.driver.vehicle!==car) return false;
+          for(let i=0;i<24000 && car.trip;i++) {
+            arrivalLife(car.driver,.1); placeVehicle(car,.1);
+          }
+          return !car.trip && !car.engineOn && car.stop===car.home;
+        }''')
+        assert returned, (phase, 'restored trip must return to its home bay')
+        print('resident trip reload and home return passed', phase)
     browser.close()
 print('driver return, boarding, door closure and reuse passed')
