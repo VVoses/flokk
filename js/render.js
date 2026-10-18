@@ -22,6 +22,55 @@ function softPuff(rgb) {
 const visG = (x, y, m) => x > V.x0 - m && x < V.x1 + m && y * TILT > V.py0 - m && y * TILT < V.py1 + m;
 const visU = (x, y, m, hpx) => x > V.x0 - m && x < V.x1 + m && y * TILT - hpx < V.py1 + m && y * TILT > V.py0 - m;
 
+/* The trees on a coarse grid. The loops that want only the trees in view (the draw list, the shadows) read the cells
+   the view reaches rather than all of TREES, and get them back in TREES order, so what they draw and in which
+   order is unchanged. */
+const TREE_IX = { t0: null, n: -1, cols: 0, rows: 0, start: null, items: null, buf: null, maxH: 0, maxR: 0 };
+const TREE_CELL = 200;
+function treeIx() {
+  const S = TREE_IX;
+  if (S.t0 === TREES[0] && S.n === TREES.length) return S;
+  const n = TREES.length;
+  S.t0 = TREES[0];
+  S.n = n;
+  S.cols = Math.ceil(W / TREE_CELL);
+  S.rows = Math.ceil(H / TREE_CELL);
+  S.maxH = S.maxR = 0;
+  // trees just off the land (or its far edge) sit in the edge cells, and a query clamps the same way
+  const cell = t =>
+    Math.min(S.rows - 1, Math.max(0, Math.floor(t.y / TREE_CELL))) * S.cols +
+    Math.min(S.cols - 1, Math.max(0, Math.floor(t.x / TREE_CELL)));
+  const count = new Int32Array(S.cols * S.rows + 1);
+  for (const t of TREES) {
+    count[cell(t) + 1]++;
+    S.maxH = Math.max(S.maxH, t.hpx);
+    S.maxR = Math.max(S.maxR, t.r);
+  }
+  for (let i = 1; i < count.length; i++) count[i] += count[i - 1];
+  S.start = count.slice();
+  S.items = new Int32Array(n);
+  const fill = count.slice();
+  TREES.forEach((t, i) => (S.items[fill[cell(t)]++] = i));
+  S.buf = new Int32Array(n);
+  return S;
+}
+// the indices (ascending) of the trees whose cell the box touches
+function treeWindow(x0, x1, y0, y1) {
+  const S = treeIx(),
+    c0 = Math.min(S.cols - 1, Math.max(0, Math.floor(x0 / TREE_CELL))),
+    c1 = Math.min(S.cols - 1, Math.max(0, Math.floor(x1 / TREE_CELL))),
+    r0 = Math.min(S.rows - 1, Math.max(0, Math.floor(y0 / TREE_CELL))),
+    r1 = Math.min(S.rows - 1, Math.max(0, Math.floor(y1 / TREE_CELL)));
+  let n = 0;
+  for (let r = r0; r <= r1; r++) {
+    const a = S.start[r * S.cols + c0],
+      b = S.start[r * S.cols + c1 + 1];
+    S.buf.set(S.items.subarray(a, b), n);
+    n += b - a;
+  }
+  return S.buf.subarray(0, n).sort();
+}
+
 function drawPerched(b, alpha) {
   const s = b.s * 0.95,
     X = b.x + b.hx,
@@ -1555,8 +1604,15 @@ function renderShadows(tx, ty, KS, inK) {
       d1 = dpr * z * TILT * SQ,
       e1 = tk * SQ,
       f1 = ty * SQ;
-    for (const t of TREES) {
-      const hh = t.hpx / HZ;
+    // only the trees that can reach the view (a tree's shadow falls up to its height times shLen away)
+    const TI = treeIx(),
+      shM = TI.maxH * shLen + TI.maxR * 2.2 + 60,
+      shD = Math.abs(SY) * 0.5 * (TI.maxH / HZ),
+      shDx = Math.abs(SX) * 0.5 * (TI.maxH / HZ),
+      inView = treeWindow(V.x0 - shM - shDx, V.x1 + shM + shDx, (V.py0 - shM) / TILT - shD, (V.py1 + shM) / TILT + shD);
+    for (let ti = 0; ti < inView.length; ti++) {
+      const t = TREES[inView[ti]],
+        hh = t.hpx / HZ;
       if (!visG(t.x + hh * SX * 0.5, t.y + hh * SY * 0.5, t.hpx * shLen + t.r * 2.2 + 60)) continue;
       const k = t.k;
       c.setTransform(a1 * px, d1 * py, -a1 * kx, -d1 * ky, a1 * t.x + e1, d1 * t.y + f1);
@@ -1990,7 +2046,13 @@ function render() {
     ctx.stroke();
     drawGrass(); // standing grass over the meadows and pastures (grass.js)
     drawCrops(); // the standing grain, rapeseed, potatoes and onions (crops.js)
-    for (const t of TREES) if (visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) items.push([t.y, 0, t, k]);
+    const TI = treeIx(),
+      tm = TI.maxR * 2.4,
+      tw = treeWindow(V.x0 - tm, V.x1 + tm, (V.py0 - tm) / TILT, (V.py1 + tm + TI.maxH + 10) / TILT);
+    for (let ti = 0; ti < tw.length; ti++) {
+      const t = TREES[tw[ti]];
+      if (visU(t.x, t.y, t.r * 2.4, t.hpx + 10)) items.push([t.y, 0, t, k]);
+    }
     for (const b of BUILDS) if (visU(b.cx, b.cy, b.len, b.rh + b.len * 0.6)) items.push([b.cy, 1, b, k]);
     for (const p of POLES) if (visU(p.x, p.y, 14, POLE_H * HZ)) items.push([p.y, 2, p, k]);
     for (const m of CATS) if (visU(m.x, m.y, 30, CAT_ARM_H * HZ)) items.push([m.y, 18, m, k]);

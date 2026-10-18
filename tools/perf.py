@@ -82,7 +82,8 @@ with sync_playwright() as p:
     errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.add_init_script(INIT)
-    pg.goto("file://" + os.path.join(args.root, "index.html") + "?dev")
+    pg.route("http*://**", lambda r: r.abort())  # web fonts stall the load event in offline sandboxes
+    pg.goto("file://" + os.path.join(args.root, "index.html") + "?dev", timeout=170000)  # building the sprites takes ~15 s on a software GPU
     pg.wait_for_timeout(1200)
     pg.evaluate("Math.random=(()=>{let s=12345;return()=>((s=Math.imul(s^(s>>>15),2246822507)+0x9E3779B9|0)>>>0)/4294967296})()")
     pg.evaluate("genWorld(99001);landLabels()")

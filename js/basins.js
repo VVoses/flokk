@@ -178,6 +178,9 @@ function basinSample(x, y) {
   }
   return null;
 }
+const GS = 4;
+const SUN_L = Math.hypot(0.4, 0.55, 0.73),
+  SUN_Z = 0.73 / SUN_L;
 function drawClosedBasins(c) {
   basinInit();
   const freeze = waveFreeze(),
@@ -196,38 +199,71 @@ function drawClosedBasins(c) {
       p = b.img.data;
     const gustBlend = 1 - Math.exp(-Math.max(0, Math.min(0.1, T - b.gustT)) / 1.8);
     b.gustT = T;
-    p.fill(0);
-    for (let k = n; k < h.length - n; k++) {
-      if (!mask[k]) continue;
-      const at = q => (mask[q] ? h[q] : h[k]),
-        gx = (at(k + 1) - at(k - 1)) / (2 * cell),
-        gy = (at(k + n) - at(k - n)) / (2 * cell),
-        // Short enclosed ripples need a stronger visual slope to share the fjord's surface definition.
-        nx = -gx * 3.2,
-        ny = -gy * 3.2,
-        norm = Math.hypot(nx, ny, 1),
-        d = (-0.4 * nx - 0.55 * ny + 0.73) / Math.hypot(0.4, 0.55, 0.73) / norm - 0.73 / Math.hypot(0.4, 0.55, 0.73),
-        // The shared wind field sweeps a soft sheen over the independent surface ripples.
-        gustTarget = gustAt(b.c.x + ((k % n) - b.half) * cell, b.c.y + (Math.floor(k / n) - b.half) * cell),
-        gust = (b.gust[k] += (gustTarget - b.gust[k]) * gustBlend),
-        sheen = 0.035 * smooth(0.2, 0.9, WEATHER.s) * smooth(0.15, 0.85, gust) * (1 - LIGHT.rain),
-        // A small daylight lift keeps enclosed water from looking dull beside the fjord.
-        lit = d + (0.012 + sheen) * (1 - LIGHT.night),
-        light = lit > 0,
-        a = (1 - Math.exp(-Math.abs(lit) * 3.2)) * (light ? lightGain : darkGain) * dim * freeze * b.depth[k],
-        spec =
-          Math.pow(Math.max(0, (nx * sun[0] + ny * sun[1] + sun[2]) / norm), 180) *
-          sunStrength *
-          smooth(0.62, 0.9, hash2(k % n, Math.floor(k / n))) *
-          0.65 *
-          b.depth[k],
-        alpha = a * (1 - spec) + spec,
-        blend = alpha > 0 ? spec / alpha : 0,
-        o = k * 4;
-      p[o] = lerp(light ? 199 : 14, 255, blend);
-      p[o + 1] = lerp(light ? 224 : 42, 245, blend);
-      p[o + 2] = lerp(light ? 219 : 51, 212, blend);
-      p[o + 3] = Math.min(255, alpha * 255);
+    // cells off the water are never written, so they stay clear from the first (empty) image; no per-frame clear
+    const gust = b.gust,
+      depth = b.depth,
+      sheenBase = 0.035 * smooth(0.2, 0.9, WEATHER.s) * (1 - LIGHT.rain),
+      lift = 0.012 * (1 - LIGHT.night),
+      sheenK = 1 - LIGHT.night,
+      inv2c = 1 / (2 * cell);
+    // the gust field changes over hundreds of units and a cell is 8, so it is read every GS cells and blended between
+    const gn = (((n - 1) / GS) | 0) + 2;
+    if (!b.gq || b.gq.length !== gn * gn) b.gq = new Float32Array(gn * gn);
+    const gq = b.gq;
+    for (let J = 0; J < gn; J++)
+      for (let I = 0; I < gn; I++)
+        gq[J * gn + I] = gustAt(b.c.x + (I * GS - b.half) * cell, b.c.y + (J * GS - b.half) * cell);
+    for (let j = 1; j < n - 1; j++) {
+      const J = (j / GS) | 0,
+        fy = (j - J * GS) / GS,
+        q0 = J * gn,
+        q1 = q0 + gn;
+      for (let i = 1; i < n - 1; i++) {
+        const k = j * n + i;
+        if (!mask[k]) continue;
+        // a neighbour off the water reads as this cell's own height (no slope across the shore)
+        const hk = h[k],
+          hl = mask[k - 1] ? h[k - 1] : hk,
+          hr = mask[k + 1] ? h[k + 1] : hk,
+          hu = mask[k - n] ? h[k - n] : hk,
+          hd = mask[k + n] ? h[k + n] : hk,
+          // Short enclosed ripples need a stronger visual slope to share the fjord's surface definition.
+          nx = -(hr - hl) * inv2c * 3.2,
+          ny = -(hd - hu) * inv2c * 3.2,
+          norm = Math.sqrt(nx * nx + ny * ny + 1),
+          d = (-0.4 * nx - 0.55 * ny + 0.73) / SUN_L / norm - SUN_Z,
+          // The shared wind field sweeps a soft sheen over the independent surface ripples.
+          I = (i / GS) | 0,
+          fx = (i - I * GS) / GS,
+          gt =
+            (gq[q0 + I] * (1 - fx) + gq[q0 + I + 1] * fx) * (1 - fy) +
+            (gq[q1 + I] * (1 - fx) + gq[q1 + I + 1] * fx) * fy,
+          g = (gust[k] += (gt - gust[k]) * gustBlend),
+          // A small daylight lift keeps enclosed water from looking dull beside the fjord.
+          lit = d + (lift + sheenBase * smooth(0.15, 0.85, g) * sheenK),
+          light = lit > 0,
+          a = (1 - Math.exp(-Math.abs(lit) * 3.2)) * (light ? lightGain : darkGain) * dim * freeze * depth[k],
+          o = k * 4;
+        // the sun's glint: a very narrow lobe (power 180), so it is nil unless the slope faces the sun squarely
+        let spec = 0;
+        if (sunStrength > 0) {
+          const f = (nx * sun[0] + ny * sun[1] + sun[2]) / norm;
+          if (f > 0.35) spec = Math.pow(f, 180) * sunStrength * smooth(0.62, 0.9, hash2(i, j)) * 0.65 * depth[k];
+        }
+        if (spec === 0) {
+          p[o] = light ? 199 : 14;
+          p[o + 1] = light ? 224 : 42;
+          p[o + 2] = light ? 219 : 51;
+          p[o + 3] = Math.min(255, a * 255);
+          continue;
+        }
+        const alpha = a * (1 - spec) + spec,
+          blend = alpha > 0 ? spec / alpha : 0;
+        p[o] = lerp(light ? 199 : 14, 255, blend);
+        p[o + 1] = lerp(light ? 224 : 42, 245, blend);
+        p[o + 2] = lerp(light ? 219 : 51, 212, blend);
+        p[o + 3] = Math.min(255, alpha * 255);
+      }
     }
     b.ctx.putImageData(b.img, 0, 0);
     for (const offset of [-W, 0, W]) {
