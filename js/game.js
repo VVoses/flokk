@@ -76,6 +76,8 @@ const st = {
   dashT: 0,
   settled: false,
   stillT: 0,
+  restT: 0, // seconds the flock has sat settled with no steering: how exposed it is to a strike
+  dashAgo: 99, // seconds since the last dash
   settleCool: 0,
   hawkT: 0,
   grounded: 0,
@@ -502,6 +504,7 @@ function dash() {
   if (st.stamina >= 0.34 && st.dashT <= 0) {
     st.stamina -= 0.34;
     st.dashT = 0.6;
+    st.dashAgo = 0;
     flutter(birds.length * 0.6);
     // dashing while a hawk is bearing down is a real dodge, not just a burst of speed: a hard
     // sideways jink across its line of attack, the way a sparrow actually ducks a stoop
@@ -697,6 +700,8 @@ function startGame() {
     play: 0,
     stamina: 1,
     dashT: 0,
+    dashAgo: 99,
+    restT: 0,
     hawkT: 0,
     // a white-tailed eagle: rare and huge, not a regular threat like the hawk/owl rotation
     eagleT: rr(300, 900),

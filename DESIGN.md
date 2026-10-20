@@ -18,6 +18,11 @@ genuinely frightening. Birds die, and the whole flock can die. There is no calm 
 and no mode without death. The end screens say *Starved* or *Taken*, plainly. We don't soften this, because the
 danger is what makes the beauty count.
 
+Effort is what separates one lost bird from four. A strike always takes the bird it is after; how many more go with
+it depends on what the player is doing about it. A flock sitting out in the open for a while, bunched and uncovered,
+loses up to four; one that is moving, has just dashed, or is mostly under cover loses one. The player should be able
+to read why (a one-time hint, no overlay), and a strike is never made fair by making it rarer.
+
 **The world is soft.** The land, the light and the sound should be a pleasure to be in: something pretty to look
 at, the miracle of nature and how it emerges. Mist lifts off the lake at dawn, snow melts back from the
 south-facing slopes first, the fields green, ripen and are cut one by one, and a flock of starlings comes wheeling
