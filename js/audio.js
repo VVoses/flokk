@@ -420,150 +420,106 @@ function flutter(n, x, y) {
   s.start(t, Math.random() * 3);
   s.stop(at + 0.01);
 }
-// kind colors what took the bird: a hawk's kill has a sharp cry over it, an owl's is muffled and
-// lower (a night kill, heard more than seen), a fox's has no aerial cry at all - just the ground
-// contact. power (roughly 0.7-1.5) is how committed the strike was - a hawk's own boldness for the
-// season works well - and scales the weight and reach of the low body underneath, so a hungry
-// winter hawk's kill actually lands harder than a wary spring one's. last marks the flock's final
-// bird: heavier and slower to let go, rather than simply louder - the difference between a loss and
-// the end. Small jitter on top so no two kills sound quite the same.
+// the sound of a bird being taken: feathers bursting in a few frantic flaps and a hoarse squawk cut
+// short. kind colors what took it: an owl's kill is lower and duller (a night kill, heard more than
+// seen), a fox's is a muffled ground scuffle. power (roughly 0.7-1.5) is how committed the strike
+// was; a hard one gets a second cry. last marks the flock's final bird: more flaps, a longer cry.
+// Small jitter on top so no two kills sound quite the same.
 function thud(kind = 'hawk', power = 1, last = false, x, y) {
   if (!ac || muted) return;
   const t = ac.currentTime,
-    tail = last ? 1.6 : 1,
-    gk = 0.85 + 0.3 * power,
-    dur = (0.4 + 0.08 * power) * tail;
+    tail = last ? 1.5 : 1,
+    gk = 0.85 + 0.3 * power;
   const { pan, d } = spatial(x, y, 500),
     bus = ac.createGain(),
-    soft = ac.createBiquadFilter(),
-    busOut = panned(soft, pan);
-  // the whole kill sits under a steep lowpass so no bright edge survives, whatever the layers do
-  soft.type = 'lowpass';
-  soft.frequency.value = kind === 'owl' ? 750 : kind === 'fox' ? 600 : 1050;
-  soft.Q.value = 0.4;
-  bus.connect(soft);
+    busOut = panned(bus, pan);
+  bus.gain.value = 1 - 0.45 * d;
   busOut.connect(worldBus || master);
   if (d > 0.1) busOut.connect(verb);
-  // a sparrow's distress squawk: a short, rasping 'chrrk' - a falling reedy tone chopped by a fast
-  // flutter, cut off as it's seized. It skips the lowpass above (a squawk is nothing without its
-  // buzz) but gets its own gentler one and a slow attack, so it rasps without any hard edge
-  {
-    const sq = ac.createOscillator(),
-      sq2 = ac.createOscillator(),
-      sf = ac.createBiquadFilter(),
-      sg = ac.createGain(),
-      fl = ac.createOscillator(),
-      fg = ac.createGain(),
-      sb = rr(1500, 1900),
-      sd = rr(0.2, 0.3) * (last ? 1.4 : 1),
-      sv = ac.createGain();
-    sq.type = 'sawtooth';
-    sq2.type = 'triangle';
-    sq.frequency.setValueAtTime(sb, t);
-    sq.frequency.exponentialRampToValueAtTime(sb * 0.6, t + sd);
-    sq2.frequency.setValueAtTime(sb * 1.5, t);
-    sq2.frequency.exponentialRampToValueAtTime(sb * 0.9, t + sd);
-    sf.type = 'lowpass';
-    sf.frequency.value = 2300;
-    sf.Q.value = 0.5;
-    fl.frequency.value = rr(28, 40);
-    fg.gain.value = 0.5;
-    sg.gain.value = 0.5;
-    fl.connect(fg).connect(sg.gain);
-    sv.gain.setValueAtTime(0, t);
-    sv.gain.linearRampToValueAtTime(0.02 * gk, t + 0.07);
-    sv.gain.exponentialRampToValueAtTime(0.0001, t + sd);
-    sq.connect(sf);
-    sq2.connect(sf);
-    sf.connect(sg).connect(sv).connect(busOut);
-    for (const n of [sq, sq2, fl]) {
-      n.start(t);
-      n.stop(t + sd + 0.03);
+  // an owl's kill is heard through the dark and a fox's is a ground scuffle, so both are duller
+  const dull = kind === 'owl' ? 0.7 : kind === 'fox' ? 0.6 : 1;
+  // the squawk: a real sparrow in a grip makes a hoarse, shrill rasp - a buzzy reed source pushed
+  // through two formant bandpasses, pitch jumping up then tearing downward, with a ragged jitter on
+  // the pitch. A second, shorter cry follows on a harder strike
+  const calls = last || power > 1.15 ? 2 : 1;
+  for (let c = 0; c < calls; c++) {
+    const t0 = t + c * rr(0.17, 0.22),
+      dur = rr(0.17, 0.24) * tail * (c ? 0.7 : 1),
+      base = (kind === 'owl' ? rr(1000, 1200) : rr(1900, 2300)) * (c ? 0.9 : 1),
+      o = reedOsc(1.3),
+      jit = ac.createOscillator(),
+      jg = ac.createGain(),
+      v = ac.createGain();
+    o.frequency.setValueAtTime(base * 0.8, t0);
+    o.frequency.exponentialRampToValueAtTime(base * 1.1, t0 + 0.03);
+    o.frequency.exponentialRampToValueAtTime(base * 0.5, t0 + dur);
+    jit.frequency.value = rr(55, 80);
+    jg.gain.value = base * 0.07;
+    jit.connect(jg).connect(o.frequency);
+    v.gain.setValueAtTime(0, t0);
+    v.gain.linearRampToValueAtTime(0.034 * gk * dull, t0 + 0.02);
+    v.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    for (const [fr, q, g] of [
+      [base * 1.05, 3, 1],
+      [base * 2.3, 2.5, 0.5]
+    ]) {
+      const bp = ac.createBiquadFilter(),
+        bg = ac.createGain();
+      bp.type = 'bandpass';
+      bp.frequency.value = fr * dull;
+      bp.Q.value = q;
+      bg.gain.value = g;
+      o.connect(bp).connect(bg).connect(v);
+    }
+    v.connect(bus);
+    for (const n of [o, jit]) {
+      n.start(t0);
+      n.stop(t0 + dur + 0.03);
     }
   }
-  if (kind !== 'fox') {
-    // the bird's own voice, crying out as it's taken - this is the part meant to be felt, so it's
-    // the loudest thing here. A slow, uneven vibrato (the same warble hawkCry uses, but shakier)
-    // makes the pitch quaver as it falls rather than gliding cleanly down, the way a frightened
-    // whimper breaks rather than sliding smoothly
-    const base = kind === 'owl' ? rr(980, 1080) : rr(1780, 1950);
-    const co = ac.createOscillator(),
-      co2 = ac.createOscillator(),
-      cg = ac.createGain(),
-      cf = ac.createBiquadFilter(),
-      lfo = ac.createOscillator(),
-      lg = ac.createGain();
-    co.type = 'sine';
-    co.frequency.setValueAtTime(base, t);
-    co.frequency.exponentialRampToValueAtTime(base * 0.52, t + dur * 0.88);
-    co2.type = 'sine';
-    co2.frequency.setValueAtTime(base * 0.94, t + 0.01);
-    co2.frequency.exponentialRampToValueAtTime(base * 0.46, t + dur * 0.88);
-    lfo.frequency.value = rr(11, 15);
-    lg.gain.value = base * 0.05;
-    lfo.connect(lg);
-    lg.connect(co.frequency);
-    lg.connect(co2.frequency);
-    cf.type = 'bandpass';
-    cf.frequency.value = base * 0.85;
-    cf.Q.value = 1;
-    cg.gain.setValueAtTime(0, t);
-    cg.gain.linearRampToValueAtTime(0.05 * gk, t + 0.11);
-    cg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    co.connect(cf);
-    co2.connect(cf).connect(cg).connect(bus);
-    co.start(t);
-    co.stop(t + dur + 0.02);
-    co2.start(t + 0.01);
-    co2.stop(t + dur + 0.02);
-    lfo.start(t);
-    lfo.stop(t + dur + 0.02);
+  // the feathers: a violent burst of wingbeats in a few quick papery flaps, bright noise with a
+  // loose bandpass so it reads as dry feather rather than wind, each flap weaker and further apart
+  {
+    const s = ac.createBufferSource(),
+      f = ac.createBiquadFilter(),
+      hp = ac.createBiquadFilter(),
+      g = ac.createGain(),
+      flaps = (last ? 7 : 5) + (power > 1.15 ? 1 : 0);
+    s.buffer = amb.noise;
+    f.type = 'bandpass';
+    f.frequency.value = rr(2200, 3000) * dull;
+    f.Q.value = 0.6;
+    hp.type = 'highpass';
+    hp.frequency.value = 900;
+    g.gain.setValueAtTime(0, t);
+    let at = t + 0.005;
+    for (let i = 0; i < flaps; i++) {
+      const k = Math.pow(0.84, i) * rr(0.7, 1) * 0.05 * gk * dull;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.linearRampToValueAtTime(k, at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
+      at += rr(0.045, 0.075) * (1 + i * 0.12);
+    }
+    s.connect(f).connect(hp).connect(g).connect(bus);
+    s.start(t, Math.random() * 3);
+    s.stop(at + 0.05);
   }
-  // the moment of contact: soft and dull, well under the cry above it - a felt weight rather than a
-  // crack, and never the loudest layer; support for the whimper, not competition with it
-  const hs = ac.createBufferSource();
-  hs.buffer = amb.noise;
-  const hf = ac.createBiquadFilter();
-  hf.type = 'lowpass';
-  hf.frequency.value = kind === 'fox' ? 220 : 260;
-  const hg = ac.createGain();
-  hg.gain.setValueAtTime(0, t);
-  hg.gain.linearRampToValueAtTime(0.038 * gk, t + rr(0.05, 0.07));
-  hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
-  hs.connect(hf).connect(hg).connect(bus);
-  hs.start(t, Math.random() * 3);
-  hs.stop(t + 0.19);
-  // feathers settling, not a strike - a soft hush with the edge filtered off, no percussive bite
-  const s = ac.createBufferSource();
-  s.buffer = amb.noise;
-  const f = ac.createBiquadFilter();
-  f.type = 'bandpass';
-  f.frequency.value = kind === 'fox' ? 500 : 700;
-  f.Q.value = 0.5;
-  const g2 = ac.createGain();
-  g2.gain.setValueAtTime(0, t + 0.04);
-  g2.gain.linearRampToValueAtTime(0.026 * gk, t + 0.11);
-  g2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.75);
-  s.connect(f).connect(g2).connect(bus);
-  s.start(t, Math.random() * 3);
-  s.stop(t + dur * 0.8);
-  // a low, muffled body underneath, faded in rather than struck - weight without a transient; this
-  // is what actually reads as defeating: it goes lower and lingers longer the harder the strike, and
-  // deepest of all when it's the last bird
-  const o = ac.createOscillator(),
-    gn = ac.createGain(),
-    lp = ac.createBiquadFilter();
-  o.type = 'sine';
-  o.frequency.setValueAtTime(rr(108, 122), t + 0.02);
-  o.frequency.exponentialRampToValueAtTime((last ? 24 : 38) / power, t + dur * 0.9);
-  lp.type = 'lowpass';
-  lp.frequency.value = 200;
-  gn.gain.setValueAtTime(0, t + 0.02);
-  gn.gain.linearRampToValueAtTime(0.065 * gk, t + 0.08);
-  gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(lp).connect(gn).connect(bus);
-  o.start(t + 0.02);
-  o.stop(t + dur + 0.05);
+  // a few loose down-feathers drifting after it, barely there
+  {
+    const s = ac.createBufferSource(),
+      f = ac.createBiquadFilter(),
+      g = ac.createGain();
+    s.buffer = amb.noise;
+    f.type = 'bandpass';
+    f.frequency.value = 1500 * dull;
+    f.Q.value = 0.5;
+    g.gain.setValueAtTime(0, t + 0.15);
+    g.gain.linearRampToValueAtTime(0.008 * gk, t + 0.3);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7 * tail);
+    s.connect(f).connect(g).connect(bus);
+    s.start(t, Math.random() * 3);
+    s.stop(t + 0.75 * tail);
+  }
 }
 function joinSnd() {
   if (!ac || muted) return;
