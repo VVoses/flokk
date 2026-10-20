@@ -6,7 +6,7 @@
 // how keen a hawk is: wariest and quickest to give up in spring (nesting season, plenty of easier prey
 // about), building through the year to boldest and most persistent in winter, when it's hungriest and
 // a flock is worth the risk. Textures the existing threat by season rather than just raising numbers.
-const HAWK_BOLD = [0.72, 1, 1.22, 1.48];
+const HAWK_BOLD = [0.72, 1.12, 1.22, 1.48];
 function spawnHawk(kind = 'hawk') {
   const a = rr(0, TAU),
     d = (Math.max(vw, vh) / cam.z) * 0.7 + 200,

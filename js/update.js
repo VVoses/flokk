@@ -57,10 +57,11 @@ function update(dt) {
     // energy: cold and flying at night cost more; roosting under cover costs less
     const nightNow = LIGHT.night > 0.5,
       roost = st.settled && L.state === 'perch' && coveredNow(L);
-    let drain = 0.0062 * [1, 0.8, 1.1, 1.75][SEASON];
+    let drain = 0.0062 * [1, 0.95, 1.1, 1.75][SEASON];
     if (nightNow) drain *= roost ? 0.55 : 1.35;
     // a winter storm cuts through anything but the thickest cover
-    if (!roost) drain *= 1 + 0.45 * WEATHER.storm;
+    if (!roost) drain *= 1 + 0.45 * WEATHER.storm + 0.7 * WEATHER.squall;
+    if (WEATHER.squall > 0.5) teach('squall', 'a squall is coming: get under the trees');
     st.energy = clamp(st.energy - drain * dt, 0, 1);
     // a hungry flock eats its stores before it raises more young: a little banked food at a time
     st.eatT = (st.eatT ?? 0) - dt;
@@ -156,11 +157,11 @@ function update(dt) {
         dvx = ax * maxS;
         dvy = ay * maxS;
       }
-      const kk = st.dashT > 0 ? 6 : 3.2;
+      const kk = st.dashT > 0 ? 6 : 2.3;
       L.vx += (dvx - L.vx) * Math.min(1, kk * dt);
       L.vy += (dvy - L.vy) * Math.min(1, kk * dt);
     } else {
-      const f = Math.exp(-2.6 * dt);
+      const f = Math.exp(-1.7 * dt);
       L.vx *= f;
       L.vy *= f;
     }
@@ -267,7 +268,7 @@ function update(dt) {
         }
       if (active < want && st.hawkT <= 0 && birdExposed) {
         spawnHawk(kind);
-        st.hawkT = kind === 'hawk' ? [rr(45, 90), rr(60, 110), rr(18, 35), rr(14, 26)][SEASON] : rr(7, 13);
+        st.hawkT = kind === 'hawk' ? [rr(45, 90), rr(24, 48), rr(18, 35), rr(14, 26)][SEASON] : rr(7, 13);
         // it always appears just off screen, so this is the first sight of the orange edge arrow
         teach('hawkEdge', `an orange arrow at the edge: a ${kind} is coming`);
       }
