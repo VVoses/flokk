@@ -88,27 +88,42 @@ function pickTarget(h) {
   }
   return best;
 }
-// a winter owl stooping into a big, panicking flock is hard to dodge altogether: it rakes a second bird
-// beside the one it takes, more often the bigger the flock (a small flock is too sparse to hit two)
-function owlRake(h, b) {
-  if (h.kind !== 'owl' || SEASON !== 3 || birds.length < 12) return;
-  if (Math.random() > Math.min(0.5, (birds.length - 10) / 120)) return;
-  let nb = null,
-    bd = 60 * 60;
-  for (const o of birds) {
-    if (!exposed(o)) continue;
-    const q = (o.x - b.x) ** 2 + (o.y - b.y) ** 2;
-    if (q < bd) {
-      bd = q;
-      nb = o;
-    }
+/* How hard a successful strike hits the flock. The bird it is after always goes; how many more go with it
+   depends on how little the player is doing about it. A flock that has sat out in the open for a while is
+   a crowd of easy targets - a strike takes up to four. One that is moving, alert (just dashed or panicked),
+   or mostly under cover costs a single bird. A winter owl stooping into a big panicking flock rakes a
+   second one more often the bigger it is. Extra birds can only be those bunched close to the first. */
+function strikeToll(h, b) {
+  const n = birds.length;
+  if (n < 2) return [];
+  let v = clamp(st.restT / 10, 0, 1);
+  if (h.kind === 'owl' && SEASON === 3 && n >= 12) v += Math.min(0.5, (n - 10) / 120) / 3;
+  const alert = b.panic > 0 || st.dashAgo < 4;
+  if (alert) v *= 0.4;
+  let hid = 0;
+  for (const o of birds) if (coveredNow(o)) hid++;
+  v *= 1 - 0.6 * (hid / n);
+  v = Math.min(1, v);
+  const reach = h.kind === 'fox' ? 2 : 3;
+  const want = Math.min(Math.floor(v * reach + Math.random()), Math.floor(n / 2) - 1);
+  if (want < 1) return [];
+  const near = birds
+    .filter(o => o !== b && o !== L && exposed(o) && (o.x - b.x) ** 2 + (o.y - b.y) ** 2 < 90 * 90)
+    .sort((p, q) => (p.x - b.x) ** 2 + (p.y - b.y) ** 2 - ((q.x - b.x) ** 2 + (q.y - b.y) ** 2));
+  const out = near.slice(0, want);
+  if (out.length) {
+    // say why, once: the cause that did the most damage
+    if (st.restT > 5 && !alert)
+      teach('toll', 'sitting still in the open costs more birds: keep moving, or get under the trees');
+    else if (hid / n < 0.3) teach('toll', 'birds out in the open are easy to take: spread under the trees');
   }
-  if (nb && nb !== L) removeBird(nb);
+  return out;
 }
 function catchBird(h, b) {
+  const extra = strikeToll(h, b);
   if (!removeBird(b)) return;
+  for (const o of extra) removeBird(o);
   thud(h.kind, h.bold, birds.length === 0, b.x, b.y);
-  owlRake(h, b);
   h.state = 'carry';
   h.target = null;
   h.prey = b;

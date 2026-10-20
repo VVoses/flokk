@@ -88,6 +88,7 @@ function update(dt) {
     } else st.starveT = 3;
   }
   st.dashT -= dt;
+  st.dashAgo += dt;
   // slow refill: one dash about every five seconds, a full bar in ~14s, so a dash is spent with care
   st.stamina = Math.min(1, st.stamina + dt * 0.07);
   st.settleCool -= dt;
@@ -132,6 +133,7 @@ function update(dt) {
   }
   if (steer && st.grounded > 0) takeoffAll();
   if (steer) st.stillT = 0;
+  st.restT = st.settled && !steer ? st.restT + dt : 0;
   if (L.state === 'fly') {
     if (st.settled) {
       st.settled = false;
