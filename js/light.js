@@ -43,7 +43,7 @@ const RAIN = { t: 0, target: 0, next: rr(20, 45) };
 function updateWeather(dt) {
   RAIN.next -= dt;
   if (RAIN.next <= 0) {
-    const chance = SEASON === 3 ? 0 : SEASON === 1 ? 0.32 : 0.58; // summer driest, spring/autumn wetter
+    const chance = SEASON === 3 ? 0 : SEASON === 1 ? 0.42 : 0.58; // summer driest, spring/autumn wetter
     RAIN.target = Math.random() < chance ? rr(0.4, 1) : 0;
     RAIN.next = RAIN.target > 0 ? rr(18, 50) : rr(25, 70);
   }

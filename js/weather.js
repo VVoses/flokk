@@ -25,6 +25,7 @@ const WEATHER = {
   gs: 0,
   g: 0.5, // the gust felt where the flock is: sound, the yard flag, chimney smoke
   storm: 0, // winter gale: driven snow, whiteout, cold that cuts through
+  squall: 0, // summer thunderstorm: a heavy shower with a hard wind in front, cold rain that wears a bird out in the open
   fog: 0,
   fogT: 0,
   fogNext: rr(50, 110),
@@ -41,7 +42,16 @@ const GUST_SEASON = [0.8, 0.55, 1, 0.9], // baseline strength per season: summer
   GALE_CHANCE = [0.1, 0.04, 0.26, 0.3],
   FOG_CHANCE = [0.3, 0.08, 0.4, 0.22];
 function resetWeather() {
-  Object.assign(WEATHER, { s: 0.7, sT: 0.7, next: rr(10, 30), fog: 0, fogT: 0, fogNext: rr(50, 110), storm: 0 });
+  Object.assign(WEATHER, {
+    s: 0.7,
+    sT: 0.7,
+    next: rr(10, 30),
+    fog: 0,
+    fogT: 0,
+    fogNext: rr(50, 110),
+    storm: 0,
+    squall: 0
+  });
   WEATHER.lastCx = cam.x;
   WEATHER.lastCy = cam.py / TILT;
   WEATHER.tu = WEATHER.tv = 0;
@@ -80,7 +90,10 @@ function weatherTick(dt) {
   const W2 = WEATHER;
   if (st.mode === 'play') rollWeather(dt);
   // showers blow in on a freshening wind; fog only lies while the air is still, and lifts as the wind gets up
-  let sT = W2.sT * (1 + 0.4 * RAIN.t);
+  // a summer squall is the heavy end of a shower: the wind gets up hard ahead of the rain, then drops away with it
+  W2.squall += ((SEASON === 1 ? smooth(0.7, 0.95, RAIN.t) : 0) - W2.squall) * Math.min(1, dt * 0.3);
+  if (W2.squall < 0.004) W2.squall = 0;
+  let sT = W2.sT * (1 + 0.4 * RAIN.t) + 0.6 * W2.squall;
   if (W2.fogT > 0) sT = Math.min(sT, 0.3);
   W2.s += (sT - W2.s) * Math.min(1, dt * 0.08);
   let da = ((((W2.angT - W2.ang + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
