@@ -2,7 +2,10 @@
 close to the spawned fox, then steps the sim to confirm foxProwl triggers, the fox creeps in
 and reaches a pounce, and everything resolves without a stuck state or a page error."""
 from playwright.sync_api import sync_playwright
-import os
+import os, sys
+
+SEASON = int(sys.argv[1]) if len(sys.argv) > 1 else 3  # 1 = a short summer night
+HOUR = 22 if SEASON == 3 else 23.5
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 with sync_playwright() as p:
@@ -15,26 +18,26 @@ with sync_playwright() as p:
     pg.click('#startBtn')
     pg.wait_for_timeout(500)
 
-    setup = pg.evaluate("""() => {
+    setup = pg.evaluate("""([season, hour]) => {
         genWorld(4242); landLabels(); refreshInsects(); resetWorld(6, START.x, START.y);
-        dev.season(3, 22);
+        dev.season(season, hour);
         const fox = ANIMALS.find(a => a.k === 'fox');
         if (!fox) return { error: 'no fox spawned' };
-        L.state = 'land'; L.x = fox.x + 70; L.y = fox.y;
+        L.state = 'land'; L.x = fox.x + 700; L.y = fox.y;
         const gp = groundSpot(L.x, L.y, 60);
         if (!gp) return { error: 'no ground spot near fox' };
         gp.occ = L; L.perch = gp; L.state = 'perch'; st.settled = true;
         for (const b of birds) if (b !== L) b.state = 'fly';
         LIFE.foxCool = 0.1;
-        return { fox: { x: fox.x, y: fox.y, hide: fox.hide }, Lx: L.x, Ly: L.y };
-    }""")
+        return { fox: { x: fox.x, y: fox.y, hide: fox.hide }, Lx: L.x, Ly: L.y, night: LIGHT.night };
+    }""", [SEASON, HOUR])
     print('setup', setup)
     assert 'error' not in setup, setup
 
     triggered = False
     pounced = False
     resolved = False
-    for i in range(400):
+    for i in range(900):
         pg.evaluate("() => { for (let j = 0; j < 6; j++) update(1/60); }")
         st2 = pg.evaluate("""() => {
             const fox = ANIMALS.find(a => a.k === 'fox');

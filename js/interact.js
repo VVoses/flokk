@@ -230,22 +230,41 @@ function magpieRaid(a, dt) {
    Long odds of it trying at all, a slow telegraphed creep-up with a warning call, and a real
    chance of a bird if the flock is still sitting exposed when it pounces - the same shape as a
    hawk's dive, just after sundown and on foot. Never triggers while the flock is airborne or
-   tucked somewhere covered. */
+   tucked somewhere covered. It smells a roost from across the parish (FOX_SCENT), trots over,
+   and only then starts the slow creep, so a flock left out at dusk gets visited most nights. */
+const FOX_SCENT = 1500,
+  FOX_STALK_FROM = 230;
 function foxProwl(dt) {
   const fox = ANIMALS.find(a => a.k === 'fox' && !a.dying);
   if (!fox || fox.busy) return;
-  LIFE.foxCool = (LIFE.foxCool ?? rr(35, 60)) - dt;
+  LIFE.foxCool = (LIFE.foxCool ?? rr(12, 25)) - dt;
   if (LIFE.foxCool > 0) return;
-  LIFE.foxCool = rr(50, 95);
-  if (LIGHT.night < 0.35) return; // stays denned until well after dusk
+  LIFE.foxCool = rr(20, 40);
+  if (LIGHT.night < 0.15) return; // out from dusk, so even a short summer night counts
   if (!st.settled || !L || L.state === 'fly' || !exposed(L) || L.perch.h > 0.5) return;
-  if (near2(fox, L) > 520 * 520) return;
+  if (near2(fox, L) > FOX_SCENT * FOX_SCENT) return;
   fox.busy = true;
-  fox.st = 'stalk';
-  fox.t = rr(9, 14);
+  fox.st = 'approach';
+  fox.t = rr(28, 40);
   callAt('fox', fox.x, fox.y, 1, fox);
 }
 function foxLife(a, dt) {
+  if (a.st === 'approach') {
+    a.t -= dt;
+    if (!st.settled || !L || L.state === 'fly' || !exposed(L) || a.t <= 0) {
+      a.st = 'walk';
+      a.t = rr(4, 7);
+      [a.tx, a.ty] = [a.hx, a.hy];
+      return;
+    }
+    // a purposeful trot across the fields; the warning call carries ahead of it
+    const d = steerA(a, a.x + wdx(L.x, a.x), L.y, 95, dt);
+    if (d < FOX_STALK_FROM) {
+      a.st = 'stalk';
+      a.t = rr(14, 20);
+    }
+    return;
+  }
   if (a.st === 'stalk') {
     a.t -= dt;
     if (!st.settled || !L || L.state === 'fly' || !exposed(L) || a.t <= 0) {

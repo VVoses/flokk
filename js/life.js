@@ -772,7 +772,7 @@ function updateAnimals(dt) {
       }
       case 'fox': {
         // asleep in the den through the day; comes out to wander the forest edge from dusk on
-        if (LIGHT.night < 0.2) {
+        if (LIGHT.night < 0.12) {
           a.hide = true;
           a.vx = a.vy = 0;
           break;
