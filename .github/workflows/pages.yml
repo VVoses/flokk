@@ -3,8 +3,6 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
@@ -13,9 +11,8 @@ permissions:
   id-token: write
 
 concurrency:
-  # A new commit may replace its own preview, but must never cancel main or another PR's deploy.
-  group: pages-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -41,6 +38,3 @@ jobs:
 
       - uses: actions/deploy-pages@v4
         id: deployment
-        with:
-          # Pages gives pull requests an isolated preview deployment and leaves the production site alone.
-          preview: ${{ github.event_name == 'pull_request' }}
