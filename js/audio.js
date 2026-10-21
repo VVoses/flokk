@@ -115,6 +115,12 @@ function initAudio() {
     const vout = room.out,
       verbLP = room.filter;
     amb = { noise: noiseBuf(4), gust: 0.5, gustT: 0, cricketT: 1, hopperT: 6, songT: 3, toneT: 7, tick: 0 };
+    // Hear the wind arriving from upwind in the fixed world view. Keep some air in both ears;
+    // north/south winds sit centrally. Older audio implementations retain the mono bed.
+    const windMix = ac.createGain(),
+      windOut = panned(windMix, -0.65 * Math.cos(WEATHER.ang));
+    windOut.connect(worldBus || master);
+    amb.windPan = windOut.pan || null;
     // wind: broad bed + a faint whistle layer, both swept by gusts - a narrower band here reads as
     // moving air rather than flat hiss, since a wide-open bandpass is close to unfiltered noise
     const w1 = loopNoise(),
@@ -124,9 +130,7 @@ function initAudio() {
     wf.Q.value = 1.1;
     const wg = ac.createGain();
     wg.gain.value = 0;
-    w1.connect(wf)
-      .connect(wg)
-      .connect(worldBus || master);
+    w1.connect(wf).connect(wg).connect(windMix);
     const w2 = loopNoise(),
       wf2 = ac.createBiquadFilter();
     wf2.type = 'bandpass';
@@ -135,7 +139,7 @@ function initAudio() {
     const wg2 = ac.createGain();
     wg2.gain.value = 0;
     w2.connect(wf2).connect(wg2);
-    wg2.connect(worldBus || master);
+    wg2.connect(windMix);
     wg2.connect(verb);
     const w3 = loopNoise(),
       wf3 = ac.createBiquadFilter();
@@ -143,9 +147,7 @@ function initAudio() {
     wf3.frequency.value = 3200;
     const wg3 = ac.createGain();
     wg3.gain.value = 0;
-    w3.connect(wf3)
-      .connect(wg3)
-      .connect(worldBus || master); // leaf rustle
+    w3.connect(wf3).connect(wg3).connect(windMix); // leaf rustle
     // water lapping near the shore
     const wa = loopNoise(),
       waf = ac.createBiquadFilter();
@@ -1867,6 +1869,7 @@ function audioTick(dt) {
   amb.tick -= dt;
   if (amb.tick > 0) return;
   amb.tick = 0.15;
+  if (amb.windPan) amb.windPan.setTargetAtTime(-0.65 * Math.cos(WEATHER.ang), now, 0.8);
   const g = amb.gust,
     speed = L ? Math.hypot(L.vx, L.vy) : 0;
   const ww = winterW(),
