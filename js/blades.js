@@ -22,6 +22,9 @@ const BLADES = {
   tried: false
 };
 const BLADE_F = 12;
+// Grass is soft, moving detail. Rendering its separate layer below the main canvas resolution
+// cuts its fill rate substantially on high-DPI phones, and the final filtered composite hides it.
+const BLADE_SCALE = 0.75;
 const BLADE_VS = `#version 300 es
 layout(location=0) in vec2 corner;
 layout(location=1) in vec4 a; // kind, p0
@@ -93,7 +96,14 @@ function bladesInit() {
   const c = document.createElement('canvas');
   let gl = null;
   try {
-    gl = c.getContext('webgl2', { premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+    gl = c.getContext('webgl2', {
+      premultipliedAlpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      // Prefer the already-tested 2D fallback to a browser's CPU WebGL implementation.
+      failIfMajorPerformanceCaveat: !(DEV && DEV.glBlades)
+    });
   } catch {
     gl = null;
   }
@@ -141,7 +151,8 @@ function bladesInit() {
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   c.addEventListener('webglcontextlost', e => {
     e.preventDefault();
-    BLADES.gl = null; // back to the 2D strokes
+    BLADES.gl = null; // back to the 2D strokes until a fresh context can be made
+    BLADES.tried = false;
   });
   BLADES.cv = c;
   BLADES.gl = gl;
@@ -159,15 +170,18 @@ function bladesFlush() {
   if (!BLADES.n || !BLADES.gl) return;
   const gl = BLADES.gl,
     c = BLADES.cv;
-  if (c.width !== cv.width || c.height !== cv.height) {
-    c.width = cv.width;
-    c.height = cv.height;
+  const w = Math.max(1, Math.round(cv.width * BLADE_SCALE)),
+    h = Math.max(1, Math.round(cv.height * BLADE_SCALE));
+  if (c.width !== w || c.height !== h) {
+    c.width = w;
+    c.height = h;
   }
   gl.viewport(0, 0, c.width, c.height);
   gl.clearColor(0, 0, 0, 0);
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.useProgram(BLADES.prog);
-  gl.uniform2f(BLADES.res, c.width, c.height);
+  // Positions stay in main-canvas pixels; the smaller viewport downsamples the soft layer.
+  gl.uniform2f(BLADES.res, cv.width, cv.height);
   gl.bindBuffer(gl.ARRAY_BUFFER, BLADES.buf);
   gl.bufferData(gl.ARRAY_BUFFER, BLADES.inst.subarray(0, BLADES.n * BLADE_F), gl.STREAM_DRAW);
   gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, BLADES.n);
@@ -175,7 +189,7 @@ function bladesFlush() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(c, 0, 0);
+  ctx.drawImage(c, 0, 0, cv.width, cv.height);
   ctx.restore();
 }
 /* a batch of blades (quadratic curves from a foot, through a control point, to a tip) and small rects, in the

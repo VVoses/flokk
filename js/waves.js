@@ -592,7 +592,7 @@ const WAVE_VS = `#version 300 es
 layout(location=0) in vec2 c;
 void main() { gl_Position = vec4(c * 2.0 - 1.0, 0.0, 1.0); }`;
 const WAVE_PX = 700000; // shaded pixels a frame may have before the surface drops below full resolution
-const WAVES_GL = { tried: false, gl: null, cv: null, prog: null, tx: null, u: {} };
+const WAVES_GL = { tried: false, gl: null, cv: null, prog: null, tx: null, u: {}, wd: null, pd: null, sw: null, sd: null };
 function waveGLInit() {
   const G = WAVES_GL;
   if (G.tried) return G.gl && G.gl.isContextLost() ? null : G.gl;
@@ -600,7 +600,13 @@ function waveGLInit() {
   const c = document.createElement('canvas');
   let gl = null;
   try {
-    gl = c.getContext('webgl2', { premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+    gl = c.getContext('webgl2', {
+      premultipliedAlpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      failIfMajorPerformanceCaveat: !(DEV && (DEV.glWaves || DEV.glBlades))
+    });
   } catch {
     gl = null;
   }
@@ -646,7 +652,8 @@ function waveGLInit() {
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   c.addEventListener('webglcontextlost', e => {
     e.preventDefault();
-    G.gl = null; // back to the 2D lattice
+    G.gl = null; // back to the 2D lattice until a fresh context can be made
+    G.tried = false;
   });
   G.cv = c;
   G.gl = gl;
@@ -684,8 +691,8 @@ function waveShader(ctx, gl, o) {
     ox = LAKE.x > -1000 ? LAKE.x : W / 2,
     oy = LAKE.x > -1000 ? LAKE.y : H,
     { LAM, OFF, WT } = WAVE_TR,
-    Wd = new Float32Array(32),
-    Pd = new Float32Array(16);
+    Wd = G.wd || (G.wd = new Float32Array(32)),
+    Pd = G.pd || (G.pd = new Float32Array(16));
   for (let i = 0; i < 8; i++) {
     const k = TAU / LAM[i],
       c0 = 14 * Math.sqrt(LAM[i] / 30),
@@ -697,8 +704,8 @@ function waveShader(ctx, gl, o) {
     Pd[i * 2] = Math.cos(a);
     Pd[i * 2 + 1] = Math.sin(a);
   }
-  const Sw = new Float32Array(8),
-    Sd = new Float32Array(4);
+  const Sw = G.sw || (G.sw = new Float32Array(8)),
+    Sd = G.sd || (G.sd = new Float32Array(4));
   for (let j = 0; j < 2; j++) {
     const k = TAU / WAVE_SW.LAM[j],
       c0 = 14 * Math.sqrt(WAVE_SW.LAM[j] / 30),

@@ -49,7 +49,13 @@ function flightInit() {
   const c = document.createElement('canvas');
   let gl = null;
   try {
-    gl = c.getContext('webgl2', { premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+    gl = c.getContext('webgl2', {
+      premultipliedAlpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      failIfMajorPerformanceCaveat: !(DEV && DEV.glBlades)
+    });
   } catch {
     gl = null;
   }
@@ -85,6 +91,7 @@ function flightInit() {
   c.addEventListener('webglcontextlost', e => {
     e.preventDefault();
     FLIGHT.gl = null;
+    FLIGHT.tried = false;
   });
   FLIGHT.cv = c;
   FLIGHT.gl = gl;
