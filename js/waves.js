@@ -592,7 +592,18 @@ const WAVE_VS = `#version 300 es
 layout(location=0) in vec2 c;
 void main() { gl_Position = vec4(c * 2.0 - 1.0, 0.0, 1.0); }`;
 const WAVE_PX = 700000; // shaded pixels a frame may have before the surface drops below full resolution
-const WAVES_GL = { tried: false, gl: null, cv: null, prog: null, tx: null, u: {}, wd: null, pd: null, sw: null, sd: null };
+const WAVES_GL = {
+  tried: false,
+  gl: null,
+  cv: null,
+  prog: null,
+  tx: null,
+  u: {},
+  wd: null,
+  pd: null,
+  sw: null,
+  sd: null
+};
 function waveGLInit() {
   const G = WAVES_GL;
   if (G.tried) return G.gl && G.gl.isContextLost() ? null : G.gl;
