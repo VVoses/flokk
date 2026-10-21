@@ -115,6 +115,12 @@ function initAudio() {
     const vout = room.out,
       verbLP = room.filter;
     amb = { noise: noiseBuf(4), gust: 0.5, gustT: 0, cricketT: 1, hopperT: 6, songT: 3, toneT: 7, tick: 0 };
+    // Hear the wind arriving from upwind in the fixed world view. Keep some air in both ears;
+    // north/south winds sit centrally. Older audio implementations retain the mono bed.
+    const windMix = ac.createGain(),
+      windOut = panned(windMix, -0.65 * Math.cos(WEATHER.ang));
+    windOut.connect(worldBus || master);
+    amb.windPan = windOut.pan || null;
     // wind: broad bed + a faint whistle layer, both swept by gusts - a narrower band here reads as
     // moving air rather than flat hiss, since a wide-open bandpass is close to unfiltered noise
     const w1 = loopNoise(),
@@ -124,9 +130,7 @@ function initAudio() {
     wf.Q.value = 1.1;
     const wg = ac.createGain();
     wg.gain.value = 0;
-    w1.connect(wf)
-      .connect(wg)
-      .connect(worldBus || master);
+    w1.connect(wf).connect(wg).connect(windMix);
     const w2 = loopNoise(),
       wf2 = ac.createBiquadFilter();
     wf2.type = 'bandpass';
@@ -135,7 +139,7 @@ function initAudio() {
     const wg2 = ac.createGain();
     wg2.gain.value = 0;
     w2.connect(wf2).connect(wg2);
-    wg2.connect(worldBus || master);
+    wg2.connect(windMix);
     wg2.connect(verb);
     const w3 = loopNoise(),
       wf3 = ac.createBiquadFilter();
@@ -143,9 +147,7 @@ function initAudio() {
     wf3.frequency.value = 3200;
     const wg3 = ac.createGain();
     wg3.gain.value = 0;
-    w3.connect(wf3)
-      .connect(wg3)
-      .connect(worldBus || master); // leaf rustle
+    w3.connect(wf3).connect(wg3).connect(windMix); // leaf rustle
     // water lapping near the shore
     const wa = loopNoise(),
       waf = ac.createBiquadFilter();
@@ -432,7 +434,13 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
     gk = 0.85 + 0.3 * power;
   const { pan, d } = spatial(x, y, 500),
     bus = ac.createGain(),
-    busOut = panned(bus, pan);
+    soft = ac.createBiquadFilter();
+  // The whole cue is close, papery and voiced; keep reed harmonics and noise out of the hiss band.
+  soft.type = 'lowpass';
+  soft.frequency.value = kind === 'hawk' ? 2600 : 2100;
+  soft.Q.value = 0.5;
+  bus.connect(soft);
+  const busOut = panned(soft, pan);
   bus.gain.value = 1 - 0.45 * d;
   busOut.connect(worldBus || master);
   if (d > 0.1) busOut.connect(verb);
@@ -445,7 +453,7 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
   for (let c = 0; c < calls; c++) {
     const t0 = t + c * rr(0.17, 0.22),
       dur = rr(0.17, 0.24) * tail * (c ? 0.7 : 1),
-      base = (kind === 'owl' ? rr(1000, 1200) : rr(1900, 2300)) * (c ? 0.9 : 1),
+      base = (kind === 'owl' ? rr(850, 1050) : rr(1200, 1500)) * (c ? 0.9 : 1),
       o = reedOsc(1.3),
       jit = ac.createOscillator(),
       jg = ac.createGain(),
@@ -461,7 +469,7 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
     v.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     for (const [fr, q, g] of [
       [base * 1.05, 3, 1],
-      [base * 2.3, 2.5, 0.5]
+      [base * 2, 2.5, 0.2]
     ]) {
       const bp = ac.createBiquadFilter(),
         bg = ac.createGain();
@@ -477,48 +485,28 @@ function thud(kind = 'hawk', power = 1, last = false, x, y) {
       n.stop(t0 + dur + 0.03);
     }
   }
-  // the feathers: a violent burst of wingbeats in a few quick papery flaps, bright noise with a
-  // loose bandpass so it reads as dry feather rather than wind, each flap weaker and further apart
+  // Separate, rounded wingbeats with silence between them, rather than a bright spray of noise.
   {
     const s = ac.createBufferSource(),
       f = ac.createBiquadFilter(),
-      hp = ac.createBiquadFilter(),
       g = ac.createGain(),
       flaps = (last ? 7 : 5) + (power > 1.15 ? 1 : 0);
     s.buffer = amb.noise;
     f.type = 'bandpass';
-    f.frequency.value = rr(2200, 3000) * dull;
-    f.Q.value = 0.6;
-    hp.type = 'highpass';
-    hp.frequency.value = 900;
+    f.frequency.value = rr(550, 850) * dull;
+    f.Q.value = 0.85;
     g.gain.setValueAtTime(0, t);
     let at = t + 0.005;
     for (let i = 0; i < flaps; i++) {
       const k = Math.pow(0.84, i) * rr(0.7, 1) * 0.05 * gk * dull;
       g.gain.setValueAtTime(0.0001, at);
-      g.gain.linearRampToValueAtTime(k, at + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
-      at += rr(0.045, 0.075) * (1 + i * 0.12);
+      g.gain.linearRampToValueAtTime(k, at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.065);
+      at += rr(0.08, 0.105) * (1 + i * 0.1);
     }
-    s.connect(f).connect(hp).connect(g).connect(bus);
-    s.start(t, Math.random() * 3);
-    s.stop(at + 0.05);
-  }
-  // a few loose down-feathers drifting after it, barely there
-  {
-    const s = ac.createBufferSource(),
-      f = ac.createBiquadFilter(),
-      g = ac.createGain();
-    s.buffer = amb.noise;
-    f.type = 'bandpass';
-    f.frequency.value = 1500 * dull;
-    f.Q.value = 0.5;
-    g.gain.setValueAtTime(0, t + 0.15);
-    g.gain.linearRampToValueAtTime(0.008 * gk, t + 0.3);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7 * tail);
     s.connect(f).connect(g).connect(bus);
     s.start(t, Math.random() * 3);
-    s.stop(t + 0.75 * tail);
+    s.stop(at + 0.05);
   }
 }
 function joinSnd() {
@@ -1867,6 +1855,7 @@ function audioTick(dt) {
   amb.tick -= dt;
   if (amb.tick > 0) return;
   amb.tick = 0.15;
+  if (amb.windPan) amb.windPan.setTargetAtTime(-0.65 * Math.cos(WEATHER.ang), now, 0.8);
   const g = amb.gust,
     speed = L ? Math.hypot(L.vx, L.vy) : 0;
   const ww = winterW(),
