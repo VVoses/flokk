@@ -528,7 +528,13 @@ function fogGLReady() {
   const c = document.createElement('canvas');
   let gl = null;
   try {
-    gl = c.getContext('webgl2', { premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+    gl = c.getContext('webgl2', {
+      premultipliedAlpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      failIfMajorPerformanceCaveat: !(DEV && (DEV.glFog || DEV.glBlades))
+    });
   } catch {
     gl = null;
   }
@@ -570,7 +576,8 @@ function fogGLReady() {
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   c.addEventListener('webglcontextlost', e => {
     e.preventDefault();
-    G.gl = null; // back to the 2D sprites
+    G.gl = null; // back to the 2D sprites until a fresh context can be made
+    G.tried = false;
   });
   G.cv = c;
   G.gl = gl;
