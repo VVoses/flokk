@@ -118,8 +118,10 @@ function weatherLight() {
     sm = WEATHER.storm;
   const k = Math.max(f * 0.75, sm * 0.6);
   if (k < 0.01) return;
-  LIGHT.skyTop = mixHex(LIGHT.skyTop, LIGHT.night > 0.5 ? '#232A33' : '#A9B2B6', k);
-  LIGHT.skyBot = mixHex(LIGHT.skyBot, LIGHT.night > 0.5 ? '#2E353D' : '#C9CFCF', k * 0.9);
+  // the fog's grey eases from its day tone to its night tone across dusk and dawn rather than flipping
+  const dark = smooth01(clamp((LIGHT.night - 0.3) / 0.4, 0, 1));
+  LIGHT.skyTop = mixHex(LIGHT.skyTop, mixHex('#A9B2B6', '#232A33', dark), k);
+  LIGHT.skyBot = mixHex(LIGHT.skyBot, mixHex('#C9CFCF', '#2E353D', dark), k * 0.9);
   LIGHT.rim *= 1 - k * 0.6;
   LIGHT.shadowA *= 1 - k * 0.75;
   LIGHT.aurora *= 1 - k;
