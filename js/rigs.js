@@ -928,7 +928,7 @@ function drawAnimal(a) {
   } else if (a.k === 'duck') a.wpitch = a.wroll = 0;
   if (a.k === 'cat') ctx.scale(0.76, 0.76);
   else if (a.k === 'dog') ctx.scale(0.82, 0.82);
-  else if (a.k === 'fox') ctx.scale(0.82, 0.82);
+  else if (a.k === 'fox') ctx.scale(0.95, 0.95);
   if (a.lamb) {
     ctx.scale(0.62, 0.62);
     if (a.frolic > 0) ctx.translate(0, -Math.abs(Math.sin(a.frolic * 9)) * 6);
