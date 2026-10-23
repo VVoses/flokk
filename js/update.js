@@ -81,9 +81,10 @@ function update(dt) {
     if (SEASON === 3 && st.energy < 0.8)
       teach('winter', 'the cold burns through the flock: berries, feeders, spruce to roost in');
     if (st.energy <= 0) {
-      st.starveT -= dt;
+      // the weakest birds drop at uneven intervals, sooner in the open, at night and in a gale, later under cover
+      st.starveT -= (dt * (1 + 0.6 * WEATHER.storm + 0.8 * WEATHER.squall)) / (roost ? 1.4 : nightNow ? 0.8 : 1);
       if (st.starveT <= 0) {
-        st.starveT = 4.5;
+        st.starveT = 4.5 * (0.5 + Math.random() * 1.1);
         starveBird();
       }
     } else st.starveT = 3;
