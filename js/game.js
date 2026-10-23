@@ -138,8 +138,11 @@ function resetWorld(n, x, y) {
 // the cost of the next bird rises faster than the flock does, so a big flock keeps growing but ever more slowly
 // and cannot simply outnumber every hawk
 function needFor(n) {
-  return 4 + Math.floor(n / 5) + Math.floor((n * n) / 400);
+  return Math.ceil((4 + Math.floor(n / 5) + Math.floor((n * n) / 400)) * BROOD_COST[SEASON]);
 }
+// young are raised in the warm months: a spring flock is small and fragile and grows slowly, summer is the
+// boom, and autumn eases off as the insects thin, so the flock's growth peaks mid-run instead of at the start
+const BROOD_COST = [2.4, 0.8, 1.3, 1.5];
 // spends banked food into a new bird, but only once the flock has some health to spare: a flock
 // already running on empty doesn't have young to spare either, so banked food waits rather than
 // growing the flock into more mouths it can't yet feed (a bigger flock needs proportionally more
