@@ -2464,7 +2464,9 @@ function render() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const haze = ctx.createLinearGradient(0, 0, 0, vh * 0.45);
   // a misty morning softens the distance too
-  haze.addColorStop(0, LIGHT.skyBot + (LIGHT.night > 0.5 ? '18' : hex2(0.23 + 0.3 * AIR.mist)));
+  // (eased between its day and night strength across dusk and dawn, not switched)
+  const hazeDark = smooth(0.3, 0.7, LIGHT.night);
+  haze.addColorStop(0, LIGHT.skyBot + hex2(lerp(0.23 + 0.3 * AIR.mist, 0.09, hazeDark)));
   haze.addColorStop(1, LIGHT.skyBot + '00');
   ctx.fillStyle = haze;
   ctx.fillRect(0, 0, vw, vh * 0.45);
