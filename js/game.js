@@ -640,7 +640,7 @@ function lossSummary() {
 function insectTarget() {
   const night = LIGHT.night > 0.5;
   return {
-    swarms: Math.round(40 * [0.6, 1.6, 0.7, 0][SEASON] * (night ? 0.2 : 1)),
+    swarms: Math.round(40 * [0.6, 1.2, 0.7, 0][SEASON] * (night ? 0.2 : 1)),
     dflies: night ? 0 : Math.round(9 * [0.4, 1, 0.3, 0][SEASON])
   };
 }

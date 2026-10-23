@@ -440,7 +440,17 @@ function drawQuad(a) {
     // eyes, only on the side turned toward the viewer
     for (const sd of [-1, 1]) {
       const e3 = H3(S.hRx * 0.2, -S.hRy * 0.35, sd * S.hRy * 0.62);
-      if (dep3(e3[0] - hc[0], e3[1], 0) > -0.3) dot(P2(...e3), Math.max(0.55, S.hRy * 0.2), '#111');
+      if (dep3(e3[0] - hc[0], e3[1], 0) > -0.3) {
+        const q = P2(...e3);
+        // a hunting fox's eyes catch what light there is after dark, so it can be found in the dusk
+        if (a.k === 'fox' && a.busy && LIGHT.night > 0.15) {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, LIGHT.night * 1.4) * 0.55;
+          dot(q, 2.6, '#E8A640');
+          ctx.restore();
+          dot(q, 1, '#FFE9A8');
+        } else dot(q, Math.max(0.55, S.hRy * 0.2), '#111');
+      }
     }
     if (a.k === 'moose')
       limb(P2(...H3(S.hRx * 0.2, S.hRy * 0.8, 0)), P2(...H3(S.hRx * 0.1, S.hRy * 2.2, 0)), 2, C.body, 0.9);

@@ -247,6 +247,7 @@ function foxProwl(dt) {
   fox.st = 'approach';
   fox.t = rr(28, 40);
   callAt('fox', fox.x, fox.y, 1, fox);
+  teach('fox', 'a fox is on the prowl: get up into the trees');
 }
 function foxLife(a, dt) {
   if (a.st === 'approach') {
