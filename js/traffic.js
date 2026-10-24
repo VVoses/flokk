@@ -458,7 +458,7 @@ function vGlass(o, cab, panes, noRear) {
       const m = lp(lo, hi, v);
       return P(m[0], (u - 0.5) * 2 * m[1], m[2]);
     };
-    fillPoly([q(0.07, 0.1), q(0.93, 0.1), q(0.9, 0.92), q(0.1, 0.92)], gl(q(0.5, 0.92), q(0.5, 0.1)));
+    fillPoly([q(0.04, 0.04), q(0.96, 0.04), q(0.94, 0.96), q(0.06, 0.96)], gl(q(0.5, 0.96), q(0.5, 0.04)));
   }
   for (const s of [-1, 1]) {
     if (s * cs <= 0.02) continue;
@@ -478,49 +478,61 @@ const vProj = o => {
 // a tyre is a disc in the vehicle's side plane, so it is a full circle seen side-on and narrows to a sliver
 // as the vehicle turns toward or away from you (same language as the tractor in rigs.js). On the near side
 // it sits in a dark wheel arch cut into the body, with a lighter rim and hub.
-function wheel(o, P, lx, ly, r, w = 1.6, arch = false) {
+function wheel(o, P, lx, ly, r, w = 2.4, arch = false) {
   const cs = Math.cos(o.ang),
-    sq = Math.max(0.16, Math.abs(cs)),
+    sn = Math.sin(o.ang),
     out = Math.sign(ly) || 1,
-    inner = P(lx, ly, r / HZ),
-    outer = P(lx, ly + out * w, r / HZ),
+    h = r / HZ,
+    inner = P(lx, ly - out * w * 0.4, h),
+    outer = P(lx, ly + out * w * 0.6, h),
     showsOuter = out * cs > 0, // the outer face is the one nearer the camera
     [cb, c] = showsOuter ? [inner, outer] : [outer, inner];
-  if (arch && showsOuter && Math.abs(cs) > 0.3) {
-    ctx.fillStyle = 'rgba(14,12,10,0.88)';
-    ctx.beginPath();
-    ctx.ellipse(inner[0], inner[1], r * 1.3 * sq, r * 1.3, 0, Math.PI, TAU);
-    ctx.fill();
-  }
-  for (const [q, f] of [
-    [cb, '#141210'],
-    [c, '#1C1A18']
-  ]) {
-    ctx.fillStyle = f;
-    ctx.beginPath();
-    ctx.ellipse(q[0], q[1], r * 0.95 * sq, r, 0, 0, TAU);
-    ctx.fill();
-  }
+  // a disc in the vehicle's side plane (its heading and straight up) projects to a tilted ellipse: its axes
+  // come from M·Mᵀ for M = [[cos, 0], [sin·TILT, -1]], so the wheel leans with the heading
+  const A = cs * cs,
+    B = cs * sn * TILT,
+    C = sn * sn * TILT * TILT + 1,
+    d = Math.hypot(A - C, 2 * B),
+    rx = r * Math.sqrt((A + C + d) / 2),
+    ry = r * Math.sqrt(Math.max(0.0001, (A + C - d) / 2)),
+    rot = 0.5 * Math.atan2(2 * B, A - C),
+    disc = (q, k, fill) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.ellipse(q[0], q[1], rx * k, ry * k, rot, 0, TAU);
+      ctx.fill();
+    };
+  if (arch && showsOuter && Math.abs(cs) > 0.3) disc(P(lx, ly, h), 1.25, 'rgba(14,12,10,0.7)');
+  // the tread: the tyre's width as a run of discs from the back face to the front face
+  for (let i = 0; i <= 3; i++)
+    disc([lerp(cb[0], c[0], i / 3), lerp(cb[1], c[1], i / 3)], 1, i < 3 ? '#12100E' : '#1C1A18');
   if (Math.abs(cs) > 0.2) {
-    ctx.fillStyle = '#2C2925'; // sidewall
+    disc(c, 0.76, '#2C2925'); // sidewall
+    disc(c, 0.5, '#A8A49B'); // rim
+    ctx.strokeStyle = '#6E6A62'; // spokes
+    ctx.lineWidth = 0.7;
     ctx.beginPath();
-    ctx.ellipse(c[0], c[1], r * 0.72 * sq, r * 0.76, 0, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = '#A8A49B'; // rim
-    ctx.beginPath();
-    ctx.ellipse(c[0], c[1], r * 0.5 * sq, r * 0.52, 0, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = '#5A5750'; // hub
-    ctx.beginPath();
-    ctx.ellipse(c[0], c[1], r * 0.18 * sq, r * 0.19, 0, 0, TAU);
-    ctx.fill();
+    const spin = (o.dist || 0) / r;
+    for (let i = 0; i < 5; i++) {
+      const a = spin + (i * TAU) / 5,
+        u = Math.cos(a) * r,
+        v = Math.sin(a) * r;
+      ctx.moveTo(c[0] + 0.16 * u * cs, c[1] + 0.16 * (u * sn * TILT - v));
+      ctx.lineTo(c[0] + 0.46 * u * cs, c[1] + 0.46 * (u * sn * TILT - v));
+    }
+    ctx.stroke();
+    disc(c, 0.18, '#5A5750'); // hub
   }
 }
-// wheels on the far side of the body are drawn before it, the near ones after, whatever the heading
+// wheels on the side of the body facing away from the camera are drawn before it, so the body hides them,
+// the near ones after; head-on, where neither side shows, the wheels at the far end are the hidden ones
 function wheels(o, P, list, far) {
   const cs = Math.cos(o.ang),
     sn = Math.sin(o.ang);
-  for (const [lx, ly, r, w] of list) if (lx * sn + ly * cs < 0 === far) wheel(o, P, lx, ly, r, w, true);
+  for (const [lx, ly, r, w] of list) {
+    const hidden = Math.abs(cs) > 0.25 ? ly * cs < 0 : lx * sn < 0;
+    if (hidden === far) wheel(o, P, lx, ly, r, w, true);
+  }
 }
 // the dark patch of ground a vehicle sits on, under its cast shadow
 function groundContact(P, hl, hd) {
