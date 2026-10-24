@@ -378,6 +378,98 @@ function vBox(o, x0, x1, hd, h0, h1, col, glass, fx) {
   fillPoly([P(x0, -hd, h1), P(x1, -hd, h1), P(x1, hd, h1), P(x0, hd, h1)], topCol);
   return P;
 }
+// a lofted body: cross-sections [x, half-width, h0, h1] from tail to nose, so the hood can slope, the nose
+// taper and the roof narrow, where vBox can only make a straight prism. One polygon per visible side.
+function vLoft(o, st, col, fx) {
+  const cs = Math.cos(o.ang),
+    sn = Math.sin(o.ang),
+    P = vProj(o),
+    n = st.length;
+  for (const s of [-1, 1]) {
+    if (s * cs <= 0.02) continue;
+    const wnx = -s * sn;
+    let c = shade(col, clamp(1 - 0.25 * wnx, 0.62, 1.1));
+    if (LIGHT.rim > 0.05 && wnx * LIGHT.rimSide > 0) c = mixRgb(c, rimCol(), LIGHT.rim * 0.4 * Math.abs(wnx));
+    const quad = [];
+    for (let i = 0; i < n; i++) quad.push(P(st[i][0], s * st[i][1], st[i][2]));
+    for (let i = n - 1; i >= 0; i--) quad.push(P(st[i][0], s * st[i][1], st[i][3]));
+    fillPoly(quad, c);
+    if (fx?.gloss) {
+      const top = P(0, s * st[1][1], st[1][3]),
+        bot = P(0, s * st[1][1], st[1][2]),
+        g = ctx.createLinearGradient(top[0], top[1], bot[0], bot[1]),
+        [dc, da] = ROAD_DIRT[SEASON];
+      g.addColorStop(0, 'rgba(255,255,255,0.2)');
+      g.addColorStop(0.3, 'rgba(255,255,255,0)');
+      g.addColorStop(0.65, 'rgba(0,0,0,0.07)');
+      g.addColorStop(1, fx.dirt ? `rgba(${dc},${da})` : 'rgba(0,0,0,0.16)');
+      fillPoly(quad, g);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const q = quad[2 * n - 1 - i];
+        i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
+      }
+      ctx.stroke();
+    }
+  }
+  for (const e of [1, -1]) {
+    if (e * sn <= 0.02) continue;
+    const [x, hw, h0, h1] = e > 0 ? st[n - 1] : st[0],
+      wnx = e * cs;
+    fillPoly([P(x, -hw, h0), P(x, hw, h0), P(x, hw, h1), P(x, -hw, h1)], shade(col, clamp(1 - 0.25 * wnx, 0.62, 1.1)));
+  }
+  for (let i = 0; i < n - 1; i++) {
+    const [xa, wa, , ha] = st[i],
+      [xb, wb, , hb] = st[i + 1],
+      sl = ((hb - ha) * HZ) / (xb - xa); // rising towards the nose: its normal leans back, and the reverse
+    fillPoly(
+      [P(xa, -wa, ha), P(xb, -wb, hb), P(xb, wb, hb), P(xa, wa, ha)],
+      fx?.snow
+        ? mixHex(col, '#EEF2F5', fx.snow)
+        : shade(col, clamp(1.08 - sl * cs * 0.6 - Math.abs(sl) * 0.05, 0.85, 1.2))
+    );
+  }
+  return P;
+}
+// glass in a cabin loft [rear base, rear roof, front roof, front base] (each [x, half-width, h]): raked
+// windscreen and rear window on the tops, and panes (u ranges along the side) on the visible long side
+function vGlass(o, cab, panes, noRear) {
+  const cs = Math.cos(o.ang),
+    P = vProj(o),
+    night = LIGHT.night > 0.4,
+    [A, B, C, D] = cab,
+    lp = (p, q, t) => [lerp(p[0], q[0], t), lerp(p[1], q[1], t), lerp(p[2], q[2], t)],
+    gl = (t, b) => {
+      const g = ctx.createLinearGradient(t[0], t[1], b[0], b[1]);
+      g.addColorStop(0, night ? '#2A3546' : '#B4C8D3');
+      g.addColorStop(1, night ? '#141A24' : '#566C7A');
+      return g;
+    };
+  for (const [lo, hi] of noRear
+    ? [[D, C]]
+    : [
+        [A, B],
+        [D, C]
+      ]) {
+    // the sloped face between a base edge and a roof edge, drawn as a pane inset from its frame
+    const q = (u, v) => {
+      const m = lp(lo, hi, v);
+      return P(m[0], (u - 0.5) * 2 * m[1], m[2]);
+    };
+    fillPoly([q(0.07, 0.1), q(0.93, 0.1), q(0.9, 0.92), q(0.1, 0.92)], gl(q(0.5, 0.92), q(0.5, 0.1)));
+  }
+  for (const s of [-1, 1]) {
+    if (s * cs <= 0.02) continue;
+    const q = (u, v) => {
+      const m = lp(lp(A, D, u), lp(B, C, u), v);
+      return P(m[0], s * m[1], m[2]);
+    };
+    const g = gl(q(0.5, 0.9), q(0.5, 0.12));
+    for (const [u0, u1] of panes) fillPoly([q(u0, 0.12), q(u1, 0.12), q(u1 - 0.04, 0.9), q(u0 + 0.04, 0.9)], g);
+  }
+}
 const vProj = o => {
   const cs = Math.cos(o.ang),
     sn = Math.sin(o.ang);
@@ -589,12 +681,55 @@ function drawVehicle(v) {
   wheels(v, vProj(v), cw, true);
   vBox(v, -hl + 1, hl - 1, hd + 0.2, 0.07, 0.1, '#26231F'); // sill
   bumpers(v, hl, hd, true);
-  const P = vBox(v, -hl, hl, hd, 0.07, van ? 0.24 : 0.2, v.col, false, { gloss: true, dirt: true, snow: snow * 0.4 }),
-    cabin = [van ? -hl : -hl * 0.55, van ? hl * 0.35 : hl * 0.3];
-  vBox(v, cabin[0], cabin[1], van ? hd * 0.96 : hd * 0.9, van ? 0.24 : 0.2, van ? 0.44 : 0.34, v.col, true, {
-    gloss: true,
-    snow
-  });
+  const shape = van ? 3 : (v.col.charCodeAt(1) + v.col.charCodeAt(4)) % 3, // saloon, hatchback, estate: settled by paint
+    nose = van
+      ? [
+          [-hl, 0.95 * hd, 0.07, 0.24],
+          [hl * 0.4, hd, 0.07, 0.24],
+          [hl - 4, 0.97 * hd, 0.07, 0.215],
+          [hl - 1.5, 0.92 * hd, 0.075, 0.19],
+          [hl, 0.88 * hd, 0.09, 0.17]
+        ]
+      : [
+          [-hl, 0.9 * hd, 0.07, shape === 0 ? 0.18 : 0.2],
+          [-hl + 3, hd, 0.07, 0.205],
+          [hl * 0.4, hd, 0.07, 0.205],
+          [hl - 5, 0.98 * hd, 0.07, 0.19],
+          [hl - 1.5, 0.92 * hd, 0.075, 0.17],
+          [hl, 0.86 * hd, 0.09, 0.15]
+        ],
+    cab = van
+      ? [
+          [-hl + 0.4, 0.96 * hd, 0.24],
+          [-hl + 0.9, 0.96 * hd, 0.44],
+          [hl * 0.18, 0.96 * hd, 0.44],
+          [hl * 0.4, 0.9 * hd, 0.24]
+        ]
+      : [
+          [[-hl * 0.62, -hl * 0.78, -hl * 0.92][shape], 0.9 * hd, 0.205],
+          [[-hl * 0.38, -hl * 0.58, -hl * 0.88][shape], 0.76 * hd, 0.335],
+          [0, 0.76 * hd, 0.335],
+          [hl * 0.34, 0.9 * hd, 0.205]
+        ],
+    fx = { gloss: true, dirt: true, snow: snow * 0.4 },
+    P = vLoft(v, nose, v.col, fx);
+  vLoft(
+    v,
+    cab.map(c => [c[0], c[1], cab[0][2], c[2]]),
+    v.col,
+    { gloss: true, snow }
+  );
+  vGlass(
+    v,
+    cab,
+    van
+      ? [[0.6, 0.93]]
+      : [
+          [0.08, 0.47],
+          [0.53, 0.92]
+        ],
+    van
+  );
   bumpers(v, hl, hd, false);
   wheels(v, P, cw, false);
   doors(v, P, van ? [-hl * 0.15, hl * 0.2] : [-hl * 0.2, hl * 0.08], hd, 0.075, 0.2);
