@@ -109,7 +109,7 @@ function journalCapture() {
   journalShot = null;
   try {
     // close on a single animal, wider for a flock, the whole view for weather
-    const cw = Math.min(vw, vh * 1.6, typeof what.x !== 'number' ? 440 : what.members ? 340 : 240),
+    const cw = Math.min(vw, vh * 1.6, typeof what.x !== 'number' ? 440 : what.members ? 340 : 180),
       ch = cw * 0.625;
     let sx = vw / 2,
       sy = vh / 2;
