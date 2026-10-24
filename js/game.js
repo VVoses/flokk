@@ -56,6 +56,29 @@ function newBird(x, y) {
     c3: p[2]
   };
 }
+/* a few birds in the first flock carry a plain plumage difference (a pale head, a chestnut cap, a blond
+   back): no ring, label or name. They are the ones a player comes to know by eye, and the end card
+   says what became of them. */
+const MARKS = [
+  { name: 'the pale-headed one', c3: '#D9D0BC' },
+  { name: 'the chestnut-capped one', c3: '#8C4A28' },
+  { name: 'the blond one', c1: '#8E7A5C', c2: '#B09A78' }
+];
+function markBird(b, i) {
+  const m = MARKS[i];
+  b.mark = i;
+  if (m.c1) b.c1 = m.c1;
+  if (m.c2) b.c2 = m.c2;
+  if (m.c3) b.c3 = m.c3;
+}
+// a marked bird leaving the flock: noted for the end card, never announced in play
+function markFate(b, cause) {
+  const r = b.mark != null && st.marks && st.marks.find(m => m.i === b.mark);
+  if (r && !r.fate) {
+    r.fate = cause;
+    r.day = CAL.day - st.day0 + 1;
+  }
+}
 let birds = [],
   L = null,
   hawks = [],
@@ -592,6 +615,9 @@ function teach(key, text) {
   } catch (e) {
     /* storage unavailable: the hint just runs every time */
   }
+  showHint(text);
+}
+function showHint(text) {
   const el = $('hintEl');
   el.textContent = text;
   el.classList.remove('show');
@@ -687,6 +713,7 @@ function startGame() {
   if (SEASON !== 0) applySeason(0);
   refreshInsects();
   resetWorld(6, START.x, START.y);
+  st.marks = MARKS.map((m, i) => (markBird(birds[i + 1], i), { i, fate: '', day: 0 }));
   Object.assign(st, {
     energy: 0.85,
     starveT: 3,
@@ -738,6 +765,7 @@ function yearWon() {
   $('wonLosses').textContent = lossSummary();
   $('wonTitle').textContent = CAL.year > 1 ? `${CAL.year} years` : 'A year';
   $('wonSub').textContent = `${birds.length} ${birds.length === 1 ? 'bird' : 'birds'} greet the spring`;
+  renderMarks($('wonMarks'));
   $('shareNote').textContent = '';
   $('shareFallback').hidden = true;
   $('wonOv').hidden = false;
@@ -890,6 +918,7 @@ function gameOver() {
   $('overTitle').textContent = st.cause === 'starved' ? 'Starved' : 'Taken';
   $('overStats').innerHTML = overHTML();
   $('overLosses').textContent = lossSummary();
+  renderMarks($('overMarks'));
   $('overOv').hidden = false;
   dashBtn.hidden = true;
   syncHud();
@@ -966,7 +995,7 @@ async function runMenuJob(button, label, work) {
 
 // One modal boundary for every menu, including confirmations layered above another screen.
 function activeMenu() {
-  for (const id of ['confirmOv', 'pauseOv', 'wonOv', 'overOv', 'titleOv']) if (!$(id).hidden) return $(id);
+  for (const id of ['confirmOv', 'journalOv', 'pauseOv', 'wonOv', 'overOv', 'titleOv']) if (!$(id).hidden) return $(id);
   return null;
 }
 function menuControls(menu) {
@@ -979,7 +1008,7 @@ function syncMenuAccess() {
   cv.inert = !!menu;
   document.querySelector('.hud').inert = !!menu;
   dashBtn.inert = !!menu;
-  for (const id of ['titleOv', 'pauseOv', 'wonOv', 'overOv']) $(id).inert = !!menu && $(id) !== menu;
+  for (const id of ['titleOv', 'pauseOv', 'wonOv', 'overOv', 'journalOv']) $(id).inert = !!menu && $(id) !== menu;
 }
 let confirmation = null;
 function confirmMenu(title, text, actionLabel, action) {
@@ -1028,6 +1057,7 @@ document.addEventListener(
     }
     if (e.key === 'Escape' && !e.repeat) {
       if (confirmation) closeConfirmation(false);
+      else if (menu.id === 'journalOv') closeJournal();
       else if (menu.id === 'pauseOv') resume();
       else if (menu.id === 'titleOv' && $('titleCard').dataset.view === 'land' && !$('landBackBtn').hidden)
         showTitle('saves');
@@ -1163,9 +1193,10 @@ function feed(v) {
 // whether the bird was actually removed, so the caller knows whether to do that bookkeeping at all.
 // starveBird below is similar but deliberately separate: it picks its own bird rather than being
 // given one, and hands leadership to birds[0] rather than searching for the nearest survivor.
-function removeBird(b) {
+function removeBird(b, cause = 'taken') {
   const i = birds.indexOf(b);
   if (i < 0) return false;
+  markFate(b, cause);
   birds.splice(i, 1);
   if (b.perch && b.perch.occ === b) b.perch.occ = null;
   st.lost++;
@@ -1194,6 +1225,7 @@ function starveBird() {
   let b = birds[birds.length - 1];
   if (b === L && birds.length > 1) b = birds[birds.length - 2];
   const i = birds.indexOf(b);
+  markFate(b, 'starved');
   birds.splice(i, 1);
   if (b.perch && b.perch.occ === b) b.perch.occ = null;
   feathers(b.x, b.y, b.z, b.c2);

@@ -197,6 +197,7 @@
               <span class="note" id="landNote"></span>
               <div class="fine" id="bestTitle"></div>
             </div>
+            <button class="btn link" id="journalBtn">Field journal</button>
           </div>
         </div>
         <div class="pause-foot">
@@ -223,6 +224,7 @@
             <p class="sub" id="wonSub">the flock made it through</p>
             <div class="stats" id="wonStats"></div>
             <p class="flight-losses" id="wonLosses"></p>
+            <div class="marks" id="wonMarks"></div>
           </div>
           <div class="pause-actions end-actions">
             <button class="btn main" id="keepBtn">Keep flying <span aria-hidden="true">↗</span></button>
@@ -278,6 +280,7 @@
             <h2 id="overTitle">Taken</h2>
             <div class="stats" id="overStats"></div>
             <p class="flight-losses" id="overLosses"></p>
+            <div class="marks" id="overMarks"></div>
           </div>
           <div class="pause-actions end-actions">
             <button class="btn main" id="againBtn">Fly again <span aria-hidden="true">↗</span></button>
@@ -285,6 +288,15 @@
           </div>
         </div>
         <div class="pause-foot"><span>a new flight begins in spring</span><span>six sparrows, a fresh start</span></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="journalOv" role="dialog" aria-modal="true" aria-labelledby="journalTitle" hidden>
+      <div class="pause-panel journal-panel">
+        <div class="pause-topline"><span>field journal</span><span id="journalCount"></span></div>
+        <h2 id="journalTitle">Things seen in the parish</h2>
+        <div class="journal-grid" id="journalGrid"></div>
+        <div class="actions"><button class="btn" id="journalCloseBtn">Close</button></div>
       </div>
     </div>
 
@@ -339,6 +351,7 @@
     <script src="js/routes.js"></script>
     <script src="js/game.js"></script>
     <script src="js/flight.js"></script>
+    <script src="js/journal.js"></script>
     <script src="js/update.js"></script>
     <script src="js/render.js"></script>
     <script src="js/session.js"></script>

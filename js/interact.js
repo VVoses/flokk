@@ -322,8 +322,8 @@ function foxLife(a, dt) {
 }
 function foxCatch(a, b) {
   const extra = strikeToll({ kind: 'fox' }, b);
-  if (!removeBird(b)) return;
-  for (const o of extra) removeBird(o);
+  if (!removeBird(b, 'taken by the fox')) return;
+  for (const o of extra) removeBird(o, 'taken');
   thud('fox', 1, birds.length === 0, b.x, b.y);
 }
 
