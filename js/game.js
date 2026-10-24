@@ -948,7 +948,7 @@ $('rerollBtn').onclick = e => {
   initAudio();
   runMenuJob(e.currentTarget, 'Shaping the land…', newLand);
 };
-$('journalBtn').onclick = $('pauseJournalBtn').onclick = openJournal;
+$('journalBtn').onclick = openJournal;
 for (const id of ['pauseNewBtn', 'wonNewBtn', 'overNewBtn'])
   $(id).onclick = e => runMenuJob(e.currentTarget, 'Opening a new land…', goNewLand);
 $('keepBtn').onclick = e => runMenuJob(e.currentTarget, 'Preparing spring…', keepFlying);
