@@ -119,6 +119,7 @@ function frame(now) {
   sessionTick(dt);
   audioTick(dt);
   render();
+  journalCapture();
   hud(dt);
   requestAnimationFrame(frame);
 }
