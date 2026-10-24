@@ -1395,3 +1395,27 @@ kbd {
   flex: 0 0 24px;
   vertical-align: middle;
 }
+
+.journal-list {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  columns: 2;
+  column-gap: 24px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--ink);
+}
+.journal-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  break-inside: avoid;
+}
+.journal-list span,
+.journal-list .unseen {
+  color: var(--ink-muted);
+}
+.confirm-panel p + .journal-list {
+  margin-top: -8px;
+}

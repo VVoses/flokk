@@ -121,8 +121,8 @@ function strikeToll(h, b) {
 }
 function catchBird(h, b) {
   const extra = strikeToll(h, b);
-  if (!removeBird(b)) return;
-  for (const o of extra) removeBird(o);
+  if (!removeBird(b, `taken by ${h.kind === 'owl' ? 'an owl' : h.kind === 'eagle' ? 'the eagle' : 'a hawk'}`)) return;
+  for (const o of extra) removeBird(o, 'taken');
   thud(h.kind, h.bold, birds.length === 0, b.x, b.y);
   h.state = 'carry';
   h.target = null;

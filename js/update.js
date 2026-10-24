@@ -24,6 +24,7 @@ function update(dt) {
     updateWeather(dt);
   }
   weatherTick(dt);
+  journalTick(dt);
   calUpdate();
   seasonIntroTick(dt);
   runBgJob();
