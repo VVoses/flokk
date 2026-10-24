@@ -359,12 +359,12 @@ function shadowFly3(c, x, y, zpx, o, look, K) {
 }
 function birdPose(b) {
   const land = b.state === 'land',
-    fl = b.flapping || land || b.panic > 0;
+    fa = b.fa ?? (b.flapping || land || b.panic > 0 ? 1 : 0);
   return {
     psi: b.heading,
     bank: b.bank || 0,
     pitch: b.pitch || 0,
-    beat: fl ? Math.sin(b.flap) * LOOK.sparrow.amp : 0,
+    beat: Math.sin(b.flap) * LOOK.sparrow.amp * Math.min(1, fa),
     fold: b.fold || 0,
     fan: land ? 1 : 0
   };

@@ -158,13 +158,20 @@ function update(dt) {
         dvx = ax * maxS;
         dvy = ay * maxS;
       }
+      // the wish eases toward the input instead of jumping to it, so a flipped key or a new tap becomes
+      // a long curve; a dash cuts the lag so it still bites
+      const lag = Math.min(1, (st.dashT > 0 ? 14 : 5.5) * dt);
+      L.dvx = (L.dvx ?? L.vx) + (dvx - (L.dvx ?? L.vx)) * lag;
+      L.dvy = (L.dvy ?? L.vy) + (dvy - (L.dvy ?? L.vy)) * lag;
       const kk = st.dashT > 0 ? 6 : 2.3;
-      L.vx += (dvx - L.vx) * Math.min(1, kk * dt);
-      L.vy += (dvy - L.vy) * Math.min(1, kk * dt);
+      L.vx += (L.dvx - L.vx) * Math.min(1, kk * dt);
+      L.vy += (L.dvy - L.vy) * Math.min(1, kk * dt);
     } else {
       const f = Math.exp(-1.7 * dt);
       L.vx *= f;
       L.vy *= f;
+      L.dvx = L.vx;
+      L.dvy = L.vy;
     }
     // a gale pushes the flock along with it: easy downwind, hard work flying into it
     const [wx, wy] = windPush(L);
@@ -210,8 +217,8 @@ function update(dt) {
     if (b.state === 'fly' || b.state === 'land') {
       const sp = Math.hypot(b.vx, b.vy),
         ph0 = b.heading;
-      if (sp > 12) b.heading = angLerp(b.heading, Math.atan2(b.vy, b.vx), Math.min(1, dt * 10));
-      b.turn = lerp(b.turn || 0, angDiff(b.heading, ph0) / Math.max(dt, 1e-3), Math.min(1, dt * 6));
+      if (sp > 12) b.heading = angLerp(b.heading, Math.atan2(b.vy, b.vx), Math.min(1, dt * 7 * smooth(12, 60, sp)));
+      b.turn = lerp(b.turn || 0, angDiff(b.heading, ph0) / Math.max(dt, 1e-3), Math.min(1, dt * 5));
       b.bank = lerp(b.bank || 0, clamp((b.turn * sp) / 260, -1.1, 1.1), Math.min(1, dt * 6));
       const vz = (b.z - (b.pz ?? b.z)) / Math.max(dt, 1e-3);
       b.pz = b.z;
@@ -233,8 +240,27 @@ function update(dt) {
         // into the wind there is less gliding between bursts and the bursts run longer
         b.fbT = b.flapping ? rr(0.35, 1) * (1 + eff * 0.8) : rr(0.25, 0.8) * (1 - eff * 0.7);
       }
-      if (b.flapping || b.panic > 0 || sp < 60 || b.state === 'land')
-        b.flap += dt * (b.panic > 0 ? 34 : 24) * (1 + eff * 0.45);
+      /* wingbeat effort follows what the bird is doing: a slow easy stroke when cruising, a harder and
+         faster one while speeding up or climbing, and flat-out beating when it hangs on the spot, is
+         braking to land or is panicking. Rate and sweep ease toward their targets and the stroke keeps
+         turning while it fades, so a glide begins by the wings relaxing, never by freezing mid-stroke. */
+      const acc = ((sp - (b.psp ?? sp)) / Math.max(dt, 1e-3)) * 0.0025,
+        hang = b.state === 'fly' ? 1 - smooth(25, 95, sp) : 0,
+        push = clamp(acc, 0, 0.5) + clamp(vz * 0.35, 0, 0.4) + Math.max(0, eff) * 0.3;
+      b.psp = sp;
+      b.pacc = lerp(b.pacc ?? 0, push, Math.min(1, dt * 4));
+      let rT = 17 + 9 * b.pacc,
+        aT = b.flapping ? 0.62 + 0.5 * b.pacc : 0;
+      if (b.panic > 0) ((rT = 34), (aT = 1.1));
+      else if (b.state === 'land') ((rT = 30), (aT = 1.05));
+      else if (hang > 0) {
+        rT = lerp(rT, 31, hang);
+        aT = lerp(aT, 1.05, hang);
+      }
+      b.fr = lerp(b.fr ?? rT, rT, Math.min(1, dt * 6));
+      b.fa = lerp(b.fa ?? aT, aT, Math.min(1, dt * (aT > (b.fa ?? 0) ? 9 : 5)));
+      if (b.fa > 0.02) b.flap += dt * b.fr * (1 + eff * 0.3);
+      b.psp = sp;
     }
   }
   st.grounded = grounded;
