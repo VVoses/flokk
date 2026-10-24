@@ -630,12 +630,12 @@ function overHTML(won) {
     const note = !prev[k] ? '' : run[k] > prev[k] ? 'new best' : `best ${prev[k]}`;
     return `<div><b>${run[k]}</b><span>${label}</span>${note ? `<i>${note}</i>` : ''}</div>`;
   };
-  return cell('flock', 'largest flock') + cell('days', 'days');
+  return cell('flock', 'largest flock') + cell('days', run.days === 1 ? 'day' : 'days');
 }
 function lossSummary() {
   const hunger = st.starved || 0,
     predators = Math.max(0, (st.lost || 0) - hunger);
-  return `Lost to predators: ${predators} · hunger: ${hunger}`;
+  return [predators && `Lost to predators: ${predators}`, hunger && `hunger: ${hunger}`].filter(Boolean).join(' · ');
 }
 
 // how many midge clouds and dragonflies the season and the hour hold: summer thick with them, none in
@@ -841,11 +841,7 @@ function pause() {
   $('resumeBtn').focus();
   const saved = saveSession();
   $('pauseSaveNote').textContent =
-    saved === true
-      ? 'Your flight is saved automatically.'
-      : saved === null
-        ? 'No active save slot for this flight.'
-        : 'This flight could not be saved.';
+    saved === true ? '' : saved === null ? 'No active save slot for this flight.' : 'This flight could not be saved.';
 }
 function resume() {
   st.mode = 'play';
