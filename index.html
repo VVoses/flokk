@@ -224,7 +224,7 @@
             <p class="sub" id="wonSub">the flock made it through</p>
             <div class="stats" id="wonStats"></div>
             <p class="flight-losses" id="wonLosses"></p>
-            <p class="flight-losses" id="wonMarks"></p>
+            <div class="marks" id="wonMarks"></div>
           </div>
           <div class="pause-actions end-actions">
             <button class="btn main" id="keepBtn">Keep flying <span aria-hidden="true">↗</span></button>
@@ -280,7 +280,7 @@
             <h2 id="overTitle">Taken</h2>
             <div class="stats" id="overStats"></div>
             <p class="flight-losses" id="overLosses"></p>
-            <p class="flight-losses" id="overMarks"></p>
+            <div class="marks" id="overMarks"></div>
           </div>
           <div class="pause-actions end-actions">
             <button class="btn main" id="againBtn">Fly again <span aria-hidden="true">↗</span></button>
@@ -288,6 +288,15 @@
           </div>
         </div>
         <div class="pause-foot"><span>a new flight begins in spring</span><span>six sparrows, a fresh start</span></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="journalOv" role="dialog" aria-modal="true" aria-labelledby="journalTitle" hidden>
+      <div class="pause-panel journal-panel">
+        <div class="pause-topline"><span>field journal</span><span id="journalCount"></span></div>
+        <h2 id="journalTitle">Things seen in the parish</h2>
+        <div class="journal-grid" id="journalGrid"></div>
+        <div class="actions"><button class="btn" id="journalCloseBtn">Close</button></div>
       </div>
     </div>
 
@@ -303,7 +312,6 @@
       <div class="pause-panel confirm-panel">
         <h2 id="confirmTitle"></h2>
         <p id="confirmText"></p>
-        <ul class="journal-list" id="confirmList" hidden></ul>
         <div class="actions">
           <button class="btn" id="confirmCancelBtn">Cancel</button>
           <button class="btn danger" id="confirmActionBtn"></button>

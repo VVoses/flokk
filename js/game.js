@@ -79,10 +79,6 @@ function markFate(b, cause) {
     r.day = CAL.day - st.day0 + 1;
   }
 }
-function marksLine() {
-  if (!st.marks) return '';
-  return st.marks.map(r => `${MARKS[r.i].name} ${r.fate ? `${r.fate}, day ${r.day}` : 'lived through'}`).join(' · ');
-}
 let birds = [],
   L = null,
   hawks = [],
@@ -769,7 +765,7 @@ function yearWon() {
   $('wonLosses').textContent = lossSummary();
   $('wonTitle').textContent = CAL.year > 1 ? `${CAL.year} years` : 'A year';
   $('wonSub').textContent = `${birds.length} ${birds.length === 1 ? 'bird' : 'birds'} greet the spring`;
-  $('wonMarks').textContent = marksLine();
+  renderMarks($('wonMarks'));
   $('shareNote').textContent = '';
   $('shareFallback').hidden = true;
   $('wonOv').hidden = false;
@@ -922,7 +918,7 @@ function gameOver() {
   $('overTitle').textContent = st.cause === 'starved' ? 'Starved' : 'Taken';
   $('overStats').innerHTML = overHTML();
   $('overLosses').textContent = lossSummary();
-  $('overMarks').textContent = marksLine();
+  renderMarks($('overMarks'));
   $('overOv').hidden = false;
   dashBtn.hidden = true;
   syncHud();
@@ -948,7 +944,6 @@ $('rerollBtn').onclick = e => {
   initAudio();
   runMenuJob(e.currentTarget, 'Shaping the land…', newLand);
 };
-$('journalBtn').onclick = openJournal;
 for (const id of ['pauseNewBtn', 'wonNewBtn', 'overNewBtn'])
   $(id).onclick = e => runMenuJob(e.currentTarget, 'Opening a new land…', goNewLand);
 $('keepBtn').onclick = e => runMenuJob(e.currentTarget, 'Preparing spring…', keepFlying);
@@ -1000,7 +995,7 @@ async function runMenuJob(button, label, work) {
 
 // One modal boundary for every menu, including confirmations layered above another screen.
 function activeMenu() {
-  for (const id of ['confirmOv', 'pauseOv', 'wonOv', 'overOv', 'titleOv']) if (!$(id).hidden) return $(id);
+  for (const id of ['confirmOv', 'journalOv', 'pauseOv', 'wonOv', 'overOv', 'titleOv']) if (!$(id).hidden) return $(id);
   return null;
 }
 function menuControls(menu) {
@@ -1013,29 +1008,13 @@ function syncMenuAccess() {
   cv.inert = !!menu;
   document.querySelector('.hud').inert = !!menu;
   dashBtn.inert = !!menu;
-  for (const id of ['titleOv', 'pauseOv', 'wonOv', 'overOv']) $(id).inert = !!menu && $(id) !== menu;
+  for (const id of ['titleOv', 'pauseOv', 'wonOv', 'overOv', 'journalOv']) $(id).inert = !!menu && $(id) !== menu;
 }
 let confirmation = null;
-// the field journal: every first seen so far, shown in the confirmation card (a list and a Close button)
-function openJournal() {
-  const { n, total } = journalText();
-  confirmMenu('Field journal', `${n} of ${total} seen`, '', () => {});
-  $('confirmList').innerHTML = JOURNAL.map(([k, label]) =>
-    JOURNAL_SEEN[k] != null
-      ? `<li>${label}<span>${SEASON_NAMES[JOURNAL_SEEN[k]]}</span></li>`
-      : '<li class="unseen">?</li>'
-  ).join('');
-  $('confirmList').hidden = false;
-  $('confirmActionBtn').hidden = true;
-  $('confirmCancelBtn').textContent = 'Close';
-}
 function confirmMenu(title, text, actionLabel, action) {
   confirmation = { action, focus: document.activeElement };
   $('confirmTitle').textContent = title;
   $('confirmText').textContent = text;
-  $('confirmList').hidden = true;
-  $('confirmActionBtn').hidden = false;
-  $('confirmCancelBtn').textContent = 'Cancel';
   $('confirmActionBtn').textContent = actionLabel;
   $('confirmOv').hidden = false;
   syncMenuAccess();
@@ -1078,6 +1057,7 @@ document.addEventListener(
     }
     if (e.key === 'Escape' && !e.repeat) {
       if (confirmation) closeConfirmation(false);
+      else if (menu.id === 'journalOv') closeJournal();
       else if (menu.id === 'pauseOv') resume();
       else if (menu.id === 'titleOv' && $('titleCard').dataset.view === 'land' && !$('landBackBtn').hidden)
         showTitle('saves');
